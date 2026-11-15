@@ -64,7 +64,7 @@ and decisions; it does not dispatch work or replace the host's task panel.
 
    Use `--mode propose` or `--mode final` for those boundaries. `--theme light`,
    `dark` or `auto` controls appearance; `--recent-hours 4` controls the recent
-   timeline. Copy the complete skill folder when relocating it. Invalid ledgers
+   timeline. The renderer is a single relocatable file. Invalid ledgers
    exit nonzero with a useful message; correct the ledger before presenting.
 5. In T3 the main thread uses `html_preview` then `html_render` on the generated
    file. Outside T3 use the host's equivalent artifact or an accessible file link.

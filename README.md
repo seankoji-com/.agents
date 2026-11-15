@@ -522,7 +522,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: f737f61c3af3213145f0c73ef7b1a554c6b096f38945dfb95d4e14f5e65073b0 -->
+<!-- skills-review: 2c6513dd865370084c35e793b230787a9ccf7bdeb6b0cf60666a9676832452ce -->
 
 ### Owner maintenance
 

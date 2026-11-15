@@ -58,13 +58,23 @@ also have no comparable ratios. For comparable identities, sum original
 allocation minutes and segment elapsed minutes. Ratio is actual / estimate;
 a zero estimate has no defined ratio. Costs are reported independently of
 comparability. Actual review rounds count distinct positive review round numbers,
-so a paused round split into several segments counts once.
+so a paused round split into several segments counts once. Unknown identities
+are excluded from comparable ratios even when both sides say `unknown`.
 
 Baseline ghosts and overruns always use the original finish, even after a
 rebaseline. Projected or observed finish past it is labelled accordingly. Final
 accuracy uses segment duration, not the task's start-to-finish span, so recorded
 waiting time does not inflate model performance metrics. Overlapping delegates
 do not make their summed minutes a project wall-clock duration.
+
+The renderer adopts the Lane Ledger design: separate labelled build/review
+lanes, status chips and an owner-decision strip above both charts. Full identities
+sit outside bars so short or clipped segments remain readable. Provider events
+shade only matching-provider lanes during intersecting segment times; task/all
+events likewise intersect those lanes. Model colour is supported by explicit text.
+Milestones and rebaseline markers each get a separate row to avoid label collisions.
+Forecast bars divide the remaining forecast interval in proportion to original
+allocations (review only during an active review); they do not infer new budgets.
 
 The synthetic example under `examples/long-run.json` exercises multi-stream
 work, model changes, unknown costs, rebaselines, outages and owner gates. Copy it

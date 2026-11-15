@@ -1,12 +1,18 @@
 """Synthetic plan reporting arithmetic and rejection cases; no host/model calls."""
 import copy
+import ast
+from html.parser import HTMLParser
 import importlib.util
 import json
 from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-SPEC = importlib.util.spec_from_file_location("plan_ledger", ROOT / "skills/plan-report/scripts/ledger.py")
+SPEC = importlib.util.spec_from_file_location("plan_ledger", ROOT / "skills/plan-report/scripts/render.py")
 ledger = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(ledger)
 
@@ -98,7 +104,158 @@ class Ledger(unittest.TestCase):
         event = data["events"][1]
         self.assertTrue(ledger.event_affects(event, data["tasks"][9]))
         self.assertFalse(ledger.event_affects(event, data["tasks"][8]))
-        self.assertEqual(ledger.critical_path(data), ["T09"])
+        self.assertEqual(ledger.critical_path(data), ["T09", "T10"])
+
+    def test_long_dependency_chain_has_no_recursion_limit(self):
+        data = fixture()
+        template = data['tasks'][-1]
+        data['tasks'] = []
+        for i in range(1200):
+            task = copy.deepcopy(template)
+            task.update(id=str(i), dependencies=[str(i-1)] if i else [])
+            data['tasks'].append(task)
+        for name in ('events','milestones','needs_owner','rebaselines'):
+            data[name] = []
+        self.assertEqual(len(ledger.critical_path(ledger.validate(data))), 1200)
+
+
+class Tables(HTMLParser):
+    """Read visible cell text by section, independent of renderer formatting."""
+    def __init__(self, html):
+        super().__init__()
+        self.sections, self.cells, self.row = [], {}, []
+        self.cell = None
+        self.feed(html)
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == 'section':
+            self.sections.append(attrs.get('id'))
+        if tag == 'td':
+            self.cell = []
+        if tag in {'small', 'br'} and self.cell is not None:
+            self.cell.append(' ')
+
+    def handle_endtag(self, tag):
+        if tag == 'td':
+            self.row.append(' '.join(''.join(self.cell).split()))
+            self.cell = None
+        if tag == 'tr' and self.row:
+            self.cells.setdefault(self.sections[-1], []).append(self.row)
+            self.row = []
+        if tag == 'section':
+            self.sections.pop()
+
+    def handle_data(self, data):
+        if self.cell is not None:
+            self.cell.append(data)
+
+
+class Renderer(unittest.TestCase):
+    def test_distinct_efforts_and_unknown_identity_are_not_mixed(self):
+        data=fixture()
+        data['tasks'][0]['baseline']['allocations'][0]['effort']='low'
+        data['tasks'][0]['segments'][0]['effort']='low'
+        tables=Tables(ledger.render(data,'final')).cells
+        self.assertEqual(tables['by-effort'], [['high','600','810','1.35×'], ['low','60','90','1.5×']])
+        data['tasks'][0]['baseline']['allocations'][0]['model']='unknown'
+        data['tasks'][0]['segments'][0]['model']='unknown'
+        result=ledger.calibration(ledger.validate(data))
+        self.assertFalse(next(r for r in result['comparisons'] if r['task']=='T01' and r['kind']=='build')['comparable'])
+
+    def test_final_html_has_exact_calibration_and_known_unknown_costs(self):
+        html = ledger.render(fixture(), 'final', 'light')
+        tables = Tables(html).cells
+        self.assertEqual(tables['calibration'], [
+            ['Builder A synthetic-build', 'high', 'build', '420', '630', '1.5×'],
+            ['Reviewer B synthetic-review', 'high', 'review', '240', '270', '1.125×']])
+        self.assertEqual(tables['by-model'], [['synthetic-build / Builder A','420','630','1.5×'],
+                                             ['synthetic-review / Reviewer B','240','270','1.125×']])
+        self.assertEqual(tables['by-effort'], [['high','660','900','1.36364×']])
+        self.assertEqual(tables['by-kind'], [['build','420','630','1.5×'], ['review','240','270','1.125×']])
+        self.assertEqual(tables['review-rounds'][6], ['T07','1','2'])
+        excluded = tables['not-comparable'][0]
+        self.assertEqual(excluded[:3], ['T04','build','not comparable Identity changed'])
+        self.assertIn('60 min', excluded[3])
+        self.assertIn('Builder C', excluded[4])
+        costs = {row[0]: row[1:] for row in tables['costs']}
+        self.assertIn('$0.4800 known subtotal (host estimate)', costs['Reviewer B synthetic-review'][2])
+        self.assertTrue(costs['Builder C synthetic-build'][2].startswith('unknown'))
+        self.assertNotIn('id="calibration"', ledger.render(fixture(), 'report'))
+
+    def test_gantt_marks_scoped_events_rounds_and_decisions_are_data_driven(self):
+        data = fixture()
+        html = ledger.render(data)
+        for element in ('id="whole"','id="recent"','class="baseline"','class="overrun',
+                        'class="dependency"','class="handoff"','class="event-band"',
+                        'class="now"','class="marker gate"','class="marker rebaseline"',
+                        'class="bar build projection"','id="owner"','id="running"','id="events"',
+                        'id="overruns"','id="recently-completed"','R2 · Reviewer B · high'):
+            self.assertIn(element, html)
+        self.assertLess(html.index('class="decision-strip"'), html.index('id="whole"'))
+        first = html.split('id="whole-task-0"',1)[1].split('id="whole-task-1"',1)[0]
+        self.assertNotIn('data-event="E1"', first)  # finished before provider outage
+        affected = html.split('id="whole-task-3"',1)[1].split('id="whole-task-4"',1)[0]
+        build, review = affected.split('class="chart-row lane review"',1)
+        self.assertIn('data-event="E1"', build)
+        self.assertNotIn('data-event="E1"', review)  # different provider
+        for width_case in ('light','dark','auto'):
+            self.assertIn(f'class="report {width_case}"', ledger.render(data, theme=width_case))
+
+    def test_short_clipped_segments_long_names_and_untrusted_text_stay_readable(self):
+        data = fixture()
+        name = 'Very long model name ' * 12 + '<script>alert("x")</script>'
+        data['tasks'][8]['segments'][0]['model'] = name
+        data['tasks'][8]['title'] = 'Long task ' * 20
+        data['tasks'][8]['segments'][0]['start'] = '2026-10-03T10:00:00Z'
+        html = ledger.render(data)
+        self.assertNotIn('<script>alert', html)
+        self.assertIn('&lt;script&gt;alert', html)
+        # Complete identity is in the label, independently of the thin/clipped bar.
+        self.assertIn(f'<span class="lane-name">B · {ledger.esc(name)} · high</span>', html)
+        self.assertIn('clipped at window edge', html)
+        self.assertIn('overflow-wrap:anywhere', html)
+        self.assertNotIn('<script src=', html)
+        self.assertNotIn('<link ', html)
+
+    def test_projection_covers_forecast_without_shrinking_or_doubling(self):
+        task = fixture()['tasks'][8]
+        projected = ledger.projection(task, ledger.timestamp('2026-10-03T15:00:00Z'))
+        self.assertEqual([ledger.segment_minutes(s,'2026-10-04T00:00:00Z') for s in projected], [100,50])
+        self.assertEqual(projected[0]['end'], projected[1]['start'])
+        self.assertEqual(ledger.timestamp(projected[-1]['end']), ledger.timestamp(task['forecast']['end']))
+
+    def test_single_file_relocation_and_cli_invalid_inputs_leave_output_untouched(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            copied = root/'copied-render.py'
+            shutil.copy2(ROOT/'skills/plan-report/scripts/render.py', copied)
+            foreign = root/'foreign'
+            foreign.mkdir()
+            path, output = root/'ledger.json', root/'report.html'
+            command = [sys.executable,str(copied),str(path),'--mode','final','--output',str(output)]
+            path.write_text(json.dumps(fixture()))
+            result = subprocess.run(command,cwd=foreign,text=True,capture_output=True)
+            self.assertEqual(result.returncode,0,result.stderr)
+            self.assertIn('Final calibration',output.read_text())
+            saved = output.read_bytes()
+            for mutate, expected in [
+                (lambda d:d['tasks'][0]['dependencies'].append('absent'),'unknown dependency id: absent'),
+                (lambda d:d['tasks'][0]['segments'][0].update(end='2026-10-02T00:00:00Z'),'ends before it starts'),
+                (lambda d:d['tasks'][0].pop('baseline'),'missing approved baseline'),
+            ]:
+                data=fixture()
+                mutate(data)
+                path.write_text(json.dumps(data))
+                result=subprocess.run(command,cwd=foreign,text=True,capture_output=True)
+                self.assertNotEqual(result.returncode,0)
+                self.assertIn(expected,result.stderr)
+                self.assertNotIn('Traceback',result.stderr)
+                self.assertEqual(output.read_bytes(),saved)
+
+    def test_renderer_syntax_is_compatible_with_minimum_python(self):
+        source=(ROOT/'skills/plan-report/scripts/render.py').read_text()
+        ast.parse(source, feature_version=(3,10))
 
 
 if __name__ == "__main__":
