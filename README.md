@@ -193,7 +193,9 @@ are marked not comparable rather than inheriting another model's estimate.
 
 `ship`, `backlog-burn` and `implement` use it at proposal, on every progress turn
 with delegates, at final handback and on request. Solo progress needs a request;
-no-progress turns are skipped. Only the main thread presents the report. The
+no-progress turns are skipped. Whole-run timelines appear only at proposal and
+final handback; progress reports show the recent timeline. Empty collapsible
+sections are omitted. Only the main thread presents the report. The
 ledger and reports stay in a verified ignored worktree directory, outside GitHub;
 removing that worktree loses them. Host cost capabilities and their limits are
 documented in the skill's [cost evidence](skills/plan-report/references/host-costs.md).
@@ -523,7 +525,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 4c089c58c06093a2948b58e0181a9b77e1080dbe93404e98ba465dbfdd507324 -->
+<!-- skills-review: 42b3aa6c3c4dbf2771d54cae9c82d05a376dea7808194897caeaa49d5c31d5dd -->
 
 ### Owner maintenance
 

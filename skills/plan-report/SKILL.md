@@ -13,7 +13,8 @@ and decisions; it does not dispatch work or replace the host's task panel.
 
 1. Render at plan proposal, at final handback and on request. During a coordinated
    run with delegates, render on every turn that made progress. Render solo
-   progress only when asked. Skip no-progress turns.
+   progress only when asked. Skip no-progress turns. Whole-run timelines appear
+   only at proposal and final handback; progress reports show the recent timeline.
 2. The main-thread coordinator is the sole ledger writer and presenter. Delegates
    return segment start/completion timestamps, actual model/provider/effort,
    review round/result and exposed usage with sources. They never present the
@@ -77,14 +78,16 @@ asking and recording replies; the renderer only displays the ledger.
    Use `--mode propose` or `--mode final` for those boundaries. `--theme light`,
    `dark` or `auto` controls appearance; `--recent-hours 4` shows four hours before
    and after as-of. Recent comes first and stays expanded; each later section has
-   its own closed caret. Dates show absolute Sydney local clocks without repeated
+   its own closed caret when it contains data. Empty sections are omitted entirely.
+   Whole-run appears only in `propose` and `final`, never `report`, including
+   on-request progress updates. Dates show absolute Sydney local clocks without repeated
    timezone labels; source offsets and DST arithmetic stay intact. The renderer
    is a single relocatable file. Invalid ledgers
    exit nonzero with a useful message; correct the ledger before presenting.
 5. In T3 the main thread uses `html_preview` then `html_render` on the generated
    file. Outside T3 use the host's equivalent artifact or an accessible file link.
-   Reports are self-contained and make no network requests. Inspect the whole-run
-   and recent timelines, scoped event rows, dependencies and tables before claiming
+   Reports are self-contained and make no network requests. Inspect the timelines
+   included in that mode, scoped event rows, dependencies and populated tables before claiming
    a report is readable. Explain any missing host presentation capability.
 
 ## Final calibration

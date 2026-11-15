@@ -347,7 +347,7 @@ h1{font-size:29px;line-height:1.2;letter-spacing:-.7px;margin:8px 0}h2{font-size
 h3{font-size:14px;margin:12px 0 6px}p{margin:6px 0}a{color:var(--link)}small,.muted{color:var(--quiet);font-size:11px}
 header{padding-bottom:16px;border-bottom:1px solid var(--line)}.topline,.key{display:flex;gap:8px 16px;flex-wrap:wrap;align-items:center}
 .facts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}.facts strong{display:block;font-size:11px;color:var(--quiet)}
-.critical{grid-column:1/-1;border-left:3px solid var(--red);padding-left:10px}.critical a{display:inline-block;padding:1px 5px;border:1px solid var(--line);border-radius:3px;margin:2px}
+.critical{grid-column:1/-1;border-left:3px solid var(--red);padding-left:10px}.critical a,.critical .task-ref{display:inline-block;padding:1px 5px;border:1px solid var(--line);border-radius:3px;margin:2px}
 section{padding-top:22px}.chip{display:inline-block;border:1px solid var(--line);padding:1px 5px;border-radius:4px;font-size:10px;font-weight:650;background:var(--panel)}
 .chip.running,.chip.review{border-color:var(--link);color:var(--link)}.chip.blocked,.chip.ready,.chip.planned{color:var(--amber);border-color:var(--amber)}
 .chip.over{color:var(--red);border-color:var(--red)}.decision-strip{padding:10px 12px;border:1.5px solid var(--amber);border-radius:4px;background:var(--wash);margin-top:14px}
@@ -443,7 +443,7 @@ def section_html(title, body, section_id, wide=False, collapsed=True):
 def table(title, headers, rows, section_id, wide=False, note=None):
     content = ''.join('<tr>' + ''.join(f'<td>{cell}</td>' for cell in row) + '</tr>' for row in rows)
     if not content:
-        content = f'<tr><td colspan="{len(headers)}" class="muted">None recorded</td></tr>'
+        return ''
     body = ('<div class="table-scroll"><table><thead><tr>' +
             ''.join(f'<th scope="col">{esc(h)}</th>' for h in headers) +
             f'</tr></thead><tbody>{content}</tbody></table></div>')
@@ -706,9 +706,15 @@ def render(data, mode="report", theme="auto", recent_hours=4):
     milestone = min((m for m in data.get("milestones", []) if m["status"] not in {"done", "cancelled"}), key=lambda m:timestamp(m["target"]), default=None)
     next_text = (f'{esc(milestone["name"])} · {esc(display_time(milestone["target"]))}' if milestone else 'None pending')
     cp = critical_path(data)
+    boundary = mode in {'propose', 'final'}
+    cp_refs = []
+    for tid in cp:
+        index = next(i for i, task in enumerate(tasks) if task['id'] == tid)
+        cp_refs.append(f'<a href="#whole-task-{index}">{esc(tid)}</a>' if boundary
+                       else f'<span class="task-ref">{esc(tid)}</span>')
     content = f'<main class="report {theme}"><header><div class="topline"><span>Plan report · {mode}</span><span>{esc(project["status"])}</span></div><h1>{esc(project["name"])}</h1><p>As of <strong>{esc(display_time(project["as_of"]))}</strong></p>'
     content += f'<div class="facts"><div><strong>Next milestone / gate</strong>{next_text}</div><div><strong>Original plan</strong>{"Approved " + esc(display_time(data["approval"]["at"])) + " · " + esc(data["approval"]["approver"]) if data.get("approval") else "Proposal · approval pending"}</div>'
-    content += '<div class="critical"><strong>Current critical path · remaining forecast durations</strong>' + (' → '.join(f'<a href="#whole-task-{tasks.index(next(t for t in tasks if t["id"]==tid))}">{esc(tid)}</a>' for tid in cp) or 'No remaining tasks') + '</div></div></header>'
+    content += '<div class="critical"><strong>Current critical path · remaining forecast durations</strong>' + (' → '.join(cp_refs) or 'No remaining tasks') + '</div></div></header>'
     stale = [t['id'] for t in tasks if t['status'] not in {'done','cancelled'} and timestamp(t['forecast']['end']) < now]
     if stale:
         content += '<p class="muted">Stale forecasts: ' + esc(', '.join(stale)) + '. Finish overruns are lower bounds at as-of; update forecasts before relying on the schedule.</p>'
@@ -728,7 +734,8 @@ def render(data, mode="report", theme="auto", recent_hours=4):
     if hi == lo:
         hi += timedelta(hours=1)
     content += timeline(data, 'recent', now-timedelta(hours=recent_hours), now+timedelta(hours=recent_hours), palette)
-    content += timeline(data, 'whole', lo, hi, palette)
+    if boundary:
+        content += timeline(data, 'whole', lo, hi, palette)
     content += '<div class="tables">'
     content += decision_table(decisions)
     running = [(t,s) for t in tasks for s in t['segments'] if s.get('end') is None]
@@ -753,7 +760,7 @@ def render(data, mode="report", theme="auto", recent_hours=4):
                      [[esc(display_time(c['at']))+f'<small>{esc(c["approver"])}</small>', esc(c['reason']), '<br>'.join(f'{esc(tid)}: {esc(display_time(p["start"]))} · '+esc('; '.join(f'{a["kind"]} {a["model"]} {a["effort"]}: {fmt(a["minutes"])}m' for a in p['allocations'])) for tid,p in c['tasks'].items())] for c in data.get('rebaselines', [])], 'rebaselines', True)
     content += '</div>'
     content += table('Original baseline · task allocations and references', ['Task', 'Original allocations', 'Review rounds / references'],
-                     [[esc(t['id']+' · '+t['title']), '<br>'.join(esc(f'{a["kind"]}: {a["provider"]} / {a["model"]} / {a["effort"]} · {fmt(a["minutes"])}m') for a in t.get('baseline',{}).get('allocations',[])) or 'No baseline', esc(str(t.get('baseline',{}).get('review_rounds','unknown')))+f'<small>{esc("; ".join(t.get("issues",[])+t.get("prs",[])))}</small>'] for t in tasks], 'original', True)
+                     [[esc(t['id']+' · '+t['title']), '<br>'.join(esc(f'{a["kind"]}: {a["provider"]} / {a["model"]} / {a["effort"]} · {fmt(a["minutes"])}m') for a in t.get('baseline',{}).get('allocations',[])) or 'No baseline', esc(str(t.get('baseline',{}).get('review_rounds','unknown')))+f'<small>{esc("; ".join(t.get("issues",[])+t.get("prs",[])))}</small>'] for t in tasks if t.get('baseline') or t.get('issues') or t.get('prs')], 'original', True)
     if mode == 'final':
         content += calibration_html(data)
     content += '<footer>Private ledger report · forecasts are estimates · original approved allocations remain frozen. Rebaselines record decisions; event bands show exposure, not proven causation.</footer></main>'

@@ -87,8 +87,12 @@ sit outside bars so short or clipped segments remain readable. The header has a
 compact pending-question indicator linked to Decision record, rather than a prompt
 form. Recent is first and expanded, with `--recent-hours` hours of lookback and the
 same lookahead (four each by default). Each later user-facing section has its own
-closed native disclosure; opening one does not open the others. Original section
-IDs and links remain intact. Hidden chart geometry is measured only after reveal.
+closed native disclosure when it contains data; empty sections are omitted, including
+their headings and notes. Task rows with neither baseline nor issue/PR references
+do not populate the original-baseline section. Opening one disclosure does not open
+the others. Whole-run appears only in `propose` and `final`; `report` omits it entirely,
+including its task links. Rendered section IDs remain stable. Hidden chart geometry
+is measured only after reveal.
 Provider events shade only matching-provider lanes during intersecting segment times; task/all
 events likewise intersect those lanes. Model colour is supported by explicit text.
 An event during a task's waiting period gets a separate event-only row; it does

@@ -182,6 +182,45 @@ class Disclosures(HTMLParser):
 
 
 class Renderer(unittest.TestCase):
+    def test_whole_run_only_at_run_boundaries_and_links_resolve(self):
+        for mode in ('propose', 'report', 'final'):
+            with self.subTest(mode=mode):
+                html = ledger.render(fixture(), mode)
+                sections = Disclosures(html).sections
+                self.assertEqual('whole' in sections, mode != 'report')
+                self.assertIn('recent', sections)
+                ids = set(re.findall(r'\bid="([^"]+)"', html))
+                for target in re.findall(r'href="#([^"]+)"', html):
+                    self.assertIn(target, ids)
+
+    def test_empty_disclosures_are_omitted_but_populated_ones_remain(self):
+        data = fixture()
+        data['approval'] = None
+        for name in ('events', 'milestones', 'needs_owner', 'decisions', 'rebaselines'):
+            data[name] = []
+        task = data['tasks'][-1]
+        task.update(dependencies=[], segments=[], status='planned')
+        task.pop('baseline', None)
+        task.pop('cost', None)
+        task.pop('issues', None)
+        task.pop('prs', None)
+        data['tasks'] = [task]
+        absent = {'owner', 'running', 'overruns', 'events', 'recently-completed',
+                  'milestones', 'rebaselines', 'original', 'calibration',
+                  'by-model', 'by-effort', 'by-kind', 'not-comparable'}
+        for mode in ('propose', 'report', 'final'):
+            with self.subTest(mode=mode):
+                html = ledger.render(data, mode)
+                self.assertFalse(absent.intersection(Disclosures(html).sections))
+                self.assertNotIn('None recorded', html)
+        task['issues'] = ['synthetic issue 7']
+        html = ledger.render(data)
+        self.assertIn('original', Disclosures(html).sections)
+        self.assertIn('synthetic issue 7', Tables(html).cells['original'][0][-1])
+        data['events'] = fixture()['events'][:1]
+        data['events'][0]['scope'] = {'all': True}
+        self.assertIn('events', Disclosures(ledger.render(data)).sections)
+
     def test_recent_first_and_each_following_section_independently_closed(self):
         data=fixture()
         before=copy.deepcopy(data)
@@ -292,7 +331,7 @@ class Renderer(unittest.TestCase):
                     ledger.validate(data)
 
     def test_waiting_events_and_handoffs_show_real_boundaries(self):
-        html=ledger.render(fixture(), recent_hours=1)
+        html=ledger.render(fixture(), 'final', recent_hours=1)
         recent=section_fragment(html,'recent')
         self.assertIn('id="recent-task-9"',recent)
         self.assertIn('data-event="E2"',recent)
@@ -350,7 +389,7 @@ class Renderer(unittest.TestCase):
 
     def test_gantt_marks_scoped_events_rounds_and_decisions_are_data_driven(self):
         data = fixture()
-        html = ledger.render(data)
+        html = ledger.render(data, 'propose')
         for element in ('id="whole"','id="recent"','class="baseline"','class="overrun',
                         'class="dependency"','class="handoff"','class="event-band"',
                         'class="now"','class="marker gate"','class="marker rebaseline"',
