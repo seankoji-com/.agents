@@ -15,12 +15,12 @@ review skill. Do not read other skill files unless your brief names them.
    brief, including any explicit user reassignment. If they conflict or evidence
    is missing, report it first and leave the requested model/settings unverified.
    The parent checks host evidence unavailable to you.
-   Check your own model lineage against the coordinator and author identities
-   in your brief. Versions, effort settings and provider aliases are the same
-   lineage. If an identity is missing or yours matches one, say so first and do
-   not claim an independent review. If your brief names you an additional judge
-   under the higher-reasoning exception, report that exception instead of
-   claiming cross-lineage review.
+   For written code, compare your lineage only with the material code authors,
+   including repairers. Versions, effort and provider aliases do not change lineage.
+   If a code-author identity is missing or matches yours, report the code-review
+   gap. The orchestrator matters only if it wrote code; matching it needs no waiver.
+   Plans, prose and visual judgments have no lineage exclusion and cannot replace
+   independent review of the underlying code.
 5. Separate what you observed from what you suspect. Uncertainty is an evidence
    gap. It does not lower severity.
 

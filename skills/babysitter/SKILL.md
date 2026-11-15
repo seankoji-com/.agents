@@ -36,7 +36,8 @@ orchestration. Prefer direct work for small fixes. Children do their assignment
 directly, never delegate or watch, and return required review/filing work to
 their coordinator. The coordinator supplies those actors; a child's completion
 does not discharge its PR. Use [review](../review/SKILL.md) to select a
-cross-lineage reviewer and obtain fresh review of material repairs. An unattended
+reviewer and obtain fresh review of material repairs. Code reviewers must differ
+from code authors, not an orchestrator that only coordinates. An unattended
 bot qualifies only with verified identity, scope and current-diff evidence.
 
 In T3, read [dispatch and ownership](references/t3.md) before inventory or

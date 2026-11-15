@@ -54,11 +54,10 @@ workers. Every reviewer, recheck and additional opinion uses
   likely extra attempts and coordination overhead. If reliable prices or task
   performance are unavailable, state the heuristic and uncertainty. Do not invent
   prices, claim a measured optimum or build a model registry.
-- Reserve an eligible reviewer route before assigning coding workers. The reviewer
-  must differ in lineage from the lead/coordinator and every material model author
-  for primary review; additional judges may use review's higher-reasoning exception.
-  When cost is comparable, prefer eligibility against the main thread too, so
-  shipping can reuse the review. Report when that later eligibility is absent.
+- Reserve primary and companion review routes before assigning coding workers.
+  The primary code reviewer must differ in lineage from every material code author.
+  A lead or main thread that only orchestrates imposes no lineage restriction.
+  Shipping can reuse review when it covers the accepted code and its authors.
   Reassess eligibility after repairs or model changes. Record each model, effort,
   role, selection reason and exposed usage; unknown usage stays unknown.
 
@@ -103,7 +102,7 @@ do not set up a replacement checkout in the shell or a child's prompt.
 If nested reviewer dispatch is unavailable, the lead returns checkpointed work
 marked review-pending. The main thread obtains review against that worktree's
 exact committed HEAD using the same preserved review-loop progress and selection
-policy and rechecks eligibility against its own lineage. Give the reviewer the
+policy and rechecks eligibility against the actual code authors. Give the reviewer the
 lead worktree's absolute path and exact HEAD; require it to verify that HEAD
 before reading the scoped source there. Do not review the main checkout as a
 substitute. The main thread sends any required repairs back to the preserved
@@ -152,7 +151,7 @@ Return a compact plain-text handoff containing:
   limitations and the next integration action.
 - Models/lineages, selection reasons, upgrade use, scores, stagnation counter,
   explicit limits and exposed usage/cost.
-- Review eligibility for main-thread reuse and any integration/base changes
+- Code-author eligibility and scope for reuse, and any integration/base changes
   that would require affected behavior to be reviewed again.
 - Task/thread manifest including descendants, failures and cancellations; worker
   worktree paths, evidence locations and cleanup status.

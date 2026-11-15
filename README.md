@@ -54,9 +54,9 @@ The skills are written and tested in [T3 Code](https://github.com/pingdotgg/t3co
 which runs agents from several providers, such as Codex, Claude and OpenCode, in
 one app. They use what T3 provides:
 
-- **Reviewers from another model family.** `review`, `think`, `challenge`,
-  `review-loop` and `design-loop` have a model from a different family check the work. A model checking
-  its own work tends to share the blind spots that produced it
+- **Separate reviewers.** `review`, `think`, `challenge`, `review-loop` and
+  `design-loop` obtain a separate review. Written-code reviewers differ in family
+  from the code authors. A model checking its own code tends to share the blind spots that produced it
   ([research](#why-a-different-model-family-reviews-the-work)). T3 can start that
   reviewer on another provider from inside the same conversation.
 - **Separate workspaces.** `implement` runs coding in its own T3 worktree, so the
@@ -71,7 +71,7 @@ one app. They use what T3 provides:
 Most skills still work in Claude Code, Codex or another host that supports
 skills, using what that host offers instead. Outside T3, `babysitter` waits with
 its bundled `scripts/pr-wait` helper, and `ship` posts status lists in the
-conversation. `implement` and asynchronous `raise-issue` need T3. Cross-family
+conversation. `implement` and asynchronous `raise-issue` need T3. Cross-family code
 review needs a host that can reach a second model family; without one, the agent
 reports the review as unavailable instead of reviewing its own work.
 
@@ -105,27 +105,30 @@ the same way:
 The [review](skills/review/SKILL.md) skill applies this in a few rules:
 
 - Reviewers default to Sol at high effort, or Opus at high effort when Sol
-  materially authored the work or shares the coordinator's lineage. On exhausted
+  materially authored the reviewed code. On exhausted
   credits, Sol falls back to Opus, then Sonnet via AGY; Opus falls back to Sonnet
-  via AGY, then Sol. All three use high effort. Only lineage conflicts unlock
-  Grok 4.7, then DeepSeek Flash V4.1 high, then Hydrogen high. Other models require
+  via AGY, then Sol. All three use high effort. For primary fallbacks, only code-author lineage conflicts unlock
+  Grok 4.7, then Hydrogen high. DeepSeek Flash V4.1 is used only inside OCR,
+  never as a directly dispatched reviewer. Other models require
   your explicit selection. The [selection rules](skills/review/references/model-selection.md)
   apply inside `implement` too. If no eligible authorised route remains, review stays pending.
-- The primary reviewer's lineage must differ from the coordinator's and from every
-  model that materially wrote the work. A new version, effort setting or provider
-  alias of the same model is still the same lineage.
+- Cross-lineage restrictions apply only to written code, measured against models
+  that materially wrote that code. The orchestrator is irrelevant unless it also
+  wrote code. Sol can review Opus/Fable-authored code while Sol orchestrates,
+  without a waiver. Plans, prose and visual judgments have no lineage exclusion.
+  Versions, effort settings and provider aliases do not change a model's lineage.
+- Run the primary and required companions in parallel: `opencodereview`, invoking
+  the OCR library, for non-UI/visual changes; Hydrogen high for UI/visual changes;
+  both for mixed scope. The [parallel-review guide](skills/review/references/parallel-review.md)
+  defines invocation, coverage and reporting. Companions do not replace the primary.
 - Findings need evidence, such as a reproduction, test output, screenshot or
   file and line. A verdict without supporting reasoning does not count. Kim et al.
   also found that strong models from different providers still share many errors,
   so a second family reduces shared blind spots without removing them.
 - When several judges score a loop round, the round takes the lowest score.
-- In `review-loop` and `design-loop`, an additional judge may share a lineage
-  when its reasoning level is strictly higher than every implementor's. That
-  may require your explicit choice of higher effort or another model. The
-  exception is this library's own judgment, made to widen the judge pool. The
-  research above does not test it, and it never replaces the primary
-  cross-lineage review.
-- If no second family is reachable, the agent reports the review as unavailable.
+- Extra plan and visual judges may share a lineage without an effort exception.
+  Their judgments do not replace independent review of authored code.
+- If no eligible second family is reachable for code review, the agent reports it as unavailable.
   It does not review its own work and call that independent.
 
 These studies measure LLM judges and reasoning benchmarks, not code review with
@@ -146,7 +149,7 @@ Settle what to build and how people will use it before implementation.
 - [think](skills/think/SKILL.md): Turn an idea into a buildable brief through focused questions and a check for unresolved decisions.
 - [challenge](skills/challenge/SKILL.md): Get an independent critique of a proposal, a simpler alternative, and evidence that would help you choose. No implementation.
 - [choose-design](skills/choose-design/SKILL.md): Compare visual options for a new interface or a material interaction change, then choose before building.
-- [design-loop](skills/design-loop/SKILL.md): Research comparable products and autonomously improve the real UI toward a fixed score target, with cross-lineage judges and annotated reports each round.
+- [design-loop](skills/design-loop/SKILL.md): Research comparable products and autonomously improve the real UI toward a fixed score target, with parallel judges and annotated reports each round.
 - [focus-group](skills/focus-group/SKILL.md): Explore a product through fictional participants in a clearly labelled synthetic study. Model responses are not human research.
 
 ### Engineering
@@ -155,7 +158,7 @@ Build, check, and deliver changes with evidence of what works and what remains.
 
 - [ship](skills/ship/SKILL.md): Carry a change through implementation, checks, independent review, and delivery, with visible progress and a final workflow retrospective.
 - [implement](skills/implement/SKILL.md): Move substantial coding into a separate workspace and return reviewed commits to the main conversation for integration. Requires T3 delegation.
-- [review](skills/review/SKILL.md): Evaluate a plan, change, or release using an independent model family. Return findings tied to evidence without changing code.
+- [review](skills/review/SKILL.md): Evaluate a plan, change, or release against its requirements. Code reviewers differ in family from code authors. Return evidence-backed findings without edits.
 - [review-loop](skills/review-loop/SKILL.md): Hill-climb through repairs and review until the score target and required gates pass or two consecutive rounds fail to improve the best score.
 - [test-writer](skills/test-writer/SKILL.md): Choose tests that catch consequential failures, with attention to reliability, maintenance, and CI time.
 - [raise-pr](skills/raise-pr/SKILL.md): Prepare PR descriptions and evidence that meet the repository's requirements. Creating or updating the PR needs authority from your request.
@@ -228,10 +231,13 @@ a job, especially one that can publish or merge changes.
   explicitly configured skill repository. These skills do not bypass protections.
 - **Sharing.** Invoking `choose-design` permits sending the minimal design
   brief to the selected providers, subject to your sharing limits. Broader raw-file
-  sharing needs separate authority.
-- **Review.** Independent review uses a different model family from the
-  coordinator and material authors. Additional loop judges may share a lineage
-  when their verified reasoning level is higher than every material implementor's.
+  sharing needs separate authority. OCR sends the selected diff and context to its
+  configured provider; use existing authority for that scope and exclude secrets
+  and unrelated files. Covered authorization needs no repeated question.
+- **Review.** Written-code review uses a different model family from the code
+  authors. The orchestrator's family is irrelevant unless it wrote code.
+  Plans, prose and visual judgments have no lineage exclusion. OCR or Hydrogen high
+  runs alongside the primary according to the scope.
 - **Evidence.** The agent reports checks against the revision it actually tested.
   Missing access, unavailable reviewers, and unverified behavior remain visible gaps.
 - **Follow-through.** Confirmed bugs deliberately left unfixed need tracking.
@@ -297,7 +303,10 @@ hosts can use skills whose required capabilities they provide. Isolated `impleme
 required capability is missing. Inline issue work requires an explicit request.
 
 Reading the instructions needs no running service. Python helpers require Python
-3.10+ and the standard library. Owner host-delivery configuration is only for
+3.10+ and the standard library. Repository diff reviews also require the installed
+[OpenCodeReview CLI](https://github.com/alibaba/open-code-review) and a configured,
+authorised OCR provider. UI/visual review needs host access to Hydrogen high.
+Owner host-delivery configuration is only for
 maintaining this repository, not for using skills from a clone.
 
 Older releases through v0.13.2 contain archives from the previous package.
@@ -422,15 +431,15 @@ for a human introduction, or open a skill here to read its exact instructions.
 | [agent-tuneup](skills/agent-tuneup/SKILL.md) | Use when the user asks to audit, troubleshoot or change agent configuration, permissions, MCP connections or native skill discovery. |
 | [babysitter](skills/babysitter/SKILL.md) | Autonomously repair requested pull requests through verified merge. Use when asked to babysit, merge, watch or monitor PRs; honour explicit read-only and no-merge limits. |
 | [backlog-burn](skills/backlog-burn/SKILL.md) | Burn a repository's open issues and pull requests down to zero, or launch one run per repository for a named organisation. Use for backlog reduction, clearing open PRs, unblocking owner decisions or dispatching issue fixes. Prefer evidence-based closure and useful delegation up to 20. |
-| [challenge](skills/challenge/SKILL.md) | Pressure-test an idea, design or proposal with an independent cross-lineage reviewer. Use when the user asks for an adversarial second opinion, asks "are you sure", or wants to challenge assumptions; return findings without implementation. |
+| [challenge](skills/challenge/SKILL.md) | Pressure-test an idea, design or proposal with an independent reviewer. Use when the user asks for an adversarial second opinion, asks "are you sure", or wants to challenge assumptions; return findings without implementation. |
 | [choose-design](skills/choose-design/SKILL.md) | Use after product decisions are settled for new UI, requested redesigns or material unresolved visual or interaction choices. For existing UI, preserve its design and limit choices to the requested change; routine edits need no chooser. |
-| [design-loop](skills/design-loop/SKILL.md) | Improve a product's UI through reference research, direct interaction and scored cross-lineage judging, with annotated HTML reports each round and a final PR. Use for autonomous design iteration toward a score target, rather than operator-selected mockup options. |
+| [design-loop](skills/design-loop/SKILL.md) | Improve a product's UI through reference research, direct interaction and scored judging, with annotated HTML reports each round and a final PR. Use for autonomous design iteration toward a score target, rather than operator-selected mockup options. |
 | [focus-group](skills/focus-group/SKILL.md) | Use when the user requests a synthetic focus group or persona-based product evaluation, including planning, running or reviewing the study. |
 | [github-writing](skills/github-writing/SKILL.md) | Use whenever drafting or editing LLM-written GitHub issues, pull requests, comments, reviews, discussions or release notes on the user's behalf. |
 | [implement](skills/implement/SKILL.md) | Use when the user invokes implement or requests implementation through T3 delegates, returning reviewed commits for the main thread to integrate and ship. |
 | [raise-issue](skills/raise-issue/SKILL.md) | Use when the user or an authorised workflow asks to investigate, prepare, file or follow up on a bug, feature or task issue in an owned, organisation or external repository, using an asynchronous T3 delegate. |
 | [raise-pr](skills/raise-pr/SKILL.md) | Use whenever creating or updating a pull request, including during implementation, review-loop, ship and PR maintenance. |
-| [review](skills/review/SKILL.md) | Use for independent cross-lineage reviews of plans, code, UI, backend and releases, including review-loop participants and think's stop-condition check. |
+| [review](skills/review/SKILL.md) | Use for independent reviews of plans, code, UI, backend and releases, including review-loop participants and think's stop-condition check. Code review must differ in lineage from the code authors. |
 | [review-loop](skills/review-loop/SKILL.md) | Use when the user requests an iterative implementation, independent review and repair loop, or invokes review-loop to carry a goal to an agreed endpoint. |
 | [ship](skills/ship/SKILL.md) | Use when the user explicitly asks to ship a change, or backlog-burn invokes delivery, with visible progress tracking and a final workflow retrospective. |
 | [test-writer](skills/test-writer/SKILL.md) | Use when writing or reviewing tests, choosing regression coverage, or assessing test value, reliability and CI runtime. |
@@ -495,7 +504,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 97b1cf6a9684898bc79dff2f928eb3d77c8c98e4738f89ad7d47cd518c3ae6f8 -->
+<!-- skills-review: 14fe8a52ccdf9b62e9e69bbe9ad06d2413b1b259d5103dc1af2b598d845539bf -->
 
 ### Owner maintenance
 

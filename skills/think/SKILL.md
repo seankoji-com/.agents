@@ -26,7 +26,7 @@ rejected alternatives and their reasons; do not exhaust every possible branch.
 If the user requests an exhaustive interview, continue to that endpoint instead.
 
 Before concluding the interview or handing off implementation, use
-[review](../review/SKILL.md) to obtain a cross-lineage second opinion on that
+[review](../review/SKILL.md) to obtain a separate second opinion on that
 stop condition. Supply the original request, current brief, settled decisions,
 assumptions, relevant facts and intended next implementation step. Ask the
 reviewer to state whether the condition is met and identify any remaining
@@ -40,7 +40,7 @@ review when material gaps change it. Allow at most three readiness reviews,
 including failed attempts, across the interview and its resumes. If the budget
 is exhausted or reviews stall, apply review's
 [budget diagnosis](../review/references/budget-exhaustion.md) within this
-three-review limit. If readiness remains unverified or cross-lineage review is
+three-review limit. If readiness remains unverified or required review is
 unavailable, report readiness as
 incomplete and hold implementation. Still provide the brief in the requested
 format, or offer the artifact choices below, marked not ready with the review

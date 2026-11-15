@@ -28,7 +28,7 @@ and follow it instead of this file.
 
 - A burn-down request ("clear", "burn down", "get to zero") authorises:
   implementing through delegates, pushing scoped branches, opening PRs,
-  requesting cross-lineage review, squash-merging when the repository's gates
+  requesting independent review, squash-merging when the repository's gates
   are green, babysitting unowned open PRs, closing PRs unmerged under
   [the PR rules](references/pull-requests.md), and closing ordinary issues
   under [the classification rubric](references/classification.md).
@@ -132,7 +132,7 @@ first dispatch, and run their preflight once.
 - Record each returned task ID and worktree; no receipt means not dispatched.
 - Never implement an issue fix in this thread. If delegation is unavailable,
   ask the owner. If a lead cannot start its own reviewer, get the
-  cross-lineage review yourself against the exact committed head; self-review
+  independent review yourself against the exact committed head; self-review
   never counts.
 - The main thread owns every PR link, watch and merge. Delegates never watch.
 - One issue, one PR. Use `Refs #N` instead of a closing keyword when acceptance

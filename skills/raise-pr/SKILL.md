@@ -73,9 +73,11 @@ screenshots of code or terminals are not a substitute for UI evidence.
 
 Before creating a PR, obtain a completed independent code review covering the
 proposed diff. Reuse an existing review only when it covers the current behavior.
-Apply [review](../review/SKILL.md) for cross-lineage eligibility, reviewer
-selection, dispatch, evidence and findings. Self-review and a separate same-family
-agent do not qualify. Give the reviewer the diff, relevant context and acceptance
+Apply [review](../review/SKILL.md) for code-author eligibility, reviewer
+selection, dispatch, evidence and findings. For written code, a reviewer from its
+authors' lineage does not qualify. The orchestrator's lineage is irrelevant unless
+it wrote code; plans, prose and visual judgments have no lineage exclusion.
+Give the reviewer the diff, relevant context and acceptance
 criteria and require it to read review's
 [assigned-reviewer card](../review/references/assigned-reviewer.md). Bound a
 standalone review/repair cycle to three rounds; report unresolved gates when
@@ -100,7 +102,7 @@ semantics may reuse the review; explain reuse and rerun affected checks.
 After a rebase, apply [review reuse](references/review-reuse.md) to merge-base
 checks, patch comparisons and changes in the base's assumptions.
 A human review may satisfy repository approval rules; it does not replace this
-skill's required cross-lineage model review. Agent review cannot replace a
+skill's required model review. Agent review cannot replace a
 required human approval, and no review replaces required CI.
 
 Before pushing material changes with review pending, check existing auto-merge

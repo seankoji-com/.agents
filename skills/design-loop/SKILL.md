@@ -1,6 +1,6 @@
 ---
 name: design-loop
-description: Improve a product's UI through reference research, direct interaction and scored cross-lineage judging, with annotated HTML reports each round and a final PR. Use for autonomous design iteration toward a score target, rather than operator-selected mockup options.
+description: Improve a product's UI through reference research, direct interaction and scored judging, with annotated HTML reports each round and a final PR. Use for autonomous design iteration toward a score target, rather than operator-selected mockup options.
 ---
 
 # Improve a product's design
@@ -17,11 +17,11 @@ brand constraints, supported platforms, states and viewports. Iterate autonomous
 inside that boundary; ask only about decisions that change it. Use `choose-design`
 instead when the user wants to select mockup options before implementation.
 
-The operator chooses the roster: implementor, a mandatory primary judge and any
-additional judges: one by default, zero or several on request. Discover eligible
-models and exact options through supported host tools first, then ask for each
-role the request leaves unnamed in the first setup batch, with a recommendation. Until the operator
-answers, do only roster-independent setup; dispatch no implementor or judge.
+The operator chooses the implementor, primary judge and optional panel judges.
+Hydrogen high is the mandatory parallel visual companion throughout both phases,
+separate from optional scoring seats. Discover exact models/options first. Ask
+for unnamed operator-selected roles in the first setup batch, with a recommendation.
+Until answered, do only roster-independent setup; dispatch no implementor or judge.
 No round cap, deadline, spend ceiling or endpoint allowance is required.
 Record and honour explicit user limits. Routine implementation decisions need no
 further approval. Changing criteria or roster requires explicit reconciliation
@@ -58,12 +58,11 @@ before edits.
 
 ## Prepare independent judges
 
-Use [review](../review/SKILL.md) for verified cross-lineage eligibility, dispatch,
-evidence, finding severity and reporting. Judges differ from the coordinator and
-all material implementors for the primary review. Additional judges may share
-a lineage under review's verified higher-reasoning exception; otherwise they
-differ from the coordinator, implementors and one another. Report unavailable
-models or lineage conflicts without silent substitution.
+Use [review](../review/SKILL.md) for dispatch, parallel companions, evidence,
+finding severity and reporting. Run Hydrogen high alongside the primary visual
+judge. Visual judgments have no lineage exclusion. Only written-code review
+must differ from the code authors; the orchestrator's model is irrelevant.
+Report unavailable required reviewers without silent substitution.
 Apply [dispatch preflight](../agent-tuneup/references/t3-dispatch.md) for T3 tasks,
 including permission compatibility and the actual source of sharing authority.
 Send only task-relevant material within that authority.
@@ -105,7 +104,8 @@ recovery. This skill's score target and two-round stagnation counters govern des
 of `review`'s generic finding-based round limit or advice against unanimity.
 Independent code review at the PR endpoint keeps its normal budget and gates.
 
-1. Evaluate the baseline with the primary judge to seed the primary best score.
+1. Evaluate the baseline with the primary and Hydrogen companion in parallel;
+   seed the primary best from the primary score.
 2. Implement scoped repairs from the phase's best candidate, run covering checks
    and obtain fresh evaluation. Save each owned candidate as a local commit when
    authorized, or preserve an exact patch/snapshot without touching unrelated work.

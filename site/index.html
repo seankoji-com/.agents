@@ -67,7 +67,7 @@
       <div class="facts">
         <div>
           <h3>A second opinion from another model</h3>
-          <p>A model checking its own work tends to share the blind spots that produced it. <code>review</code>, <code>think</code> and <code>challenge</code> ask a model from a different family instead, and T3 can start one on another provider without leaving the conversation. <a href="#why-review">Why this matters</a>.</p>
+          <p><code>review</code>, <code>think</code> and <code>challenge</code> obtain a separate opinion. For written code, the reviewer comes from a different family than the code authors. The orchestrator's family does not matter unless it wrote code. <a href="#why-review">Why this matters</a>.</p>
         </div>
         <div>
           <h3>Big jobs in their own workspace</h3>
@@ -101,7 +101,7 @@
         <li><p><strong>Checking yourself doesn't fix much.</strong> Without outside feedback, models struggle to correct their own reasoning and sometimes make it worse (<a href="https://arxiv.org/abs/2310.01798">Huang et al., ICLR 2024</a>).</p></li>
         <li><p><strong>Mixed panels judge better.</strong> A panel of smaller models from different families beat a single GPT-4 judge on six datasets, with less bias, at over seven times less cost (<a href="https://arxiv.org/abs/2404.18796">Verga et al., 2024</a>).</p></li>
       </ul>
-      <p class="section-intro">So the skills always ask a model from a different family than the one that did the work, and they want evidence, not just a verdict. If no second family is available, your agent says so instead of reviewing its own work. These studies cover AI judges and reasoning tests, not these skills directly. <a href="https://github.com/seankoji-com/.agents#why-a-different-model-family-reviews-the-work">Read the full rationale</a>.</p>
+      <p class="section-intro">For written code, reviewers come from a different family than the code authors and provide evidence for their findings. Plans, prose and visual judgments have no family restriction. These studies cover AI judges and reasoning tests, not these skills directly. <a href="https://github.com/seankoji-com/.agents#why-a-different-model-family-reviews-the-work">Read the full rationale</a>.</p>
     </section>
 
     <section id="skills" aria-labelledby="skills-title">
@@ -165,11 +165,11 @@ const SOURCE = "https://github.com/seankoji-com/.agents/blob/main/skills/";
 // t3prep marks skills that read agent-tuneup's T3 permission check.
 const SKILLS = [
   { name: "think", group: "decide", t3prep: true,
-    text: "Talk an idea through before anyone writes code. Your agent looks up what it can, then asks only the questions whose answers would change what gets built, with its recommended answer for each. A reviewer from a different model family checks that nothing important is still open. You finish with a brief, an issue or the work itself.",
+    text: "Talk an idea through before anyone writes code. Your agent looks up what it can, then asks only the questions whose answers would change what gets built, with its recommended answer for each. A separate reviewer checks that nothing important is still open. You finish with a brief, an issue or the work itself.",
     try: "Use think on adding replays to the game before we build anything.",
     uses: ["review", "choose-design", "raise-issue"] },
   { name: "challenge", group: "decide",
-    text: "Get an honest second opinion. A reviewer from a different model family pushes back on your proposal, suggests a simpler option and names the evidence that would settle the question. It changes no code.",
+    text: "Get an honest second opinion. A separate reviewer pushes back on your proposal, suggests a simpler option and names the evidence that would settle the question. It changes no code.",
     try: "Challenge this plan to split checkout into its own service.",
     uses: ["review"] },
   { name: "choose-design", group: "decide", t3prep: true,
@@ -177,7 +177,7 @@ const SKILLS = [
     try: "Show me design options for the new settings page.",
     uses: [] },
   { name: "design-loop", group: "decide", t3prep: true,
-    text: "Let your agent improve a real interface on its own. It studies comparable products, changes the UI, and has judges from other model families use it and score it each round. Every round leaves an HTML report with annotated before and after screenshots. It ends with a pull request.",
+    text: "Let your agent improve a real interface on its own. It studies comparable products, changes the UI, and has a primary judge evaluate it with Hydrogen high reviewing in parallel. Visual judgments have no model-family restriction; written-code review checks against the code authors. Every round leaves an HTML report with annotated before and after screenshots. It ends with a pull request.",
     try: "Run design-loop on the onboarding flow until it scores 8 out of 10.",
     uses: ["review", "raise-pr"] },
   { name: "focus-group", group: "decide", t3prep: true, explicit: true,
@@ -190,7 +190,7 @@ const SKILLS = [
     try: "Ship the agreed replay feature. Verify it in the browser first.",
     uses: ["think", "choose-design", "implement", "review-loop", "review", "raise-pr", "babysitter", "raise-issue", "github-writing"] },
   { name: "review", group: "build", t3prep: true,
-    text: "Have work checked by a model from a different family than the one that wrote it. Review defaults to Sol high, or Opus high when Sol wrote the work or shares the coordinator's family. Credit fallbacks use Opus, Sonnet high via AGY and Sol in the prescribed order. Only family conflicts unlock Grok 4.7, DeepSeek Flash V4.1 high, then Hydrogen high. Other models require your explicit choice. The reviewer checks a fixed version and returns findings tied to evidence and ranked by severity. It changes no source code.",
+    text: "Have work checked against the goal. Code reviewers must differ in family from the code authors; the orchestrator's family is irrelevant unless it wrote code. Plans, prose and visual judgments have no family restriction. Review defaults to Sol high, or Opus high for Sol-authored code, with credit fallbacks. OCR runs alongside the primary for nonvisual changes; Hydrogen high runs alongside it for UI/visual changes. DeepSeek is available only through OCR. The reviewers return findings tied to evidence and ranked by severity.",
     try: "Use review to check this branch against the brief. Do not edit files.",
     uses: ["implement", "raise-issue", "github-writing"] },
   { name: "review-loop", group: "build",

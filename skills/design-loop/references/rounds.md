@@ -18,6 +18,12 @@ overrides the repair base when necessary to retain required bug fixes.
 
 ## State transitions
 
+Every baseline, primary and panel evaluation includes a fresh Hydrogen high
+companion report in parallel. Its required findings and interaction coverage are
+part of every transition and acceptance gate. It is separate from optional
+scoring seats; it contributes a score only when explicitly assigned a scoring
+role. A primary-only scoring roster never omits this mandatory companion.
+
 | Event | Metric and state change |
 | --- | --- |
 | Baseline primary evaluation completes | Seed primary best from primary score; counter = 0 |

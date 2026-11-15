@@ -1,6 +1,6 @@
 ---
 name: challenge
-description: Pressure-test an idea, design or proposal with an independent cross-lineage reviewer. Use when the user asks for an adversarial second opinion, asks "are you sure", or wants to challenge assumptions; return findings without implementation.
+description: Pressure-test an idea, design or proposal with an independent reviewer. Use when the user asks for an adversarial second opinion, asks "are you sure", or wants to challenge assumptions; return findings without implementation.
 ---
 
 # Challenge a proposal
@@ -15,7 +15,7 @@ second opinion select this workflow; implementation and repair requests do not.
 
 ## Independent challenge
 
-Apply [review](../review/SKILL.md) for cross-lineage eligibility, reviewer
+Apply [review](../review/SKILL.md) for scope-appropriate eligibility, reviewer
 selection, dispatch and evidence. Use one fresh reviewer and require it to read
 review's [assigned-reviewer card](../review/references/assigned-reviewer.md). Follow review's rule for named
 models, settings and conflicts.
@@ -47,8 +47,8 @@ discard a finding because of its reviewer or rarity.
 
 Default to one pass. Add one fresh, targeted second opinion only for a concrete
 unresolved consequential risk or disagreement. Apply review's model-selection
-rules, including their conditional fallbacks, to obtain an eligible unused lineage;
-otherwise report the gap for the user's choice.
+and companion rules. A fresh proposal opinion need not use another model family;
+written-code review still excludes the code authors' lineages.
 Report unresolved decisions after that; do not loop to unanimity. Follow explicit
 user limits and stop task-owned work when complete or cancelled.
 

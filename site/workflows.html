@@ -72,7 +72,7 @@ flowchart TD
       <div class="facts">
         <div>
           <h3>Settle the choices that change the build</h3>
-          <p><a href="https://github.com/seankoji-com/.agents/blob/main/skills/think/SKILL.md">think</a> asks only the questions whose answers would change the next step, then has a reviewer from another model family confirm nothing important is open. <a href="https://github.com/seankoji-com/.agents/blob/main/skills/choose-design/SKILL.md">choose-design</a> shows mockups from two model families, or three for a new screen, and you pick before UI work starts. An existing design that already answers the question needs no chooser.</p>
+          <p><a href="https://github.com/seankoji-com/.agents/blob/main/skills/think/SKILL.md">think</a> asks only the questions whose answers would change the next step, then has a separate reviewer confirm nothing important is open. Plans have no model-family restriction. <a href="https://github.com/seankoji-com/.agents/blob/main/skills/choose-design/SKILL.md">choose-design</a> shows mockups from two model families, or three for a new screen, and you pick before UI work starts. An existing design that already answers the question needs no chooser.</p>
         </div>
         <div>
           <h3>Bring evidence to the review</h3>
@@ -161,7 +161,7 @@ flowchart TD
     workers["Optional coding workers&lt;br/&gt;Separate worktrees"]
     integrate["Lead codes and integrates"]
     loop["review-loop&lt;br/&gt;Check, evaluate and repair"]:::skill
-    reviewer["review&lt;br/&gt;Cross-lineage evaluator"]:::skill
+    reviewer["review&lt;br/&gt;Primary and parallel companions"]:::skill
     handoff["Reviewed commits&lt;br/&gt;Exact revision and evidence"]
     accepted["Main thread&lt;br/&gt;Acceptance, integration and shipping"]
 
@@ -178,7 +178,7 @@ flowchart TD
       <div class="facts">
         <div>
           <h3>Cheapest route that does the job</h3>
-          <p>Coding model choice aims for the lowest total cost including review, retries and repairs. One evidenced coding model or effort upgrade is allowed per task. Review defaults to Sol high, or Opus high when Sol wrote the work or shares the coordinator's family. If Sol runs out of credits, try Opus high, then Sonnet high via AGY. If Opus runs out, try Sonnet high via AGY, then Sol high. Skip reviewers from an ineligible family. Only family conflicts unlock Grok 4.7, then DeepSeek Flash V4.1 high, then Hydrogen high. Other reviewers require your explicit choice. If no eligible authorised route remains, review stays pending. Changing models does not reset scores or counters.</p>
+          <p>Coding model choice aims for the lowest total cost including review, retries and repairs. One evidenced coding model or effort upgrade is allowed per task. Review defaults to Sol high, or Opus high for Sol-authored code. If Sol runs out of credits, try Opus high, then Sonnet high via AGY. If Opus runs out, try Sonnet high via AGY, then Sol high. For primary fallbacks, only code-author family conflicts unlock Grok 4.7, then Hydrogen high. Skip code-author family matches; unlisted direct models require your explicit choice. The orchestrator's family is irrelevant unless it wrote code. Plans, prose and visual judgments have no family restriction. For nonvisual repository changes, opencodereview invokes the OCR library alongside the primary; DeepSeek is allowed only inside OCR. UI/visual changes use Hydrogen high alongside the primary, independently of the fallback rule. Mixed changes use both companions. Missing required coverage keeps review incomplete. Changing models does not reset scores or counters.</p>
         </div>
         <div>
           <h3>Decisions come back to you</h3>

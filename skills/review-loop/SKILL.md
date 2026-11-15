@@ -30,7 +30,7 @@ automatically need this loop.
    final candidate; a higher historical score cannot justify dropping them.
    When additional judges score a round, use the lowest score on the same frozen
    candidate. Record any metric change explicitly; retain prior progress history.
-2. Apply [review](../review/SKILL.md) for cross-lineage eligibility, reviewer
+2. Apply [review](../review/SKILL.md) for scope-appropriate eligibility, reviewer
    selection and dispatch. Only the coordinator reads that skill. It obtains
    review and owns [feedback dispositions](../review/references/feedback-dispositions.md).
    Evaluators read review's
@@ -47,9 +47,9 @@ automatically need this loop.
    exact models and
    options, scores, best candidate, non-improvement counter, explicit limits,
    task handles, stable finding IDs, dispositions,
-   checks and next action. Use one cross-lineage evaluator per round. Add another
-   opinion only for a concrete unresolved risk or disagreement. Additional judges
-   may share a lineage under review's higher-reasoning exception. Apply review's
+   checks and next action. Use one primary evaluator plus review's required parallel
+   companions per round. Further opinions need a concrete unresolved risk or disagreement.
+   Only code review has code-author lineage restrictions. Apply review's
    selection policy across all rounds and additional opinions, including inside
    implement; report unavailable choices. Routine rechecks
    can use the original reviewer's lineage

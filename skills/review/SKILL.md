@@ -1,12 +1,14 @@
 ---
 name: review
-description: Use for independent cross-lineage reviews of plans, code, UI, backend and releases, including review-loop participants and think's stop-condition check.
+description: Use for independent reviews of plans, code, UI, backend and releases, including review-loop participants and think's stop-condition check. Code review must differ in lineage from the code authors.
 ---
 
-# Cross-lineage review
+# Review against the goal
 
-Review the requested scope against its requirements. Independent model review
-uses cross-lineage reviewers, with the additional-judge exception below.
+Review the requested scope against its requirements. Cross-lineage restrictions
+apply only to written code and its material model authors. The orchestrator's
+lineage is irrelevant unless it also wrote that code. Plans, prose and visual
+judgments have no lineage exclusion.
 This skill also owns review evidence and severity; it
 grants no authority to repair, file issues or release.
 
@@ -16,25 +18,20 @@ The coordinator obtains review; assigned reviewers never delegate.
 Apply [T3 dispatch preflight](../agent-tuneup/references/t3-dispatch.md) before T3 dispatch.
 
 1. Identify the scope, exact revision or decision brief, acceptance criteria,
-   coordinating model and every model that materially authored the reviewed work.
+   every model that materially authored the reviewed code, including repairs.
    Distinguish human authors from unknown model identities.
-2. Discover supported host tasks and exact model identities. Reviewers must have
-   a verified lineage differing from the coordinator and every material model
-   author, except for additional judges below. Versions, effort settings and
+2. Discover supported host tasks and exact model identities. Code reviewers, including OCR backends,
+   must differ in lineage from every material code author. Versions, effort settings and
    provider aliases do not change lineage. Record identities and lineage evidence.
    Apply [reviewer model selection](references/model-selection.md) to every
    review, recheck and additional opinion, including inside implement. Preserve
    named choices and apply its authorised credit/lineage fallbacks and holds.
-   **Additional-judge exception:** In review-loop and design-loop, an additional
-   judge may share the lineage of the coordinator, implementor or another judge
-   when its verified reasoning level is strictly higher than every material
-   implementor's. Record exact model/effort settings and supported ordering;
-   unknown or incomparable levels require cross-lineage judges. This includes
-   named additional judges, selection, reuse and identity checks. Higher effort
-   needs explicit user selection under the model-selection rules. It never replaces
-   primary cross-lineage review or required independent code review.
-3. Reuse completed reviews only when eligible against all current authors,
-   including repairers, and covering the current head or decision brief.
+   Run the required [parallel companions](references/parallel-review.md) on the
+   same frozen revision. Extra plan or visual judges may share any lineage;
+   their judgments cannot replace independent review of authored code.
+3. Reuse completed reviews only when eligible against all current code authors,
+   including repairers, and covering the current head or decision brief with all
+   required companion reports. Obtain missing companion coverage before reuse.
    Otherwise obtain a fresh read-only review through authorized host orchestration.
    Supply the request, scope, source/version, evidence, criteria and model identities.
    Apply the [reviewer brief](references/reviewer-brief.md) for fixed source,
@@ -45,7 +42,8 @@ Apply [T3 dispatch preflight](../agent-tuneup/references/t3-dispatch.md) before 
    `orchestrator_capabilities`, use a new `delegate_task` for every review or
    recheck that the coordinator dispatches, record its `taskId` and follow its
    returned `next`. Use native orchestration elsewhere. Respect caller delegation
-   limits. External reviews must meet these identity, scope and reporting rules;
+   limits. OCR runs through its library CLI, not host-agent model dispatch.
+   External reviews must meet these identity, scope and reporting rules;
    otherwise report the specific review gate.
 4. Follow the caller's stopping rule across repairs and resumes. Review-loop
    and design-loop use score targets and two-round stagnation without a required
@@ -57,10 +55,10 @@ Apply [T3 dispatch preflight](../agent-tuneup/references/t3-dispatch.md) before 
    treating the review as completed. A timeout, missing reply or task status
    alone is not a review.
 
-If identities cannot be verified, no eligible reviewer is available, or
+If required code-author identities cannot be verified, no eligible reviewer is available, or
 required dispatch is prohibited, report the specific review gate and hold work
 that depends on it. Finish independent preparation. Self-review cannot satisfy
-the gate. Same-family agents qualify only under the additional-judge exception.
+the code gate. Matching the orchestrator alone never creates a gate or needs a waiver.
 Required human approval remains a separate gate.
 
 ## Reviewer and parent responsibilities
@@ -69,7 +67,7 @@ Children read a role card, not this skill. Each card restates these rules for
 one role and links to nothing else:
 
 - An assigned reviewer follows the [assigned-reviewer card](references/assigned-reviewer.md).
-  It checks the supplied identities against its own lineage, reports a missing
+  For code review it checks code-author identities against its own lineage, reports a missing
   or conflicting identity instead of claiming eligible review, reviews directly
   and never dispatches agents. It returns findings with severity and evidence;
   it does not fix code, decide deferrals, file issues or change labels.
@@ -156,7 +154,7 @@ the workflow stays open until required issue URLs are verified.
 ## Return a usable report
 
 Include scope, revision, checks, reviewed flows and coverage gaps, even when no
-bugs are found. Record coordinator, material author and reviewer model identities,
+bugs are found. Record material code-author and reviewer model identities,
 verified lineages and any unknowns. For each finding provide:
 
 - Stable finding ID, SEV level and rationale.
