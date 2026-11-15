@@ -4,6 +4,7 @@ import ast
 from html.parser import HTMLParser
 import importlib.util
 import json
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -152,6 +153,32 @@ class Tables(HTMLParser):
 
 
 class Renderer(unittest.TestCase):
+    def test_waiting_events_and_handoffs_show_real_boundaries(self):
+        html=ledger.render(fixture())
+        recent=html.split('id="recent"',1)[1].split('<div class="tables">',1)[0]
+        self.assertIn('id="recent-task-9"',recent)
+        self.assertIn('data-event="E2"',recent)
+        self.assertNotIn('id="recent-task-10"',recent)  # starts exactly at window end
+        paths=[dict(re.findall(r'([\w-]+)="([^"]*)"',p)) for p in re.findall(r'<path [^>]*class="handoff[^>]*>',html)]
+        task9=next(p for p in paths if p.get('data-node')=='8')
+        self.assertEqual(task9['class'],'handoff projected')
+        self.assertAlmostEqual(float(task9['data-x']),1120/1320)
+        self.assertFalse(any(p.get('data-node')=='9' for p in paths))
+        self.assertLess(html.index('Scrollable timeline:'),html.index('class="chart-scroll"'))
+
+    def test_model_colours_have_chart_contrast_in_both_themes(self):
+        def luminance(colour):
+            channels=[int(colour[i:i+2],16)/255 for i in (1,3,5)]
+            linear=[x/12.92 if x<=0.04045 else ((x+0.055)/1.055)**2.4 for x in channels]
+            return sum(a*b for a,b in zip(linear,(0.2126,0.7152,0.0722)))
+        for selector,panel in [(r'\.report\{','#ffffff'),(r'\.report.dark\{','#202e40')]:
+            block=re.search(selector+r'([^}]+)',ledger.CSS).group(1)
+            colours=re.findall(r'--model-\d:(#[0-9a-f]{6})',block)
+            self.assertEqual(len(colours),6)
+            for colour in colours:
+                a,b=sorted((luminance(colour),luminance(panel)))
+                self.assertGreaterEqual((b+0.05)/(a+0.05),3,colour)
+
     def test_distinct_efforts_and_unknown_identity_are_not_mixed(self):
         data=fixture()
         data['tasks'][0]['baseline']['allocations'][0]['effort']='low'

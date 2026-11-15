@@ -72,6 +72,8 @@ lanes, status chips and an owner-decision strip above both charts. Full identiti
 sit outside bars so short or clipped segments remain readable. Provider events
 shade only matching-provider lanes during intersecting segment times; task/all
 events likewise intersect those lanes. Model colour is supported by explicit text.
+An event during a task's waiting period gets a separate event-only row; it does
+not invent build/review work or cost. Active blocked tasks remain in the recent view.
 Milestones and rebaseline markers each get a separate row to avoid label collisions.
 Forecast bars divide the remaining forecast interval in proportion to original
 allocations (review only during an active review); they do not infer new budgets.

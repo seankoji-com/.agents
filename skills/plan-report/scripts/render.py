@@ -309,10 +309,12 @@ html,body{margin:0;padding:0;background:transparent}
 *{box-sizing:border-box}body{font-size:13px;line-height:1.5}
 .report{--paper:#edf2f7;--panel:#fff;--ink:#192d45;--quiet:#536579;--line:#bdcad8;
 --red:#a62b46;--amber:#805400;--wash:#fff3d2;--ghost:#dbe4ed;--link:#275f8e;
+--model-0:#087c85;--model-1:#7043a4;--model-2:#285fad;--model-3:#986120;--model-4:#a13763;--model-5:#386f43;
 background:var(--paper);color:var(--ink);border-radius:12px;padding:16px;min-width:0;overflow-wrap:anywhere}
 .report.dark{--paper:#172334;--panel:#202e40;--ink:#e5edf7;--quiet:#b0bfd1;--line:#536579;
---red:#ff9eae;--amber:#f3cb76;--wash:#3c3322;--ghost:#34475b;--link:#9ccaff}
-@media(prefers-color-scheme:dark){.report.auto{--paper:#172334;--panel:#202e40;--ink:#e5edf7;--quiet:#b0bfd1;--line:#536579;--red:#ff9eae;--amber:#f3cb76;--wash:#3c3322;--ghost:#34475b;--link:#9ccaff}}
+--red:#ff9eae;--amber:#f3cb76;--wash:#3c3322;--ghost:#34475b;--link:#9ccaff;
+--model-0:#46c7cf;--model-1:#c49bee;--model-2:#82b2ff;--model-3:#deb175;--model-4:#ee94b8;--model-5:#8bce96}
+@media(prefers-color-scheme:dark){.report.auto{--paper:#172334;--panel:#202e40;--ink:#e5edf7;--quiet:#b0bfd1;--line:#536579;--red:#ff9eae;--amber:#f3cb76;--wash:#3c3322;--ghost:#34475b;--link:#9ccaff;--model-0:#46c7cf;--model-1:#c49bee;--model-2:#82b2ff;--model-3:#deb175;--model-4:#ee94b8;--model-5:#8bce96}}
 h1{font-size:29px;line-height:1.2;letter-spacing:-.7px;margin:8px 0}h2{font-size:17px;margin:0 0 10px}
 h3{font-size:14px;margin:12px 0 6px}p{margin:6px 0}a{color:var(--link)}small,.muted{color:var(--quiet);font-size:11px}
 header{padding-bottom:16px;border-bottom:1px solid var(--line)}.topline,.key{display:flex;gap:8px 16px;flex-wrap:wrap;align-items:center}
@@ -324,8 +326,8 @@ section{padding-top:22px}.chip{display:inline-block;border:1px solid var(--line)
 .decision-strip p+p{border-top:1px solid var(--line);padding-top:8px}.key{font-size:11px;margin:14px 0}.key i{display:inline-block;width:18px;height:10px;vertical-align:middle;margin-right:4px}
 .swatch{background:var(--mc)}.ghost-key{background:var(--ghost);border:1px dashed var(--quiet)}.projection-key{border:1px dashed var(--link)}.over-key{border-top:3px solid var(--red)}
 .chart-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
-.chart{min-width:840px;position:relative;padding:0 12px 12px}.plot{position:relative}.chart-row{display:grid;grid-template-columns:280px minmax(0,1fr);position:relative}
-.label{padding:6px 10px 6px 0;min-width:0;position:relative;z-index:3;background:var(--panel)}
+.chart{min-width:760px;position:relative;padding:0 12px 12px}.plot{position:relative}.chart-row{display:grid;grid-template-columns:214px minmax(0,1fr);position:relative}
+.label{padding:6px 10px 6px 0;min-width:0;position:sticky;left:0;z-index:3;background:var(--panel)}
 .task-head .label{font-weight:650}.task-head{border-top:1px solid var(--line)}.task-head .label small{display:block;font-weight:400}
 .task-block.critical-task>.task-head{border-left:3px solid var(--red);padding-left:5px}.lane-name{font-size:12px;font-weight:650}.lane-meta{display:block;color:var(--quiet);font-size:11px}
 .lane.build .label{border-left:2px solid var(--line);padding-left:8px}.lane.review .label{border-left:2px dashed var(--line);padding-left:8px}
@@ -340,16 +342,15 @@ section{padding-top:22px}.chip{display:inline-block;border:1px solid var(--line)
 .baseline{top:8px;height:9px;border:1px dashed var(--quiet);background:var(--ghost);min-width:2px}
 .overrun{top:27px;border-top:3px solid var(--red);min-width:2px}.overrun.projected{border-top-style:dashed}
 .event-band{top:2px;bottom:2px;background:#e4b24238;border:1px dotted var(--amber);z-index:1;min-width:2px}
-.event-band span{font-size:9px;background:var(--wash);color:var(--amber);position:absolute;top:0;left:0}
 .marker{position:absolute;left:var(--x);top:12px;width:10px;height:10px;transform:translateX(-50%) rotate(45deg);border:1.5px solid var(--link);background:var(--panel);z-index:3}
 .marker.gate{border-color:var(--amber);background:var(--wash)}.marker.rebaseline{border-color:var(--red)}
 .connections{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2;overflow:visible}
 .dependency{fill:none;stroke:var(--quiet);stroke-width:1.3;stroke-dasharray:3 3;vector-effect:non-scaling-stroke}
-.handoff{fill:none;stroke:var(--ink);stroke-width:1.5;vector-effect:non-scaling-stroke}.chart-note{font-size:11px;color:var(--quiet);margin-top:8px}
+.handoff{fill:none;stroke:var(--ink);stroke-width:1.5;vector-effect:non-scaling-stroke}.handoff.projected{stroke-dasharray:3 3}.chart-note{font-size:11px;color:var(--quiet);margin-top:8px}
 .tables{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 24px}.wide{grid-column:1/-1}.table-scroll{overflow-x:auto}
 table{width:100%;border-collapse:collapse;text-align:left;font-size:12px}th{font-size:10px;color:var(--quiet);font-weight:500}td,th{padding:8px 8px 8px 0;border-bottom:1px solid var(--line);vertical-align:top}td small{display:block}
 .num{font-variant-numeric:tabular-nums;white-space:nowrap}.ratio-plot{min-width:120px;position:relative;height:14px;background:var(--ghost)}.ratio-bar{display:block;height:100%;width:var(--w);background:var(--link)}
-.ratio-one{position:absolute;left:var(--one);top:-3px;bottom:-3px;border-left:1px dashed var(--red)}details{margin:12px 0}summary{cursor:pointer;font-weight:650}footer{font-size:11px;color:var(--quiet);border-top:1px solid var(--line);margin-top:22px;padding-top:10px}
+.ratio-one{position:absolute;left:var(--one);top:-3px;bottom:-3px;border-left:2px solid #101820;box-shadow:1px 0 #fff,-1px 0 #fff}details{margin:12px 0}summary{cursor:pointer;font-weight:650}footer{font-size:11px;color:var(--quiet);border-top:1px solid var(--line);margin-top:22px;padding-top:10px}
 @media(max-width:600px){.facts,.tables{grid-template-columns:minmax(0,1fr)}h1{font-size:24px}.report{padding:12px}.table-scroll table{min-width:450px}}
 """
 
@@ -366,8 +367,9 @@ function connect(){document.querySelectorAll('.chart').forEach(chart=>{
   if(!a||!b)return;const [x,y]=point(a,true),[u,v]=point(b,false),mid=(y+v)/2;
   path.setAttribute('d',`M${x},${y} V${mid} H${u} V${v}`);});
  svg.querySelectorAll('.handoff').forEach(path=>{const row=rows.find(r=>r.dataset.node===path.dataset.node);
-  const a=row.querySelectorAll('.build .track'), b=row.querySelector('.review .track');if(!a.length||!b)return;
-  const p=a[a.length-1].getBoundingClientRect(),q=b.getBoundingClientRect();const x=q.left-box.left+Number(path.dataset.x)*q.width;
+  const lanes=Array.from(row.querySelectorAll('.lane[data-lane]'));
+  const a=lanes.find(r=>r.dataset.lane===path.dataset.fromLane), b=lanes.find(r=>r.dataset.lane===path.dataset.toLane);if(!a||!b)return;
+  const p=a.querySelector('.track').getBoundingClientRect(),q=b.querySelector('.track').getBoundingClientRect();const x=q.left-box.left+Number(path.dataset.x)*q.width;
   path.setAttribute('d',`M${x},${p.top-box.top+p.height/2} V${q.top-box.top+q.height/2}`);});
  });}
 window.addEventListener('load',connect);window.addEventListener('resize',connect);
@@ -438,7 +440,7 @@ def timeline(data, name, lo, hi, palette):
         return max(0, min(1, (at-lo).total_seconds()/span))
 
     def position(a, b):
-        if b < lo or a > hi:
+        if b <= lo or a >= hi:
             return None
         x, end = fraction(a), fraction(b)
         return f'--x:{x*100:.6f}%;--w:{max(0,end-x)*100:.6f}%'
@@ -451,18 +453,21 @@ def timeline(data, name, lo, hi, palette):
         time = lo + (hi-lo)*i/5
         local = time.astimezone(ZoneInfo("Australia/Sydney"))
         ticks.append(f'<span class="tick {"first" if i==0 else "last" if i==5 else ""}" style="--x:{i*20}%">{local:%H:%M}<br>{local:%d %b %Z}</span>')
-    rows, visible = [], []
+    rows, visible, handoffs = [], [], []
     critical = critical_path(data)
     for index, task in enumerate(tasks):
         observed = task["segments"]
         future = projection(task, now)
         baseline_plan = task.get("baseline")
         relevant = observed + future
-        if name == "recent" and not any(timestamp(s["start"]) <= hi and timestamp(s.get("end") or data["project"]["as_of"]) >= lo for s in relevant):
-            continue
-        visible.append(index)
         begin = min([timestamp(s["start"]) for s in observed] or [timestamp(task["forecast"]["start"])])
         end = task_end(task, data["project"]["as_of"])
+        task_events = [(ei, e) for ei, e in enumerate(data.get('events', [])) if event_affects(e,task)
+                       and timestamp(e['start']) < end and timestamp(e.get('end') or data['project']['as_of']) > begin]
+        has_event = any(timestamp(e['start']) < hi and timestamp(e.get('end') or data['project']['as_of']) > lo for _,e in task_events)
+        if name == "recent" and task['status'] not in {'blocked','running','review'} and not has_event and not any(timestamp(s["start"]) < hi and timestamp(s.get("end") or data["project"]["as_of"]) > lo for s in relevant):
+            continue
+        visible.append(index)
         header_marks = ''
         over = 0
         if baseline_plan:
@@ -481,14 +486,16 @@ def timeline(data, name, lo, hi, palette):
                     f'<div class="chart-row task-head"><div class="label">{esc(task["id"])} · {esc(task["title"])} {chip(task["status"])} '
                     f'{over_chip}'
                     f'<small>{esc(task["stream"])} · Depends on {esc(deptext)}</small></div><div class="track">{header_marks}{now_line()}</div></div>')
+        rendered, marked_events = [], set()
         for kind in ("build", "review"):
-            lanes = [(s, False) for s in observed if s["kind"] == kind] + [(s, True) for s in future if s["kind"] == kind]
+            lanes = [(s, False, f'a{si}') for si,s in enumerate(observed) if s["kind"] == kind] + [(s, True, f'f{si}') for si,s in enumerate(future) if s["kind"] == kind]
             if not lanes:
                 rows.append(f'<div class="chart-row lane {kind}"><div class="label"><span class="lane-name">{kind.title()}</span><span class="lane-meta">No segment recorded</span></div><div class="track">{now_line()}</div></div>')
-            for segment, projected in lanes:
+            for segment, projected, lane_id in lanes:
                 a, b = interval(segment, "segment", now)
-                if name == "recent" and (b < lo or a > hi):
+                if name == "recent" and (b <= lo or a >= hi):
                     continue
+                rendered.append((segment, projected, lane_id))
                 colour = palette[(segment["provider"], segment["model"])]
                 code = f'R{segment["round"]}' if kind == "review" else 'B'
                 status = 'planned' if projected else 'running' if segment.get("end") is None else 'done'
@@ -511,10 +518,26 @@ def timeline(data, name, lo, hi, palette):
                         style = position(ea, eb)
                         if style:
                             event_ids.append(f'E{ei+1}')
+                            marked_events.add(ei)
                             marks += f'<i class="event-band" data-event="E{ei+1}" style="{style}" title="E{ei+1}: {esc(event["kind"]+": "+event["note"])}"></i>'
                 result = '' if projected else f'<span class="lane-meta">{esc(segment.get("result", ""))}</span>'
-                rows.append(f'<div class="chart-row lane {kind}"><div class="label"><span class="lane-name">{label} · {esc(segment["model"])} · {esc(segment["effort"])}</span> {chip(status)}'
+                rows.append(f'<div class="chart-row lane {kind}" data-lane="{lane_id}"><div class="label"><span class="lane-name">{label} · {esc(segment["model"])} · {esc(segment["effort"])}</span> {chip(status)}'
                             f'<span class="lane-meta">{esc(segment["provider"])}{esc(clipped)}{esc(" · events " + ", ".join(event_ids)) if event_ids else ""}</span>{result}</div><div class="track">{marks}{now_line()}</div></div>')
+        # Waiting is visible without inventing a build/review segment or cost.
+        for ei, event in task_events:
+            if ei in marked_events:
+                continue
+            ea, eb = interval(event, 'event', now)
+            style = position(ea, eb)
+            if style:
+                rows.append(f'<div class="chart-row event-only"><div class="label"><strong>E{ei+1} · {esc(event["kind"])}</strong><span class="lane-meta">{esc(event["note"])} · event only</span></div><div class="track"><i class="event-band" data-event="E{ei+1}" style="{style}"></i>{now_line()}</div></div>')
+        for review, projected, review_id in rendered:
+            if review['kind'] != 'review' or not lo <= timestamp(review['start']) < hi:
+                continue
+            builds = [(s,p,lid) for s,p,lid in rendered if s['kind']=='build' and timestamp(s['end'] or data['project']['as_of']) <= timestamp(review['start'])]
+            if builds:
+                build, build_projected, build_id = max(builds,key=lambda x:timestamp(x[0]['end'] or data['project']['as_of']))
+                handoffs.append(f'<path class="handoff{" projected" if projected or build_projected else ""}" data-node="{index}" data-from-lane="{build_id}" data-to-lane="{review_id}" data-x="{fraction(timestamp(review["start"]))}"><title>Build to review handoff</title></path>')
         rows.append('</div>')
     for marker in data.get("milestones", []):
         at = timestamp(marker["target"])
@@ -528,12 +551,13 @@ def timeline(data, name, lo, hi, palette):
                         f'<div class="track"><i class="marker rebaseline" style="--x:{fraction(at)*100:.6f}%"></i>{now_line()}</div></div>')
     paths = ''.join(f'<path class="dependency" data-from="{indices[dep]}" data-to="{i}" marker-end="url(#{name}-arrow)"><title>{esc(dep)} → {esc(tasks[i]["id"])}</title></path>'
                     for i in visible for dep in tasks[i]["dependencies"] if indices[dep] in visible)
-    paths += ''.join(f'<path class="handoff" data-node="{i}" data-x="{fraction(min([timestamp(s["start"]) for s in tasks[i]["segments"] if s["kind"]=="review"] or [timestamp(tasks[i]["forecast"]["end"])]))}"><title>Build to review handoff</title></path>' for i in visible)
+    paths += ''.join(handoffs)
     return (f'<section id="{name}"><h2>{"Whole-run timeline" if name=="whole" else "Recent timeline"}</h2>'
             f'<p class="muted">{esc(display_time(lo.isoformat()))} – {esc(display_time(hi.isoformat()))}</p>'
+            '<p class="muted">Scrollable timeline: swipe or scroll horizontally to see all times. Task and lane labels stay visible.</p>'
             '<div class="chart-scroll" tabindex="0" role="region" aria-label="Scrollable timeline"><div class="chart">'
             '<div class="chart-row axis"><div class="label">Task · lane · model · effort · status</div><div class="track">' + ''.join(ticks) + '</div></div>'
-            '<div class="plot">' + ''.join(rows) + f'<svg class="connections" aria-hidden="true"><defs><marker id="{name}-arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="currentColor"/></marker></defs>{paths}</svg></div></div></div>'
+            '<div class="plot">' + ''.join(rows) + f'<svg class="connections" aria-hidden="true"><defs><marker id="{name}-arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="var(--quiet)"/></marker></defs>{paths}</svg></div></div></div>'
             '<p class="chart-note">Solid build; striped review. Each segment has its full model, effort, round and status beside it. '
             'Grey ghost: original estimate. Red rail: finish past original (dashed = forecast). Thin navy tick: build/review handoff. Dotted arrows: dependencies. '
             'Amber bands: scoped events; E numbers refer to the events table. Vertical navy line: now. '
@@ -553,7 +577,7 @@ def calibration_html(data):
         rows.append([f'{esc(model)}<small>{esc(provider)}</small>', esc(effort), esc(kind),
                      fmt(row["estimated_minutes"]), fmt(row["actual_minutes"]), f'{ratio_text}{plot}'])
     content = table('Final calibration', ['Model / provider', 'Effort', 'Kind', 'Original min', 'Actual min', 'Actual / original'], rows, 'calibration', True)
-    content += '<p class="muted">Completed tasks only; ratios use summed segment minutes for comparable identities. Dashed line = 1×. Waiting and parallel task spans are not model effort. Incomplete/cancelled tasks are excluded.</p>'
+    content += '<p class="muted">Completed tasks only; ratios use summed segment minutes for comparable identities. Black/white reference = 1×. Waiting and parallel task spans are not model effort. Incomplete/cancelled tasks are excluded.</p>'
     # Separate dimension summaries keep effort and kind comparisons explicit.
     for dimension, offset in (("model", 1), ("effort", 2), ("kind", 3)):
         totals = defaultdict(lambda: [0, 0])
@@ -585,8 +609,9 @@ def calibration_html(data):
                 value += ' known subtotal'
             if row["estimated"]:
                 value += ' (host estimate)'
-            value += f'<small>{row["missing"]} unknown observations</small>'
-            value += '<small>' + esc('; '.join(sorted(set(row["sources"])))) + '</small>'
+            value += f'<small>{row["missing"]} unknown observation{"s" if row["missing"]!=1 else ""}</small>'
+            if row['sources']:
+                value += '<small>' + esc('; '.join(sorted(set(row["sources"])))) + '</small>'
             values.append(value)
         costrows.append([f'{esc(model)}<small>{esc(provider)}</small>', *values])
     return content + table('Cost by model', ['Model / provider', 'Tokens', 'Turns', 'USD'], costrows, 'costs', True)
@@ -603,8 +628,7 @@ def render(data, mode="report", theme="auto", recent_hours=4):
     identities = {(s["provider"], s["model"]) for t in tasks for s in t["segments"]}
     identities |= {(t["owner"]["provider"], t["owner"]["model"]) for t in tasks}
     identities |= {(a["provider"], a["model"]) for t in tasks for a in t.get("baseline", {}).get("allocations", [])}
-    colours = ['#087c85', '#7043a4', '#285fad', '#986120', '#a13763', '#386f43']
-    palette = {key: colours[i % len(colours)] for i, key in enumerate(sorted(identities))}
+    palette = {key: f'var(--model-{i % 6})' for i, key in enumerate(sorted(identities))}
     milestone = min((m for m in data.get("milestones", []) if m["status"] not in {"done", "cancelled"}), key=lambda m:timestamp(m["target"]), default=None)
     next_text = (f'{esc(milestone["name"])} · {esc(display_time(milestone["target"]))}' if milestone else 'None pending')
     cp = critical_path(data)
