@@ -12,22 +12,25 @@ opinions and reviews inside implement.
    if Sol's lineage authored the reviewed code, start with Opus high. Only code
    authors constrain lineage; ignore a model that merely orchestrates. Plans,
    prose and visual judgments have no lineage exclusion.
-2. On confirmed credit exhaustion, use these preferred chains in order:
+2. Before dispatch, apply the subscription check in
+   [T3 preflight](../../agent-tuneup/references/t3-dispatch.md). On confirmed
+   exhaustion or insufficient headroom under that check, use these preferred
+   chains in order:
 
-   | Starting reviewer | Credit fallback order |
+   | Starting reviewer | Quota fallback order |
    | --- | --- |
    | Sol high | Opus high, then Sonnet high via AGY |
    | Opus high | Sonnet high via AGY, then Sol high |
 
    AGY means the Antigravity provider route, not native Claude or OpenCode.
    Opus and Sonnet share the Anthropic lineage; routing Sonnet through AGY does
-   not change it. Skip lineage-ineligible models and confirmed exhausted routes.
+   not change it. Skip lineage-ineligible and quota-constrained routes.
    Try each candidate at most once per selection; never cycle back to Sol or Opus.
-3. For the primary reviewer only, when lineage exclusions, alone or combined with confirmed credit
-   exhaustion, leave the preferred chain unable to supply an independent reviewer,
+3. For the primary reviewer only, when lineage exclusions, alone or combined with
+   quota constraints, leave the preferred chain unable to supply an independent reviewer,
    use the first eligible available alternative in order:
-   Grok 4.7, then Hydrogen high. Credit exhaustion alone
-   does not unlock this list. Once unlocked, skip exhausted or ineligible
+   Grok 4.7, then Hydrogen high. Quota constraints alone
+   do not unlock this list. Once unlocked, skip constrained or ineligible
    alternatives while preserving the order. Every unlisted model, including Argon
    and Muse/Wonder Full, requires the user's explicit selection.
    DeepSeek Flash V4.1 is removed from direct reviewer dispatch; it is allowed
@@ -35,8 +38,8 @@ opinions and reviews inside implement.
    A named DeepSeek request still uses OCR, not direct host-model dispatch.
    The required Hydrogen visual companion has standing authority independently
    of this primary-fallback gate.
-4. Record the evidence for credit exhaustion and every lineage exclusion. Other
-   failures do not establish exhausted credits. If no authorised eligible route
+4. Record the quota evidence and every lineage exclusion. Other failures do not
+   establish exhausted credits or insufficient headroom. If no authorised eligible route
    remains, report the gate and hold dependent review for the user's choice.
    Cost optimisation, automatic upgrades, additional judges and requests for
    another opinion do not expand these fallbacks or raise the default effort.

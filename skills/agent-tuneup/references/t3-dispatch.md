@@ -1,12 +1,47 @@
 # T3 dispatch preflight
 
 Read before starting a T3 session or delegate, including reviewers, designers,
-implementation workers and issue writers. This is a host workaround reported by
-the owner on 2 November 2026, not a general property of the underlying models.
-Retire it only after the affected routes have been verified fixed. Check the
-linked issues below before relying on or retiring each rule.
+implementation workers and issue writers.
 
-## Choose a permitted permission mode
+## Check subscription headroom before choosing a route
+
+1. Discover and call LiteLLM's read-only `limits-limits_snapshot` MCP tool before
+   selecting a T3 delegate route. Use its exposed schema and host-managed
+   connection and authentication. Connection settings belong to dotfiles;
+   keep credentials and personal endpoints out of briefs and library source.
+2. Match observations to the actual provider route, account and model, including
+   shared subscription windows. Provider aliases do not establish separate
+   quotas. Check observation time, freshness, remaining capacity and reset
+   information where supplied. A fresh fetch can contain old observations;
+   missing coverage or ambiguous account mapping means unknown capacity.
+3. Skip routes reported exhausted or near exhaustion. Where the service supplies
+   no warning, compare reported headroom with the task's expected consumption,
+   duration and concurrent work, including required reviews. Prefer an otherwise
+   eligible route with enough headroom. State estimates and uncertainty; do not
+   invent percentages, consumption rates or a universal warning threshold.
+4. Apply the caller's authorised model/fallback order, lineage, effort and
+   permission rules to the remaining routes. Quota evidence does not authorise
+   new models, paid overage or a silent substitute for a named model. If every
+   eligible route is constrained, hold dependent dispatch and report the limiting
+   window and reset estimate when known. Continue independent work.
+5. Reuse a fresh snapshot for a dispatch batch; refresh before later batches,
+   retries or replacements when observations have aged or usage has changed.
+   Account for running children; a snapshot is not a capacity reservation.
+   Retain the relevant observation time and selection reason, not the raw account
+   inventory. A predicted reset alone does not establish restored capacity.
+6. If the tool is unavailable, errors, or returns stale/incomplete coverage,
+   record capacity as unknown. Neither tool failure nor missing data proves
+   exhaustion or healthy headroom. Preserve known constraints and any stricter
+   caller gate; disclose uncertainty when proceeding under the existing policy.
+
+## Permission workarounds
+
+These host workarounds were reported by the owner on 2 November 2026, not as
+general properties of the underlying models. Retire them only after the affected
+routes have been verified fixed. Check the linked issues before relying on or
+retiring each rule.
+
+### Choose a permitted permission mode
 
 Inspect the parent provider and effective runtime mode, then the target's exact
 provider identity and supported modes through the exposed T3 contracts. Observe

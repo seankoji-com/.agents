@@ -63,6 +63,10 @@ one app. They use what T3 provides:
   main conversation stays free for decisions and reviews.
 - **Background tasks.** `raise-issue` files issues in a background T3 task while
   delivery carries on.
+- **Subscription checks.** Before routing delegates, the shared
+  [dispatch preflight](skills/agent-tuneup/references/t3-dispatch.md) consults
+  LiteLLM's limits snapshot when available. It skips exhausted or near-exhausted
+  routes within the authorised model choices and reports unknown capacity.
 - **PR watching without polling.** `babysitter` uses T3's pull request watch, which
   wakes the agent when checks or reviews change.
 - **Progress and previews you can see.** `ship` keeps its task list in T3's plan
@@ -107,7 +111,7 @@ The [review](skills/review/SKILL.md) skill applies this in a few rules:
 
 - Reviewers default to Sol at high effort, or Opus at high effort when Sol
   materially authored the reviewed code. On exhausted
-  credits, Sol falls back to Opus, then Sonnet via AGY; Opus falls back to Sonnet
+  credits or insufficient subscription headroom, Sol falls back to Opus, then Sonnet via AGY; Opus falls back to Sonnet
   via AGY, then Sol. All three use high effort. For primary fallbacks, only code-author lineage conflicts unlock
   Grok 4.7, then Hydrogen high. DeepSeek Flash V4.1 is used only inside OCR,
   never as a directly dispatched reviewer. Other models require
@@ -525,7 +529,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 42b3aa6c3c4dbf2771d54cae9c82d05a376dea7808194897caeaa49d5c31d5dd -->
+<!-- skills-review: 313dba00913a8f53c1e248a3f5ebaaabdf7a0bd6a299037ceae353c2f7cfe6da -->
 
 ### Owner maintenance
 

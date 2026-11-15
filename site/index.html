@@ -116,7 +116,8 @@
         <div>
           <h3>T3 Code, or another coding agent</h3>
           <p><a href="#t3">T3 Code</a> gets the most out of these skills. Claude Code, Codex and other agents that support skills can use any skill whose tools they provide. A skill marked "Needs T3 Code" relies on T3's background workers. On T3, also install agent-tuneup. Several skills read its T3 permission check before they start helper sessions.</p>
-          <p>That check works around a known problem. In T3's Full access mode, Codex rejects any command that one of your Codex rules says to ask about, because Full access turns asking off (<a href="https://github.com/pingdotgg/t3code/issues/12248">T3 Code #12248</a>, tracked upstream in <a href="https://github.com/openai/codex/issues/41068">Codex #41068</a>).</p>
+          <p>Before routing helpers, the preflight also checks LiteLLM's limits snapshot when available. It avoids exhausted or near-exhausted subscriptions within the allowed model choices and reports unknown capacity.</p>
+          <p>In T3's Full access mode, Codex rejects any command that one of your Codex rules says to ask about, because Full access turns asking off (<a href="https://github.com/pingdotgg/t3code/issues/12248">T3 Code #12248</a>, tracked upstream in <a href="https://github.com/openai/codex/issues/41068">Codex #41068</a>).</p>
         </div>
         <div>
           <h3>Node.js for the installer</h3>

@@ -70,7 +70,7 @@ tools or create delegate jobs, schedules or threads merely as checklist items.
 Outside T3 use the host's visible planning mechanism with the same text fallback.
 
 Before T3 dispatch apply the shared
-[permission preflight](../agent-tuneup/references/t3-dispatch.md).
+[dispatch preflight](../agent-tuneup/references/t3-dispatch.md).
 Record the execution boundary and task/thread manifest required by the
 [retrospective](references/retrospective.md) from the start, not only at handback.
 

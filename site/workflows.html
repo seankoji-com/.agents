@@ -236,6 +236,7 @@ flowchart TD
     <section id="t3-permissions" aria-labelledby="t3-permissions-title">
       <h2 id="t3-permissions-title">T3 permission workarounds</h2>
       <p class="section-intro">Before starting a helper session, skills read the <a href="https://github.com/seankoji-com/.agents/blob/main/skills/agent-tuneup/references/t3-dispatch.md">T3 dispatch preflight</a>. It records two host problems reported on 2 November 2026.</p>
+      <p>The preflight also checks LiteLLM's read-only limits snapshot before choosing a provider route. It avoids exhausted or near-exhausted subscriptions while preserving allowed models and reviewer independence. Stale or missing observations leave capacity unknown. Running helpers still consume capacity, and a snapshot does not reserve it.</p>
       <div class="facts">
         <div>
           <h3>OpenCode, Grok and Muse fall back to asking</h3>
