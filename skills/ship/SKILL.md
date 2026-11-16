@@ -56,24 +56,14 @@ audit before voluntarily yielding; one PR watch does not complete the backlog.
 In backlog-burn, issue fixes use implement leads; the parent does not implement
 them inline. The optional implement choice below applies to standalone ship.
 
-Use T3's parent plan/todo panel before implementation, through the host's native
-plan/todo tool or an exposed T3 MCP API that writes that list. Discover the
-actual tools; a separate MCP checklist API is not required. Reuse the list on resumes.
-Record item IDs only where returned. Put owner, dependency and evidence references
-in item text when the tool has no fields for them. For whole-list updates,
-resend the complete current list with its existing statuses; never invent IDs.
-Include the task's decisions/design, implementation, checks/review, delivery,
-deferred-bug tracking and final retrospective as applicable. Keep completed,
-active and blocked work current at handoffs, failures and phase changes. A
-delegate's internal plan does not replace the parent's list.
+Use T3's parent plan/todo panel before implementation under the
+[native task list](references/native-task-list.md) rules. Its items cover the
+task's decisions/design, implementation, checks/review, delivery, deferred-bug
+tracking and final retrospective as applicable. Without an exposed tool, report
+the gap and post a status list at each phase change; never claim a panel update
+from text alone.
 Keep the recovery record current at phase changes and use
 [continuation recovery](../babysitter/references/continuation.md) after lost context.
-
-If neither a native plan tool nor a checklist API is exposed, report the gap
-and maintain a concise parent-message status list at each phase change. Do not
-claim a panel or MCP list was updated when only text was posted. Never invent
-tools or create delegate jobs, schedules or threads merely as checklist items.
-Outside T3 use the host's visible planning mechanism with the same text fallback.
 
 Before T3 dispatch apply the shared
 [dispatch preflight](../agent-tuneup/references/t3-dispatch.md).

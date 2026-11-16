@@ -69,9 +69,11 @@ one app. They use what T3 provides:
   routes within the authorised model choices and reports unknown capacity.
 - **PR watching without polling.** `babysitter` uses T3's pull request watch, which
   wakes the agent when checks or reviews change.
-- **Progress and previews you can see.** `ship` keeps its task list in T3's plan
-  panel, `plan-report` shows estimates and progress on a timeline, and
-  `choose-design` shows mockups side by side in T3's preview frames.
+- **Progress and previews you can see.** `ship`, `implement` and `review-loop` show
+  their phases in T3's Tasks row when the host exposes a todo tool; the list is
+  best-effort and can vanish when the turn settles. `plan-report` shows estimates
+  and progress on a timeline, and `choose-design` shows mockups side by side in
+  T3's preview frames.
 
 Most skills still work in Claude Code, Codex or another host that supports
 skills, using what that host offers instead. Outside T3, `babysitter` waits with
@@ -553,7 +555,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 7d0cfb3b736df0074f010b0f1793c93b1362a55c8949cac66a32ad7de5759ad9 -->
+<!-- skills-review: ecc456e765006d54e43ce54e6edaca8d6e160198ba44de449130b7c43d200a17 -->
 
 ### Owner maintenance
 

@@ -15,7 +15,9 @@ routing, review limits and ready-work capacity refill.
 The main thread applies [plan-report](../plan-report/SKILL.md) at proposal,
 task completion, final handback and on request. Review/fix rounds get short chat
 updates. Leads return timing and cost
-observations; only the main thread presents the report.
+observations; only the main thread presents the report. Track the main thread's
+phases on the [native task list](../ship/references/native-task-list.md) when
+the host exposes one; the lead's own list stays separate.
 
 ## Main-thread responsibilities
 

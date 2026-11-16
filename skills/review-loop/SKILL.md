@@ -47,7 +47,10 @@ automatically need this loop.
    exact models and
    options, scores, best candidate, non-improvement counter, explicit limits,
    task handles, stable finding IDs, dispositions,
-   checks and next action. Use one primary evaluator plus review's required parallel
+   checks and next action. Mirror those phases on the
+   [native task list](../ship/references/native-task-list.md) when the host
+   exposes one; scores and counters stay in the notes.
+   Use one primary evaluator plus review's required parallel
    companions per round. Further opinions need a concrete unresolved risk or disagreement.
    Only code review has code-author lineage restrictions. Apply review's
    selection policy across all rounds and additional opinions, including inside
