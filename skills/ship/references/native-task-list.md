@@ -46,7 +46,8 @@ use the host's visible planning mechanism with the same text fallback.
   it as not exposed and use the fallback. A settings change needs its own
   authority; the settings column above is information, not an instruction.
 - **Granularity and cadence.** Items track phases and gates, not every tool call.
-  Update them at phase changes, handoffs and failures. The list is cheap and
+  Keep completed, active and blocked items current at phase changes, handoffs
+  and failures. The list is cheap and
   independent of `plan-report`'s render cadence, so a list update never triggers
   a report render.
 - **Owner of the list.** The coordinator writes its own thread's list. A

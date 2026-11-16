@@ -102,11 +102,17 @@ text fallback.
 
 ## A failed call and a row that disappears
 
-Input: the host exposes `todowrite`; the first call errors, a later call
-succeeds, and the turn settles with two items unfinished while the row is hidden.
-Expected: the run does not retry indefinitely. The final message and handoff
-text name both unfinished items, their blocker and the next action, and the
-report does not claim the row is still visible.
+Input: the host exposes a todo tool, but every attempted call errors and no
+update succeeds. Expected: the run reports the gap, bounds retries, uses the text
+status fallback at each phase change and continues through proof, review and
+the authorised endpoint. It does not change settings to obtain a working tool
+or claim the Tasks row updated. Failed list updates never gate completion,
+merge or handoff.
+
+Mutation: a call succeeds, then the turn settles with two items unfinished while
+the row is hidden. Expected: the final message or handoff text names both
+unfinished items, their blocker and the next action. The report does not claim
+the row is still visible.
 
 Mutation: a resumed run rebuilds its state from the hidden list, or treats an
 unfinished item as handed off because the row scrolled out of view. Expected:
