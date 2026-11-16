@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from html import escape
 import json
 import math
+import re
 from pathlib import Path
 import sys
 from zoneinfo import ZoneInfo
@@ -100,6 +101,9 @@ def validate(data):
         text_fields(task, ("id", "title", "stream", "status"), "task")
         if 'value' in task:
             text_fields(task, ('value',), 'task')
+        if 'thread' in task:
+            text_fields(task, ('thread',), 'task')
+            require(LINK.fullmatch(task['thread']), f"{task['id']}.thread must be a link such as https://… or t3-thread://…")
         tid = task["id"]
         require(tid not in by_id, f"duplicate task id: {tid}")
         by_id[tid] = task
@@ -339,12 +343,10 @@ html,body{margin:0;padding:0;background:transparent}
 *{box-sizing:border-box}body{font-size:13px;line-height:1.5}
 .report{--paper:#edf2f7;--panel:#fff;--ink:#192d45;--quiet:#536579;--line:#bdcad8;
 --red:#a62b46;--amber:#805400;--wash:#fff3d2;--ghost:#dbe4ed;--link:#275f8e;
---model-0:#087c85;--model-1:#7043a4;--model-2:#285fad;--model-3:#986120;--model-4:#a13763;--model-5:#386f43;
 background:var(--paper);color:var(--ink);border-radius:12px;padding:16px;min-width:0;overflow-wrap:anywhere}
 .report.dark{--paper:#172334;--panel:#202e40;--ink:#e5edf7;--quiet:#b0bfd1;--line:#536579;
---red:#ff9eae;--amber:#f3cb76;--wash:#3c3322;--ghost:#34475b;--link:#9ccaff;
---model-0:#46c7cf;--model-1:#c49bee;--model-2:#82b2ff;--model-3:#deb175;--model-4:#ee94b8;--model-5:#8bce96}
-@media(prefers-color-scheme:dark){.report.auto{--paper:#172334;--panel:#202e40;--ink:#e5edf7;--quiet:#b0bfd1;--line:#536579;--red:#ff9eae;--amber:#f3cb76;--wash:#3c3322;--ghost:#34475b;--link:#9ccaff;--model-0:#46c7cf;--model-1:#c49bee;--model-2:#82b2ff;--model-3:#deb175;--model-4:#ee94b8;--model-5:#8bce96}}
+--red:#ff9eae;--amber:#f3cb76;--wash:#3c3322;--ghost:#34475b;--link:#9ccaff}
+@media(prefers-color-scheme:dark){.report.auto{--paper:#172334;--panel:#202e40;--ink:#e5edf7;--quiet:#b0bfd1;--line:#536579;--red:#ff9eae;--amber:#f3cb76;--wash:#3c3322;--ghost:#34475b;--link:#9ccaff}}
 h1{font-size:29px;line-height:1.2;letter-spacing:-.7px;margin:8px 0}h2{font-size:17px;margin:0 0 10px}
 h3{font-size:14px;margin:12px 0 6px}p{margin:6px 0}a{color:var(--link)}small,.muted{color:var(--quiet);font-size:11px}
 header{padding-bottom:16px;border-bottom:1px solid var(--line)}.topline,.key{display:flex;gap:8px 16px;flex-wrap:wrap;align-items:center}
@@ -352,72 +354,77 @@ header{padding-bottom:16px;border-bottom:1px solid var(--line)}.topline,.key{dis
 .critical{grid-column:1/-1;border-left:3px solid var(--red);padding-left:10px}.critical a,.critical .task-ref{display:inline-block;padding:1px 5px;border:1px solid var(--line);border-radius:3px;margin:2px}
 section{padding-top:22px}.chip{display:inline-block;border:1px solid var(--line);padding:1px 5px;border-radius:4px;font-size:10px;font-weight:650;background:var(--panel)}
 .chip.running,.chip.review{border-color:var(--link);color:var(--link)}.chip.blocked,.chip.ready,.chip.planned{color:var(--amber);border-color:var(--amber)}
-.chip.over{color:var(--red);border-color:var(--red)}.decision-strip{padding:10px 12px;border:1.5px solid var(--amber);border-radius:4px;background:var(--wash);margin-top:14px}
-.decision-strip p+p{border-top:1px solid var(--line);padding-top:8px}.key{font-size:11px;margin:14px 0}.key i{display:inline-block;width:18px;height:10px;vertical-align:middle;margin-right:4px}
-.swatch{background:var(--mc)}.ghost-key{background:var(--ghost);border:1px dashed var(--quiet)}.projection-key{border:1px dashed var(--link)}.over-key{border-top:3px solid var(--red)}
+.decision-strip{padding:10px 12px;border:1.5px solid var(--amber);border-radius:4px;background:var(--wash);margin-top:14px}
+.decision-strip p+p{border-top:1px solid var(--line);padding-top:8px}
+.progress{margin-top:16px}.progress p{margin:0 0 6px}.progress strong{font-size:20px;font-variant-numeric:tabular-nums}
+.pbar{display:flex;height:12px}.pbar i{display:block;height:100%;width:var(--w)}.pbar .done{background:var(--ink)}
+.pbar .active{background:repeating-linear-gradient(135deg,var(--ink) 0 2px,transparent 2px 5px);border:1px solid var(--ink)}
+.pbar .todo{flex:1;width:auto;border:1px solid var(--line);background:var(--ghost)}
+.plabels{display:flex;font-size:11px;color:var(--quiet);margin-top:3px}.plabels span{min-width:var(--w);padding-right:12px;white-space:nowrap}
+.key{font-size:11px;margin:14px 0}.key i{display:inline-block;width:18px;height:10px;vertical-align:middle;margin-right:4px}
+.swatch{background:var(--c)}.review-key{background:var(--quiet);background-image:repeating-linear-gradient(135deg,transparent 0 3px,var(--paper) 3px 5px)}.projection-key{border:1.5px dashed var(--quiet)}
 .chart-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
-.chart{min-width:760px;position:relative;padding:0 12px 12px}.plot{position:relative}.chart-row{display:grid;grid-template-columns:214px minmax(0,1fr);position:relative}
-.label{padding:6px 10px 6px 0;min-width:0;position:sticky;left:0;z-index:6;background:var(--panel)}
-.task-head .label{font-weight:650}.task-head{border-top:1px solid var(--line)}.task-head .label small{display:block;font-weight:400}
-.task-block.critical-task>.task-head{border-left:3px solid var(--red);padding-left:5px}.lane-name{font-size:12px;font-weight:650}.lane-meta{display:block;color:var(--quiet);font-size:11px}
-.lane.joined .label{border-left:2px solid var(--line);padding-left:8px}.segment-label{display:block;margin-bottom:5px}
-.track{position:relative;min-height:34px;background:repeating-linear-gradient(to right,var(--line) 0 1px,transparent 1px 20%);border-bottom:1px dotted var(--line)}
-.task-head .track{min-height:42px}.axis .label{font-size:11px}.axis .track{height:48px;position:relative;background:none;border:0}
-.tick{position:absolute;left:var(--x);font-size:10px;line-height:1.2;white-space:nowrap;transform:translateX(-50%);top:6px;color:var(--quiet)}
-.tick.first{transform:none}.tick.last{transform:translateX(-100%)}.now{position:absolute;left:var(--x);top:0;bottom:0;border-left:1.5px solid var(--ink);z-index:4;pointer-events:none}
-.bar,.baseline,.overrun,.event-band{position:absolute;left:var(--x);width:var(--w)}
-.bar{top:10px;height:18px;border:1px solid var(--mc);border-radius:0;background:var(--mc);z-index:2;min-width:2px}
-.bar.review{background-image:repeating-linear-gradient(135deg,transparent 0 4px,#ffffff50 4px 5px)}
-.bar.open{outline:2px solid var(--ink);outline-offset:1px}.bar.projection{background:repeating-linear-gradient(135deg,transparent 0 5px,var(--mc) 5px 6px);border:1.5px dashed var(--mc)}
-.eta{position:absolute;left:var(--x);top:30px;transform:translateX(-100%);font-size:10px;white-space:nowrap;background:var(--panel);color:var(--ink);z-index:5}.lane .track{min-height:48px}
-.baseline{top:8px;height:9px;border:1px dashed var(--quiet);background:var(--ghost);min-width:2px}
-.overrun{top:27px;border-top:3px solid var(--red);min-width:2px}.overrun.projected{border-top-style:dashed}
-.event-band{top:2px;bottom:2px;background:#e4b24238;border:1px dotted var(--amber);z-index:1;min-width:2px}
-.marker{position:absolute;left:var(--x);top:12px;width:10px;height:10px;transform:translateX(-50%) rotate(45deg);border:1.5px solid var(--link);background:var(--panel);z-index:3}
-.marker.gate{border-color:var(--amber);background:var(--wash)}.marker.rebaseline{border-color:var(--red)}
-.connections{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2;overflow:visible}
-.dependency{fill:none;stroke:var(--quiet);stroke-width:1.3;stroke-dasharray:3 3;vector-effect:non-scaling-stroke}
-.handoff{fill:none;stroke:var(--ink);stroke-width:1.5;vector-effect:non-scaling-stroke}.handoff.projected{stroke-dasharray:3 3}.chart-note{font-size:11px;color:var(--quiet);margin-top:8px}
+.chart{--label:232px;--cost:58px;min-width:620px;padding:0 12px 10px;font-size:12px;line-height:1.35}
+.chart-row{display:grid;grid-template-columns:var(--label) minmax(0,1fr) var(--cost);align-items:start;min-height:22px;position:relative;z-index:1}
+.label{position:sticky;left:0;z-index:6;background:var(--panel);padding-right:8px;line-height:22px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.label a{color:inherit;text-decoration:underline;text-decoration-color:var(--quiet);text-underline-offset:2px}
+.label small{font-weight:400}.status{display:inline-block;width:15px;font-size:10px;color:var(--quiet)}
+.task-row.running .status,.task-row.review .status{color:var(--ink)}
+.track{position:relative;height:calc(22px + var(--lanes,0)*14px)}
+.cost{line-height:22px;text-align:right;font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap;background:var(--panel)}
+.plot{position:relative}.grid{position:absolute;top:0;bottom:0;left:var(--label);right:var(--cost);pointer-events:none}
+.grid i{position:absolute;top:0;bottom:0;left:var(--x)}.gridline{border-left:1px solid var(--line);opacity:.55}
+.cut{width:var(--w);background:repeating-linear-gradient(135deg,transparent 0 3px,var(--line) 3px 4px)}
+.far{width:var(--w);background:var(--ghost);opacity:.5}.now{border-left:1.5px solid var(--ink)}
+.bar{position:absolute;left:var(--x);width:var(--w);top:calc(5px + var(--lane,0)*14px);height:11px;background:var(--c);min-width:2px}
+.bar.review{background-image:repeating-linear-gradient(135deg,transparent 0 3px,var(--panel) 3px 5px)}
+.bar.open{box-shadow:1px 0 0 1px var(--ink)}.bar.projection{background-color:transparent;border:1.5px dashed var(--c)}
+.bar.review.projection{background-color:color-mix(in srgb,var(--c) 45%,transparent)}
+.note,.eta{position:absolute;top:4px;font-size:10px;color:var(--quiet);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.marker{position:absolute;left:var(--x);top:11px;width:8px;height:8px;transform:translate(-50%,-50%) rotate(45deg);border:1.5px solid var(--ink);background:var(--panel);z-index:3}
+.marker.gate{background:var(--ink)}.group{border-top:1px solid var(--line);margin-top:4px}.group .label,.group .cost{font-weight:650}
+.axis .track{height:30px}.tick{position:absolute;left:var(--x);top:14px;font-size:10px;color:var(--quiet);transform:translateX(-50%);white-space:nowrap}
+.tick.top{top:0}.tick.nowtick{color:var(--ink);font-weight:650}.axis .label,.axis .cost{color:var(--quiet);font-size:11px;line-height:30px}
+.total{border-top:1.5px solid var(--ink);margin-top:6px;padding-top:3px}.total .label{font-weight:650}.total .cost{font-weight:650;font-size:13px}
+.split{position:absolute;left:0;top:5px;height:11px;width:36%;display:flex}.split i{height:100%;width:var(--w);background:var(--c)}
+.total .note{left:calc(36% + 8px);font-size:11px}.total .note.plain{left:0}.chart-note{font-size:11px;color:var(--quiet);margin-top:8px}
 .tables{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 24px}.wide{grid-column:1/-1}.table-scroll{overflow-x:auto}
 table{width:100%;border-collapse:collapse;text-align:left;font-size:12px}th{font-size:10px;color:var(--quiet);font-weight:500}td,th{padding:8px 8px 8px 0;border-bottom:1px solid var(--line);vertical-align:top}td small{display:block}
 .num{font-variant-numeric:tabular-nums;white-space:nowrap}.ratio-plot{min-width:120px;position:relative;height:14px;background:var(--ghost)}.ratio-bar{display:block;height:100%;width:var(--w);background:var(--link)}
 .ratio-one{position:absolute;left:var(--one);top:-3px;bottom:-3px;border-left:2px solid #101820;box-shadow:1px 0 #fff,-1px 0 #fff}details{margin:0}summary{cursor:pointer;font-weight:650;padding:8px 0;border-bottom:1px solid var(--line)}summary h2{display:inline;font-size:17px;margin:0}summary:focus-visible{outline:2px solid var(--link);outline-offset:3px}.section-body{padding-top:10px}footer{font-size:11px;color:var(--quiet);border-top:1px solid var(--line);margin-top:22px;padding-top:10px}
-@media(max-width:600px){.facts,.tables{grid-template-columns:minmax(0,1fr)}h1{font-size:24px}.report{padding:12px}.table-scroll table{min-width:450px}}
+@media(max-width:600px){.facts,.tables{grid-template-columns:minmax(0,1fr)}h1{font-size:24px}.report{padding:12px}.table-scroll table{min-width:450px}.chart{--label:150px}}
 """
 
 SCRIPT = """
-function connect(){document.querySelectorAll('.chart').forEach(chart=>{
- if(chart.closest('details:not([open])'))return;
- const plot=chart.querySelector('.plot'), svg=chart.querySelector('.connections');
- const box=plot.getBoundingClientRect();if(!(box.width>0&&box.height>0))return;
- const viewBox=`0 0 ${box.width} ${box.height}`;if(svg.getAttribute('viewBox')!==viewBox)svg.setAttribute('viewBox',viewBox);
- const rows=Array.from(plot.querySelectorAll('.task-block'));
- function point(row,finish){const lane=row.querySelector(`.lane[data-lane="${row.dataset[finish?'finishLane':'beginLane']}"]`);
-  const track=lane?lane.querySelector('.track'):row.querySelector('.task-head .track');
-  const r=track.getBoundingClientRect(), f=Number(row.dataset[finish?'finish':'begin']);
-  return [r.left-box.left+f*r.width,r.top-box.top+19];}
- svg.querySelectorAll('.dependency').forEach(path=>{const a=rows.find(r=>r.dataset.node===path.dataset.from),b=rows.find(r=>r.dataset.node===path.dataset.to);
-  if(!a||!b)return;const [x,y]=point(a,true),[u,v]=point(b,false),mid=(y+v)/2;
-  path.setAttribute('d',`M${x},${y} V${mid} H${u} V${v}`);});
- svg.querySelectorAll('.handoff').forEach(path=>{const row=rows.find(r=>r.dataset.node===path.dataset.node);
-  const lanes=Array.from(row.querySelectorAll('.lane[data-lane]'));
-  const a=lanes.find(r=>r.dataset.lane===path.dataset.fromLane), b=lanes.find(r=>r.dataset.lane===path.dataset.toLane);if(!a||!b)return;
-  const p=a.querySelector('.track').getBoundingClientRect(),q=b.querySelector('.track').getBoundingClientRect();const x=q.left-box.left+Number(path.dataset.x)*q.width;
-  const y=p.top-box.top+19,v=q.top-box.top+19;
-  path.setAttribute('d',a===b?`M${x},${y-12} V${y+12}`:`M${x},${y} V${v}`);});
- });}
-let connectFrame=0;
-function scheduleConnect(){if(connectFrame)return;connectFrame=requestAnimationFrame(()=>{connectFrame=0;connect();});}
 function revealTarget(hash){let target;try{target=document.getElementById(decodeURIComponent(hash.slice(1)));}catch{return;}
  if(!target)return;let revealed=false;for(let node=target.parentElement;node;node=node.parentElement){if(node.tagName==='DETAILS'&&!node.open){node.open=true;revealed=true;}}
  const detail=target.firstElementChild;if(target.tagName==='SECTION'&&detail&&detail.tagName==='DETAILS'&&!detail.open){detail.open=true;revealed=true;}
- if(revealed)requestAnimationFrame(()=>{connect();target.scrollIntoView({block:'start'});});}
-document.querySelectorAll('details').forEach(detail=>detail.addEventListener('toggle',scheduleConnect));
+ if(revealed)requestAnimationFrame(()=>target.scrollIntoView({block:'start'}));}
 document.querySelectorAll('.report a[href^="#"]').forEach(link=>link.addEventListener('click',()=>revealTarget(link.hash)));
 window.addEventListener('hashchange',()=>revealTarget(location.hash));
-window.addEventListener('load',()=>{revealTarget(location.hash);scheduleConnect();});window.addEventListener('resize',scheduleConnect);
-if(window.ResizeObserver){const observer=new ResizeObserver(scheduleConnect);document.querySelectorAll('.chart-scroll').forEach(chart=>observer.observe(chart));}
+window.addEventListener('load',()=>revealTarget(location.hash));
 """
+
+# Provider families: light-theme shades, then dark-theme shades. Hue names the
+# provider; shade separates that provider's models.
+FAMILIES = {
+    "orange": (("#d4502a", "#a61e4d", "#b8690b", "#7c2d12"), ("#ff8a5c", "#ff7a98", "#f5b041", "#ffc9a8")),
+    "green": (("#1f8a5b", "#4d7c0f", "#0f766e", "#166534"), ("#4ade80", "#a3e635", "#2dd4bf", "#86efac")),
+    "blue": (("#2f6fd6", "#1e40af", "#0e7490", "#4f46e5"), ("#7fb0ff", "#a5b4fc", "#67d8ef", "#bfdbfe")),
+    "purple": (("#7c3aed", "#a21caf", "#6d28d9", "#86198f"), ("#c4a1ff", "#f0a6f5", "#d8b4fe", "#e879f9")),
+    "slate": (("#475569", "#1f2937", "#64748b", "#334155"), ("#cbd5e1", "#94a3b8", "#e2e8f0", "#a8b3c4")),
+    "teal": (("#0d7d87", "#155e75", "#0f766e", "#134e4a"), ("#46c7cf", "#7dd3fc", "#5eead4", "#a5f3fc")),
+    "pink": (("#be185d", "#9d174d", "#c026a3", "#831843"), ("#f9a8d4", "#fb7fb5", "#f0abfc", "#fbcfe8")),
+}
+FAMILY_HINTS = (("orange", ("anthropic", "claude")), ("green", ("openai", "codex", "gpt")),
+                ("blue", ("deepseek",)), ("purple", ("google", "gemini")), ("slate", ("xai", "grok")))
+SPARE_FAMILIES = ("teal", "pink", "purple", "slate", "blue", "green", "orange")
+SYDNEY = ZoneInfo("Australia/Sydney")
+TERMINAL = {"done", "cancelled"}
+ACTIVE = {"running", "review"}
+REFERENCE = re.compile(r"(?<![&\w])#\d+")
+LINK = re.compile(r"[a-z][a-z0-9+.-]*://\S+")
+CUT_MINUTES, FAR_SHARE, TICK_STEPS = 60, 0.22, (15, 30, 60, 120, 180, 360, 720, 1440)
 
 
 def esc(value):
@@ -428,11 +435,13 @@ def fmt(value):
     return f"{value:g}"
 
 
+STATUS_SYMBOLS = {"done": "✓", "running": "▶", "review": "▶", "blocked": "⊘", "planned": "◷",
+                  "ready": "◷", "cancelled": "×"}
+
+
 def chip(status):
-    symbols = {"done": "✓", "running": "▶", "review": "▶", "blocked": "⊘", "planned": "◷",
-               "ready": "◷", "cancelled": "×"}
     css = status if status in STATUSES else "planned"
-    return f'<span class="chip {css}">{symbols.get(status, "◷")} {esc(status)}</span>'
+    return f'<span class="chip {css}">{STATUS_SYMBOLS.get(status, "◷")} {esc(status)}</span>'
 
 
 def section_html(title, body, section_id, wide=False, collapsed=True):
@@ -499,8 +508,9 @@ def projection(task, now):
         item = dict(allocation, start=a.isoformat(), end=min(end, b).isoformat(),
                     round=max([s["round"] for s in task["segments"] if s["kind"] == "review"] or [1]) if allocation["kind"] == "review" else 0,
                     id=f"forecast-{index}")
-        if item["kind"] == "build":
-            item.update(task["owner"])
+        if item["kind"] == "build":  # whoever is building now keeps building
+            builder = next((s for s in reversed(task["segments"]) if s["kind"] == "build"), task["owner"])
+            item.update({field: builder[field] for field in IDENTITY})
         output.append(item)
         a = min(end, b)
     return output
@@ -523,152 +533,350 @@ def segment_rows(task, now):
     return rows
 
 
-def timeline(data, name, lo, hi, palette):
+def model_palette(identities):
+    """Give each provider family a hue and each of its models a shade."""
+    def hinted(text):
+        return next((family for family, words in FAMILY_HINTS if any(word in text.lower() for word in words)), None)
+
+    families = {key: hinted(key[1]) or hinted(key[0]) for key in identities}
+    free = [family for family in SPARE_FAMILIES if family not in families.values()] or list(SPARE_FAMILIES)
+    spare, shades, names, light, dark = {}, defaultdict(int), {}, '', ''
+    for index, key in enumerate(sorted(identities)):
+        family = families[key] or spare.setdefault(key[0], free[len(spare) % len(free)])
+        shade = shades[family] % 4
+        shades[family] += 1
+        names[key] = f'var(--m{index})'
+        light += f'--m{index}:{FAMILIES[family][0][shade]};'
+        dark += f'--m{index}:{FAMILIES[family][1][shade]};'
+    css = f'.report{{{light}}}.report.dark{{{dark}}}@media(prefers-color-scheme:dark){{.report.auto{{{dark}}}}}'
+    return names, css
+
+
+def short_clock(at, now):
+    local, reference = at.astimezone(SYDNEY), now.astimezone(SYDNEY)
+    days = abs((local.date() - reference.date()).days)
+    return f'{local:%H:%M}' if not days else f'{local:%a %H:%M}' if days < 7 else f'{local:%d %b %H:%M}'
+
+
+def span_text(minutes):
+    return f'{round(minutes)}m' if minutes < 90 else f'{minutes/60:.1f}h'
+
+
+def task_weight(task):
+    """Estimated wall minutes: the approved baseline, else the current forecast."""
+    if task.get("baseline"):
+        return sum(a["minutes"] for a in task["baseline"]["allocations"])
+    a, b = interval(task["forecast"], "forecast")
+    return (b - a).total_seconds() / 60
+
+
+def task_tokens(task):
+    """Known tokens by (provider, model) and the count of unreported observations."""
+    whole = task.get("cost", {}).get("tokens", "unknown")
+    models = {(s["provider"], s["model"]) for s in task["segments"]}
+    if whole != "unknown":
+        key = (next(iter(models)) if len(models) == 1 else ("unattributed", "task total") if models
+               else (task["owner"]["provider"], task["owner"]["model"]))
+        return {key: whole["value"]}, 0
+    known, missing = defaultdict(int), 0
+    for segment in task["segments"]:
+        observation = segment.get("cost", {}).get("tokens", "unknown")
+        if observation == "unknown":
+            missing += 1
+        else:
+            known[(segment["provider"], segment["model"])] += observation["value"]
+    return dict(known), missing
+
+
+def mtoks(known, missing):
+    """Millions of tokens; unknown stays a dash and a partial sum is marked."""
+    if not known:
+        return '<span class="muted" title="No token usage reported">–</span>'
+    value = sum(known.values()) / 1e6
+    text = '&lt;0.01' if 0 < value < 0.005 else f'{value:.2f}' if value < 10 else f'{value:.1f}'
+    if missing:
+        return f'<span title="Known subtotal; {missing} observation{"s" if missing != 1 else ""} unreported">{text}+</span>'
+    return text
+
+
+def progress_html(data):
+    tasks = [t for t in data["tasks"] if t["status"] != "cancelled"]
     now = timestamp(data["project"]["as_of"])
-    span = max(1, (hi-lo).total_seconds())
-    tasks = data["tasks"]
-    indices = {t["id"]: i for i, t in enumerate(tasks)}
+    weights = {t["id"]: task_weight(t) for t in tasks}
+    counted = sum(weights.values()) > 0
+    if not counted:
+        weights = {tid: 1 for tid in weights}
+    total = sum(weights.values()) or 1
+    share = lambda *statuses: sum(weights[t["id"]] for t in tasks if t["status"] in statuses) / total * 100
+    count = lambda *statuses: sum(t["status"] in statuses for t in tasks)
+    done, active = share("done"), share(*ACTIVE)
+    finished = all(t["status"] == "done" for t in tasks)
+    finish = max((task_end(t, data["project"]["as_of"]) for t in tasks), default=now)
+    measure = (f'of estimated work done · {span_text(done*total/100)} of {span_text(total)}' if counted
+               else f'of tasks done · {count("done")} of {len(tasks)}')
+    waiting = len(tasks) - count("done") - count(*ACTIVE)
+    return (f'<div class="progress"><p><strong>{done:.0f}%</strong> {measure} · '
+            f'{"finished" if finished else "forecast finish"} <b>{esc(short_clock(finish, now))}</b></p>'
+            f'<div class="pbar" role="img" aria-label="{done:.0f}% done, {active:.0f}% running">'
+            f'<i class="done" style="--w:{done:.3f}%"></i><i class="active" style="--w:{active:.3f}%"></i><i class="todo"></i></div>'
+            f'<div class="plabels"><span style="--w:{done:.3f}%">{count("done")} done</span>'
+            f'<span style="--w:{active:.3f}%">{count(*ACTIVE)} running</span><span>{waiting} waiting</span></div></div>')
+
+
+def build_axis(spans, squeeze_from=None):
+    """Clock axis without dead time: idle gaps are cut and the far future is compressed."""
+    pad = timedelta(minutes=10)
+    blocks = []
+    for a, b in sorted((a - pad, b + pad) for a, b in spans):
+        if blocks and (a - blocks[-1][1]).total_seconds() < CUT_MINUTES * 60:
+            blocks[-1][1] = max(blocks[-1][1], b)
+        else:
+            blocks.append([a, b])
+    pieces = []
+    for index, (a, b) in enumerate(blocks):
+        if index:
+            pieces.append(dict(kind="cut", a=blocks[index-1][1], b=a))
+        if squeeze_from is not None and a < squeeze_from < b:
+            pieces += [dict(kind="time", a=a, b=squeeze_from), dict(kind="far", a=squeeze_from, b=b)]
+        else:
+            pieces.append(dict(kind="far" if squeeze_from is not None and a >= squeeze_from else "time", a=a, b=b))
+    minutes = lambda p: (p["b"] - p["a"]).total_seconds() / 60
+    near = sum(minutes(p) for p in pieces if p["kind"] == "time")
+    far = sum(minutes(p) for p in pieces if p["kind"] == "far")
+    scale = min(1, FAR_SHARE * near / ((1 - FAR_SHARE) * far)) if near and far else 1
+    cuts = sum(p["kind"] == "cut" for p in pieces)
+    cut_width = min(0.03, 0.3 / cuts) if cuts else 0
+    total = near + far * scale or 1
+    x = 0
+    for piece in pieces:
+        if piece["kind"] == "far" and scale == 1:
+            piece["kind"] = "time"
+        width = cut_width if piece["kind"] == "cut" else (
+            (1 - cut_width * cuts) * minutes(piece) * (scale if piece["kind"] == "far" else 1) / total)
+        piece.update(x0=x, x1=x + width)
+        x += width
 
     def fraction(at):
-        return max(0, min(1, (at-lo).total_seconds()/span))
+        for piece in pieces:
+            if at <= piece["b"]:
+                length = (piece["b"] - piece["a"]).total_seconds()
+                part = (at - piece["a"]).total_seconds() / length if length else 0
+                return piece["x0"] + (piece["x1"] - piece["x0"]) * max(0, min(1, part))
+        return 1
 
-    def position(a, b):
-        if b <= lo or a >= hi:
-            return None
-        x, end = fraction(a), fraction(b)
-        return f'--x:{x*100:.6f}%;--w:{max(0,end-x)*100:.6f}%'
+    return pieces, fraction
 
-    def now_line():
-        return f'<i class="now" style="--x:{fraction(now)*100:.6f}%" title="As of {esc(display_time(now.isoformat()))}"></i>' if lo <= now <= hi else ''
 
-    ticks = []
-    for i in range(6):
-        time = lo + (hi-lo)*i/5
-        local = time.astimezone(ZoneInfo("Australia/Sydney"))
-        ticks.append(f'<span class="tick {"first" if i==0 else "last" if i==5 else ""}" style="--x:{i*20}%">{local:%H:%M}<br>{local:%d %b %Y}</span>')
-    rows, visible, handoffs = [], [], []
-    critical = critical_path(data)
-    for index, task in enumerate(tasks):
-        observed = task["segments"]
-        future = projection(task, now)
-        baseline_plan = task.get("baseline")
-        relevant = observed + future
-        begin = min([timestamp(s["start"]) for s in observed] or [timestamp(task["forecast"]["start"])])
-        end = task_end(task, data["project"]["as_of"])
-        task_events = [(ei, e) for ei, e in enumerate(data.get('events', [])) if event_affects(e,task)
-                       and timestamp(e['start']) < end and timestamp(e.get('end') or data['project']['as_of']) > begin]
-        has_event = any(timestamp(e['start']) < hi and timestamp(e.get('end') or data['project']['as_of']) > lo for _,e in task_events)
-        if name == "recent" and task['status'] not in {'blocked','running','review'} and not has_event and not any(timestamp(s["start"]) < hi and timestamp(s.get("end") or data["project"]["as_of"]) > lo for s in relevant):
+def axis_ticks(pieces, fraction):
+    ticks, last_x, last_day = [], -1, None
+    for piece in pieces:
+        if piece["kind"] == "cut":
             continue
-        visible.append(index)
-        header_marks = ''
-        over = 0
-        if baseline_plan:
-            finish = baseline_end(baseline_plan)
-            style = position(timestamp(baseline_plan["start"]), finish)
-            if style:
-                header_marks += f'<i class="baseline" style="{style}" title="Original {esc(display_time(baseline_plan["start"]))} to {esc(display_time(finish.isoformat()))}"></i>'
-            over = max(0, (end-finish).total_seconds()/60)
-            for a, b, projected in [(finish, min(end, now), False), (max(finish, now), end, True)]:
-                style = position(a, b)
-                if b > a and style:
-                    header_marks += f'<i class="overrun {"projected" if projected else ""}" style="{style}" title="{fmt(over)}m past original finish"></i>'
-        deptext = ', '.join(task["dependencies"]) or 'none'
-        over_chip = f'<span class="chip over">+{fmt(over)}m finish</span>' if over else ''
-        packed = segment_rows(task, now)
-        boundaries = [(interval(s, 'segment', now), f'j{ri}') for ri, row in enumerate(packed) for s, _, _ in row]
-        begin_lane = min(boundaries, key=lambda x: x[0][0])[1] if boundaries else ''
-        finish_lane = max(boundaries, key=lambda x: x[0][1])[1] if boundaries else ''
-        rows.append(f'<div class="task-block {"critical-task" if task["id"] in critical else ""}" data-node="{index}" data-begin="{fraction(begin)}" data-finish="{fraction(end)}" data-begin-lane="{begin_lane}" data-finish-lane="{finish_lane}" id="{name}-task-{index}">'
-                    f'<div class="chart-row task-head"><div class="label">{esc(task["id"])} · {esc(task["title"])} {chip(task["status"])} '
-                    f'{over_chip}'
-                    f'<small>{esc(task["stream"])} · Depends on {esc(deptext)}</small></div><div class="track">{header_marks}{now_line()}</div></div>')
-        rendered, marked_events = [], set()
-        for ri, lane in enumerate(packed):
-            labels, marks, projected_ends = [], '', []
-            lane_id = f'j{ri}'
-            for segment, projected, _ in lane:
+        minutes = (piece["b"] - piece["a"]).total_seconds() / 60
+        width = (piece["x1"] - piece["x0"]) * 100
+        step = next((s for s in TICK_STEPS if s / minutes * width >= 7), None)
+        if step is None:
+            continue
+        local = piece["a"].astimezone(SYDNEY)
+        offset = local.hour * 60 + local.minute + local.second / 60
+        at = piece["a"] + timedelta(minutes=math.ceil(offset / step) * step - offset)
+        while at <= piece["b"]:
+            x, local = fraction(at), at.astimezone(SYDNEY)
+            if x - last_x >= 0.055:
+                text = f'{local:%H:%M}' if local.minute or step < 60 else f'{local:%H}'
+                if last_day is not None and local.date() != last_day:
+                    text = f'{local:%a} {text}'
+                ticks.append((x, text))
+                last_x, last_day = x, local.date()
+            at += timedelta(minutes=step)
+    return ticks
+
+
+def short_name(task):
+    found = REFERENCE.search(task["title"])
+    return found.group(0) if found else ' '.join(re.split(r'[:,(]', task["title"])[0].split()[:3])
+
+
+def title_html(task):
+    """Issue numbers in a title link to the task's thread when the ledger has one."""
+    text, href = esc(task["title"]), task.get("thread")
+    if not href:
+        return text
+    link = lambda label: f'<a href="{esc(href)}">{label}</a>'
+    return REFERENCE.sub(lambda m: link(m.group(0)), text) if REFERENCE.search(text) else link(text)
+
+
+def timeline(data, name, colours, recent_hours):
+    now = timestamp(data["project"]["as_of"])
+    tasks = data["tasks"]
+    by_id = {t["id"]: t for t in tasks}
+    indices = {t["id"]: i for i, t in enumerate(tasks)}
+    critical = set(critical_path(data))
+    recent = name == "recent"
+    remaining = [t for t in tasks if t["status"] not in TERMINAL]
+    floor = None
+    if not recent:
+        shown = list(tasks)
+    elif remaining:
+        shown = remaining
+    else:  # nothing left to do: fall back to what finished lately
+        floor = now - timedelta(hours=recent_hours)
+        shown = [t for t in tasks if any(interval(s, "segment", now)[1] > floor for s in t["segments"])]
+    shown_ids = {t["id"] for t in shown}
+    lanes, spans = {}, [(now, now)]
+    for task in shown:
+        lanes[task["id"]] = segment_rows(task, now)
+        for lane in lanes[task["id"]]:
+            for segment, _, _ in lane:
                 a, b = interval(segment, "segment", now)
-                if name == "recent" and (b <= lo or a >= hi):
-                    continue
-                rendered.append((segment, projected, lane_id))
-                kind = segment['kind']
-                colour = palette[(segment["provider"], segment["model"])]
-                code = f'R{segment["round"]}' if kind == "review" else 'B'
-                status = 'planned' if projected else 'running' if segment.get("end") is None else 'done'
-                label = f'Projection {code}' if projected else code
-                clipped = ' · clipped at window edge' if a < lo or b > hi else ''
-                desc = f'{kind.title()} {code} · {segment["model"]} · {segment["effort"]} · {display_time(segment["start"])} to {display_time(b.isoformat())}{clipped}'
-                style = position(a, b)
-                if style:
-                    marks += f'<span class="bar {kind} {"projection" if projected else "open" if segment.get("end") is None else ""}" style="{style};--mc:{colour}" title="{esc(desc)}" aria-label="{esc(desc)}"></span>'
-                    if projected:
-                        projected_ends.append(b)
-                event_ids = []
-                for ei, event in enumerate(data.get("events", [])):
-                    scope = event["scope"]
-                    affected = (scope.get("all") is True or task["id"] in scope.get("tasks", []) or scope.get("provider") == segment["provider"])
-                    if affected:
-                        ea, eb = interval(event, "event", now)
-                        ea, eb = max(ea, a), min(eb, b)
-                        if eb <= ea:
-                            continue
-                        style = position(ea, eb)
-                        if style:
-                            event_ids.append(f'E{ei+1}')
-                            marked_events.add(ei)
-                            marks += f'<i class="event-band" data-event="E{ei+1}" style="{style}" title="E{ei+1}: {esc(event["kind"]+": "+event["note"])}"></i>'
-                result = '' if projected else f'<span class="lane-meta">{esc(segment.get("result", ""))}</span>'
-                labels.append(f'<span class="segment-label"><span class="lane-name">{label} · {esc(segment["model"])} · {esc(segment["effort"])}</span> {chip(status)}'
-                              f'<span class="lane-meta">{esc(segment["provider"])}{esc(clipped)}{esc(" · events " + ", ".join(event_ids)) if event_ids else ""}</span>{result}</span>')
-            if not labels:
-                continue
-            if projected_ends and task['status'] in {'running', 'review'}:
-                at = min(max(projected_ends), hi)
-                outside = ' · outside window' if timestamp(task['forecast']['end']) > hi else ''
-                marks += f'<span class="eta" style="--x:{fraction(at)*100:.6f}%">ETA {esc(display_time(task["forecast"]["end"]))}{outside}</span>'
-            rows.append(f'<div class="chart-row lane joined" data-lane="{lane_id}"><div class="label">{"".join(labels)}</div><div class="track">{marks}{now_line()}</div></div>')
-        # Waiting is visible without inventing a build/review segment or cost.
-        for ei, event in task_events:
-            if ei in marked_events:
-                continue
-            ea, eb = interval(event, 'event', now)
-            style = position(ea, eb)
-            if style:
-                rows.append(f'<div class="chart-row event-only"><div class="label"><strong>E{ei+1} · {esc(event["kind"])}</strong><span class="lane-meta">{esc(event["note"])} · event only</span></div><div class="track"><i class="event-band" data-event="E{ei+1}" style="{style}"></i>{now_line()}</div></div>')
-        for review, projected, review_id in rendered:
-            if review['kind'] != 'review' or not lo <= timestamp(review['start']) < hi:
-                continue
-            builds = [(s,p,lid) for s,p,lid in rendered if s['kind']=='build' and timestamp(s['end'] or data['project']['as_of']) <= timestamp(review['start'])]
-            if builds:
-                build, build_projected, build_id = max(builds,key=lambda x:timestamp(x[0]['end'] or data['project']['as_of']))
-                handoffs.append(f'<path class="handoff{" projected" if projected or build_projected else ""}" data-node="{index}" data-from-lane="{build_id}" data-to-lane="{review_id}" data-x="{fraction(timestamp(review["start"]))}"><title>Build to review handoff</title></path>')
-        rows.append('</div>')
+                if floor is None or b > floor:
+                    spans.append((a if floor is None else max(a, floor), b))
+    earliest = min(a for a, _ in spans)
+    streams = list(dict.fromkeys(t["stream"] for t in tasks))
+    homes, loose = defaultdict(list), []
     for marker in data.get("milestones", []):
         at = timestamp(marker["target"])
-        if name == 'recent' and not lo <= at < hi:
+        if recent and not (shown_ids.intersection(marker["tasks"]) or (not marker["tasks"] and at >= now)):
             continue
-        rows.append(f'<div class="chart-row marker-row"><div class="label"><strong>{esc(marker["id"])} · {esc(marker["name"])}</strong> {chip(marker["status"])}'
-                    f'<span class="lane-meta">{esc(display_time(marker["target"]))} · {esc(", ".join(marker["required_reviewers"]))}{" · outside window" if not lo<=at<=hi else ""}</span></div>'
-                    f'<div class="track"><i class="marker {esc(marker["kind"])}" style="--x:{fraction(at)*100:.6f}%" title="{esc(marker["name"])}{" (outside window)" if not lo<=at<=hi else ""}"></i>{now_line()}</div></div>')
-    for change in data.get("rebaselines", []):
-        at = timestamp(change["at"])
-        if lo <= at <= hi:
-            rows.append(f'<div class="chart-row rebaseline-row"><div class="label"><strong>Rebaseline · {esc(change["reason"])}</strong><span class="lane-meta">{esc(display_time(change["at"]))} · {esc(change["approver"])}</span></div>'
-                        f'<div class="track"><i class="marker rebaseline" style="--x:{fraction(at)*100:.6f}%"></i>{now_line()}</div></div>')
-    paths = ''.join(f'<path class="dependency" data-from="{indices[dep]}" data-to="{i}" marker-end="url(#{name}-arrow)"><title>{esc(dep)} → {esc(tasks[i]["id"])}</title></path>'
-                    for i in visible for dep in tasks[i]["dependencies"] if indices[dep] in visible)
-    paths += ''.join(handoffs)
-    body = (f'<p class="muted">{esc(display_time(lo.isoformat()))} – {esc(display_time(hi.isoformat()))}</p>'
-            '<p class="muted">Scrollable timeline: swipe or scroll horizontally to see all times. Task and lane labels stay visible.</p>'
-            '<div class="chart-scroll" tabindex="0" role="region" aria-label="Scrollable timeline"><div class="chart">'
-            '<div class="chart-row axis"><div class="label">Task · lane · model · effort · status</div><div class="track">' + ''.join(ticks) + '</div></div>'
-            '<div class="plot">' + ''.join(rows) + f'<svg class="connections" aria-hidden="true"><defs><marker id="{name}-arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="var(--quiet)"/></marker></defs>{paths}</svg></div></div></div>'
-            '<p class="chart-note">Solid build; striped review. Each segment has its full model, effort, round and status beside it. '
-            'Grey ghost: original estimate. Red rail: finish past original (dashed = forecast). Thin navy tick: build/review handoff. Dotted arrows: dependencies. '
-            'Amber bands: scoped events; E numbers refer to the events table. Vertical navy line: now. '
-            'Joined sections preserve gaps; concurrent work uses additional rows. Dashed, hatched bars divide the remaining forecast in proportion to original allocations; ETA is the expected task finish. Scroll horizontally on narrow screens.</p>')
-    return section_html('Whole-run timeline' if name=='whole' else 'Recent timeline', body, name, collapsed=name!='recent')
+        if not recent or at >= earliest:
+            spans.append((at, at))
+        if marker["tasks"]:
+            homes[max(streams, key=lambda s: sum(by_id[tid]["stream"] == s for tid in marker["tasks"]))].append(marker)
+        else:
+            loose.append(marker)
+    # Once work has been observed, a long forecast must not squash it.
+    observed = any(t["segments"] for t in tasks)
+    pieces, fraction = build_axis(spans, now + timedelta(hours=recent_hours) if observed else None)
+    lo, hi = pieces[0]["a"], pieces[-1]["b"]
+    pct = lambda value: f'{value*100:.4f}%'
+
+    def place(a, b):
+        if b < lo or a > hi:
+            return None
+        x = fraction(a)
+        return f'--x:{pct(x)};--w:{pct(max(0, fraction(b) - x))}'
+
+    def marker_html(marker):
+        at = timestamp(marker["target"])
+        label = f'{esc(marker["kind"])} {esc(marker["id"])} · {esc(marker["name"])} · target {esc(display_time(marker["target"]))} · {esc(marker["status"])}'
+        if not lo <= at <= hi:
+            return f'<span class="note" style="left:6px" title="{label}">target {esc(short_clock(at, now))}, outside this view</span>'
+        x = fraction(at)
+        side = f'right:calc({pct(1 - x)} + 9px)' if x >= 0.25 else f'left:calc({pct(x)} + 9px)'
+        return (f'<span class="note" style="{side}">target {esc(short_clock(at, now))}</span>'
+                f'<i class="marker {esc(marker["kind"])}" style="--x:{pct(x)}" title="{label}"></i>')
+
+    ticks = axis_ticks(pieces, fraction)
+    grid = ''.join(f'<i class="gridline" style="--x:{pct(x)}"></i>' for x, _ in ticks)
+    axis = ''.join(f'<span class="tick" style="--x:{pct(x)}">{esc(text)}</span>' for x, text in ticks)
+    for piece in pieces:
+        middle = pct((piece["x0"] + piece["x1"]) / 2)
+        if piece["kind"] == "cut":
+            idle = span_text((piece["b"] - piece["a"]).total_seconds() / 60)
+            grid += f'<i class="cut" style="--x:{pct(piece["x0"])};--w:{pct(piece["x1"] - piece["x0"])}"></i>'
+            axis += f'<span class="tick top" style="--x:{middle}" title="{idle} with no work, cut from the axis">{idle} cut</span>'
+        elif piece["kind"] == "far":
+            grid += f'<i class="far" style="--x:{pct(piece["x0"])};--w:{pct(piece["x1"] - piece["x0"])}"></i>'
+            axis += f'<span class="tick top" style="--x:{middle}" title="More than {fmt(recent_hours)}h ahead, drawn at a smaller scale">later, compressed</span>'
+    if lo <= now <= hi:
+        grid += f'<i class="now" style="--x:{pct(fraction(now))}" title="As of {esc(display_time(now.isoformat()))}"></i>'
+        axis += f'<span class="tick top nowtick" style="--x:{pct(fraction(now))}">now</span>'
+
+    rows, totals, unreported = [], defaultdict(int), 0
+    for stream in streams:
+        members = [t for t in tasks if t["stream"] == stream]
+        visible = [t for t in members if t["id"] in shown_ids]
+        known, missing = defaultdict(int), 0
+        for task in members:
+            task_known, task_missing = task_tokens(task)
+            missing += task_missing
+            for key, value in task_known.items():
+                known[key] += value
+                totals[key] += value
+        unreported += missing
+        done = sum(t["status"] == "done" for t in members)
+        hidden = len(members) - len(visible)
+        tag = f'{done}/{len(members)}' + (f' · {hidden} finished hidden' if hidden and visible else '')
+        if visible:
+            marks = ''.join(marker_html(m) for m in homes[stream])
+        else:
+            last = max(task_end(t, data["project"]["as_of"]) for t in members)
+            marks = f'<span class="note" style="left:6px">✓ {len(members)} finished, last at {esc(short_clock(last, now))}</span>'
+        rows.append(f'<div class="chart-row group"><div class="label">{esc(stream)} <small>{tag}</small></div>'
+                    f'<div class="track">{marks}</div><div class="cost">{mtoks(known, missing) if known else ""}</div></div>')
+        first = lambda t: min([timestamp(s["start"]) for s in t["segments"]] or [timestamp(t["forecast"]["start"])])
+        for task in sorted(visible, key=first):
+            marks, projected, packed = '', [], lanes[task["id"]]
+            for lane_index, lane in enumerate(packed):
+                for segment, forecast, _ in lane:
+                    a, b = interval(segment, "segment", now)
+                    style = place(a, b) if floor is None or b > floor else None
+                    if not style:
+                        continue
+                    if forecast:
+                        projected.append((a, b))
+                    kind = segment["kind"]
+                    code = f'R{segment["round"]}' if kind == "review" else 'B'
+                    desc = (f'{"Forecast " if forecast else ""}{kind.title()} {code} · {segment["model"]} · {segment["effort"]} · '
+                            f'{segment["provider"]} · {display_time(segment["start"])} to {display_time(b.isoformat())}'
+                            f'{"" if forecast or segment.get("end") else " (running)"}'
+                            f'{" · " + segment["result"] if segment.get("result") else ""}'
+                            f'{" · clipped at window edge" if a < lo or b > hi else ""}')
+                    state = 'projection' if forecast else '' if segment.get("end") else 'open'
+                    marks += (f'<span class="bar {kind} {state}" style="{style};--lane:{lane_index};'
+                              f'--c:{colours[(segment["provider"], segment["model"])]}" title="{esc(desc)}" aria-label="{esc(desc)}"></span>')
+            if task["status"] in ACTIVE:
+                if projected:
+                    x = fraction(max(b for _, b in projected))
+                    if x <= 0.88:
+                        marks += (f'<span class="eta" style="left:calc({pct(x)} + 5px)" title="ETA {esc(display_time(task["forecast"]["end"]))}">'
+                                  f'{esc(short_clock(timestamp(task["forecast"]["end"]), now))}</span>')
+                else:
+                    marks += f'<span class="note" style="left:calc({pct(fraction(now))} + 5px)">past its forecast</span>'
+            elif task["status"] not in TERMINAL:
+                pending = [by_id[dep] for dep in task["dependencies"] if by_id[dep]["status"] not in TERMINAL]
+                text = ('after ' + ', '.join(short_name(t) for t in pending[:2]) + (f' +{len(pending) - 2}' if len(pending) > 2 else '')
+                        if pending else 'blocked' if task["status"] == "blocked" else '')
+                if text:
+                    start = fraction(min(a for a, _ in projected)) if projected else fraction(now)
+                    finish = fraction(max(b for _, b in projected)) if projected else start
+                    # Sit on whichever side of the forecast has more room; the rest is on hover.
+                    side = (f'right:calc({pct(1 - start)} + 4px);max-width:calc({pct(start)} - 8px)' if projected and start >= 1 - finish else
+                            f'left:calc({pct(finish)} + 5px);max-width:calc({pct(1 - finish)} - 8px)')
+                    waits = ', '.join(f'{t["id"]} {t["title"]}' for t in pending)
+                    marks += f'<span class="note" style="{side}" title="{esc("Waiting on " + waits if waits else "Blocked")}">{esc(text)}</span>'
+            index = indices[task["id"]]
+            hover = f'{task["id"]} · {task["title"]} · {task["status"]}{" · on the critical path" if task["id"] in critical else ""}'
+            rows.append(f'<div class="chart-row task-row {task["status"]}{" critical-task" if task["id"] in critical else ""}" id="{name}-task-{index}">'
+                        f'<div class="label" title="{esc(hover)}"><span class="status">{STATUS_SYMBOLS.get(task["status"], "◷")}</span>{title_html(task)}</div>'
+                        f'<div class="track" style="--lanes:{max(0, len(packed) - 1)}">{marks}</div><div class="cost">{mtoks(*task_tokens(task))}</div></div>')
+    for marker in loose:
+        rows.append(f'<div class="chart-row marker-row"><div class="label" title="{esc(marker["status"])}"><span class="status">◆</span>{esc(marker["name"])}</div>'
+                    f'<div class="track">{marker_html(marker)}</div><div class="cost"></div></div>')
+    grand = sum(totals.values())
+    if grand:
+        order = sorted(totals.items(), key=lambda item: -item[1])
+        split = ''.join(f'<i style="--w:{value/grand*100:.3f}%;--c:{colours.get(key, "var(--quiet)")}" title="{esc(key[1])} · {esc(key[0])}"></i>' for key, value in order)
+        detail = ' · '.join(f'{esc(key[1])} {mtoks({key: value}, 0)}' for key, value in order)
+        if unreported:
+            detail += f' · {unreported} unreported'
+        middle = f'<span class="split">{split}</span><span class="note">{detail}</span>'
+    else:
+        middle = '<span class="note plain">No token usage reported by the host</span>'
+    rows.append(f'<div class="chart-row total"><div class="label">Project total <small>all {len(tasks)} tasks</small></div>'
+                f'<div class="track">{middle}</div><div class="cost">{mtoks(totals, unreported)}</div></div>')
+    title = 'Whole-run timeline' if not recent else 'Remaining work' if remaining else 'Recent work'
+    body = (f'<div class="chart-scroll" tabindex="0" role="region" aria-label="{title}, scrolls sideways on narrow screens"><div class="chart">'
+            f'<div class="chart-row axis"><div class="label">{esc(display_time(lo.isoformat()))} – {esc(display_time(hi.isoformat()))}</div>'
+            f'<div class="track">{axis}</div><div class="cost" title="Millions of tokens reported by the host">mtoks</div></div>'
+            f'<div class="plot"><div class="grid" aria-hidden="true">{grid}</div>{"".join(rows)}</div></div></div>'
+            '<p class="chart-note">One row per task: solid build, hatched review, dashed outline for the forecast, split between build and review in proportion to the original allocations. '
+            'Hover a bar for model, effort, round, times and result. '
+            + ('Finished tasks are hidden and the view starts where the oldest unfinished task began. ' if recent and remaining else '')
+            + 'Idle stretches over an hour are cut from the axis'
+            + (f', and time more than {fmt(recent_hours)}h ahead is drawn at a smaller scale. ' if any(p["kind"] == "far" for p in pieces) else '. ')
+            + 'mtoks is millions of tokens the host reported; a dash means none reported and + marks a partial sum.</p>')
+    return section_html(title, body, name, collapsed=not recent)
 
 
 def calibration_html(data):
@@ -737,7 +945,7 @@ def render(data, mode="report", theme="auto", recent_hours=4, allow_future_fixtu
     identities = {(s["provider"], s["model"]) for t in tasks for s in t["segments"]}
     identities |= {(t["owner"]["provider"], t["owner"]["model"]) for t in tasks}
     identities |= {(a["provider"], a["model"]) for t in tasks for a in t.get("baseline", {}).get("allocations", [])}
-    palette = {key: f'var(--model-{i % 6})' for i, key in enumerate(sorted(identities))}
+    palette, palette_css = model_palette(identities)
     milestone = min((m for m in data.get("milestones", []) if m["status"] not in {"done", "cancelled"}), key=lambda m:timestamp(m["target"]), default=None)
     next_text = (f'{esc(milestone["name"])} · {esc(display_time(milestone["target"]))}' if milestone else 'None pending')
     cp = critical_path(data)
@@ -759,20 +967,12 @@ def render(data, mode="report", theme="auto", recent_hours=4, allow_future_fixtu
     pending = [record for record,current in decisions if current and record['status']=='pending']
     if pending:
         content += '<aside class="decision-strip" aria-label="Pending decision questions"><strong>Awaiting answer</strong>' + ''.join(f'<p>{esc(d["id"])} · {esc(d["owner"])} · affects {esc(", ".join(d["tasks"]))}</p>' for d in pending) + '<a href="#owner">Decision record</a></aside>'
-    content += '<div class="key"><span><i class="ghost-key"></i>Original baseline</span><span><i class="over-key"></i>Overrun</span><span><i class="projection-key"></i>Projection</span>'
-    content += ''.join(f'<span><i class="swatch" style="--mc:{colour}"></i>{esc(model)} · {esc(provider)}</span>' for (provider, model), colour in sorted(palette.items())) + '</div>'
-    points = [now, timestamp(project["start"])]
-    for task in tasks:
-        points += [timestamp(task["forecast"]["start"]), timestamp(task["forecast"]["end"])]
-        if task.get("baseline"):
-            points += [timestamp(task["baseline"]["start"]), baseline_end(task["baseline"])]
-    points += [timestamp(m["target"]) for m in data.get("milestones", [])]
-    lo, hi = min(points), max(points)
-    if hi == lo:
-        hi += timedelta(hours=1)
-    content += timeline(data, 'recent', now-timedelta(hours=recent_hours), now+timedelta(hours=recent_hours), palette)
+    content += progress_html(data)
+    content += '<div class="key">' + ''.join(f'<span><i class="swatch" style="--c:{colour}"></i>{esc(model)} · {esc(provider)}</span>' for (provider, model), colour in sorted(palette.items()))
+    content += '<span><i class="review-key"></i>Review</span><span><i class="projection-key"></i>Forecast</span><span>◆ Milestone or gate target</span></div>'
+    content += timeline(data, 'recent', palette, recent_hours)
     if boundary:
-        content += timeline(data, 'whole', lo, hi, palette)
+        content += timeline(data, 'whole', palette, recent_hours)
     content += '<div class="tables">'
     content += decision_table(decisions)
     running = [(t,s) for t in tasks for s in t['segments'] if s.get('end') is None]
@@ -801,8 +1001,8 @@ def render(data, mode="report", theme="auto", recent_hours=4, allow_future_fixtu
                      [[esc(t['id']+' · '+t['title']), '<br>'.join(esc(f'{a["kind"]}: {a["provider"]} / {a["model"]} / {a["effort"]} · {fmt(a["minutes"])}m') for a in t.get('baseline',{}).get('allocations',[])) or 'No baseline', esc(str(t.get('baseline',{}).get('review_rounds','unknown')))+f'<small>{esc("; ".join(t.get("issues",[])+t.get("prs",[])))}</small>'] for t in tasks if t.get('baseline') or t.get('issues') or t.get('prs')], 'original', True)
     if mode == 'final':
         content += calibration_html(data)
-    content += '<footer>Private ledger report · forecasts are estimates · original approved allocations remain frozen. Rebaselines record decisions; event bands show exposure, not proven causation.</footer></main>'
-    return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+esc(project['name'])+' · plan report</title><style>'+CSS+'</style></head><body>'+content+'<script>'+SCRIPT+'</script></body></html>'
+    content += '<footer>Private ledger report · forecasts are estimates · original approved allocations remain frozen. Rebaselines record decisions; events show exposure, not proven causation.</footer></main>'
+    return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+esc(project['name'])+' · plan report</title><style>'+CSS+palette_css+'</style></head><body>'+content+'<script>'+SCRIPT+'</script></body></html>'
 
 
 def main():
@@ -811,7 +1011,7 @@ def main():
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--mode', choices=('propose','report','final'), default='report')
     parser.add_argument('--theme', choices=('auto','light','dark'), default='auto')
-    parser.add_argument('--recent-hours', type=float, default=4, help='Hours before and after as-of in the recent timeline (default: 4 each)')
+    parser.add_argument('--recent-hours', type=float, default=4, help='Hours ahead drawn at full scale in the progress timeline, and the lookback once nothing remains (default: 4)')
     parser.add_argument('--allow-future-fixture', action='store_true', help='Allow future synthetic fixtures and visibly mark output as not live evidence')
     args = parser.parse_args()
     try:

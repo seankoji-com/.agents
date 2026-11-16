@@ -222,7 +222,7 @@ class Renderer(unittest.TestCase):
             self.assertIn('not live evidence', html)
         self.assertNotIn('Synthetic fixture', ledger.render(fixture()))
 
-    def test_joined_rows_keep_gaps_overlap_and_every_identity(self):
+    def test_one_row_keeps_gaps_and_stacks_overlap_with_every_identity(self):
         data = fixture()
         task = data['tasks'][0]
         task.update(status='done', dependencies=[])
@@ -236,28 +236,33 @@ class Renderer(unittest.TestCase):
         for collection in ('milestones', 'events', 'decisions', 'rebaselines', 'needs_owner'):
             data[collection] = []
         html = section_fragment(ledger.render(data, 'final'), 'whole')
-        lanes = re.findall(r'<div class="chart-row lane joined"[^>]*>(.*?)</div></div>', html, re.S)
-        self.assertEqual(len(lanes), 2)
-        bars = [re.findall(r'<span class="bar (build|review)[^"]*" style="--x:([\d.]+)%;--w:([\d.]+)%', lane) for lane in lanes]
-        self.assertEqual([b[0] for b in bars[0]], ['build', 'review', 'build'])
-        self.assertEqual([b[0] for b in bars[1]], ['review'])
-        first, second, third = bars[0]
-        self.assertAlmostEqual(float(first[1])+float(first[2]), float(second[1]), places=5)
+        self.assertEqual(html.count('class="chart-row task-row'), 1)
+        self.assertIn('--lanes:1', html)
+        bars = re.findall(r'<span class="bar (build|review)[^"]*" style="--x:([\d.]+)%;--w:([\d.]+)%;--lane:(\d)', html)
+        self.assertEqual([(b[0], b[3]) for b in bars], [('build', '0'), ('review', '0'), ('build', '0'), ('review', '1')])
+        first, second, third, overlap = bars
+        self.assertAlmostEqual(float(first[1])+float(first[2]), float(second[1]), places=3)
         self.assertLess(float(second[1])+float(second[2]), float(third[1]))
-        overlap = bars[1][0]
         self.assertGreater(float(overlap[1]), float(third[1]))
         self.assertLess(float(overlap[1])+float(overlap[2]), float(third[1])+float(third[2]))
         for segment in task['segments']:
             self.assertIn(segment['model'], html)
 
-    def test_active_forecasts_show_eta_and_hatching(self):
-        html = ledger.render(fixture())
-        recent = section_fragment(html, 'recent')
+    def test_active_forecasts_show_eta_and_dashed_build_and_review_shares(self):
+        recent = section_fragment(ledger.render(fixture()), 'recent')
         self.assertIn('class="eta"', recent)
-        self.assertIn('ETA 04 Oct 2026 04:30', recent)
-        projection_style = re.search(r'\.bar\.projection\{([^}]+)', ledger.CSS).group(1)
-        self.assertIn('dashed', projection_style)
-        self.assertIn('repeating-linear-gradient', projection_style)
+        self.assertIn('title="ETA 04 Oct 2026 04:30">04:30</span>', recent)
+        running = recent.split('id="recent-task-8"', 1)[1].split('id="recent-task-10"', 1)[0]
+        self.assertIn('class="bar build open"', running)
+        self.assertIn('class="bar build projection"', running)
+        self.assertIn('class="bar review projection"', running)
+        self.assertIn('dashed', re.search(r'\.bar\.projection\{([^}]+)', ledger.CSS).group(1))
+
+    def test_forecast_build_keeps_the_model_that_is_building_now(self):
+        task = fixture()['tasks'][8]
+        task['segments'][0].update(model='Builder C')
+        projected = ledger.projection(task, ledger.timestamp('2026-10-03T15:00:00Z'))
+        self.assertEqual([(s['kind'], s['model']) for s in projected], [('build', 'Builder C'), ('review', 'Reviewer B')])
 
     def test_whole_run_only_at_run_boundaries_and_links_resolve(self):
         for mode in ('propose', 'report', 'final'):
@@ -320,29 +325,36 @@ class Renderer(unittest.TestCase):
         self.assertIn('id="whole-task-8"',section_fragment(html,'whole'))
         self.assertIn('href="#whole-task-8"',html)
 
-    def test_recent_future_horizon_clips_half_open_boundaries_across_dst(self):
-        html=ledger.render(fixture())
-        recent=section_fragment(html,'recent')
-        self.assertIn('03 Oct 2026 21:00 – 04 Oct 2026 06:00',recent)  # eight elapsed hours across the missing local hour
-        self.assertIn('id="recent-task-10"',recent)
-        self.assertIn('id="recent-task-11"',recent)
-        self.assertIn('class="bar review projection"',recent)
-        self.assertIn('Owner acceptance',recent)
-        self.assertIn('clipped at window edge',recent)
-        now_positions=re.findall(r'class="now" style="--x:([\d.]+)%"',recent)
-        self.assertTrue(now_positions)
-        self.assertEqual(set(now_positions),{'50.000000'})
-        data=fixture()
-        data['tasks'][11]['forecast'].update(start='2026-10-03T19:00:00Z',end='2026-10-03T20:00:00Z')
-        boundary=copy.deepcopy(data['milestones'][1])
-        boundary.update(id='edge',name='At excluded horizon boundary',target='2026-10-03T19:00:00Z')
-        data['milestones'].append(boundary)
-        recent=section_fragment(ledger.render(data),'recent')
-        self.assertNotIn('id="recent-task-11"',recent)
-        self.assertNotIn('At excluded horizon boundary',recent)
-        short=section_fragment(ledger.render(fixture(),recent_hours=1),'recent')
-        self.assertIn('04 Oct 2026 00:00 – 04 Oct 2026 03:00',short)
-        self.assertNotIn('id="recent-task-10"',short)
+    def test_progress_view_hides_finished_work_and_starts_at_oldest_open_task(self):
+        html = ledger.render(fixture())
+        recent = section_fragment(html, 'recent')
+        self.assertIn('<h2>Remaining work</h2>', recent)
+        self.assertIn('03 Oct 2026 21:50 – 04 Oct 2026 07:10', recent)  # ten minutes either side, across the missing local hour
+        shown = set(re.findall(r'id="recent-task-(\d+)"', recent))
+        self.assertEqual(shown, {'8', '9', '10', '11'})
+        self.assertIn('3 finished hidden', recent)
+        self.assertEqual(recent.count('class="now"'), 1)
+        self.assertIn('Owner acceptance', recent)
+        self.assertNotIn('Contract accepted', recent)
+        self.assertIn('>after Exercise recovery</span>', recent)
+        self.assertIn('<strong>67%</strong> of estimated work done · 12.0h of 18.0h', html)
+        for removed in ('class="baseline"', 'class="overrun', 'event-band', '<svg', 'class="dependency"'):
+            self.assertNotIn(removed, html)
+
+    def test_progress_view_falls_back_to_recent_work_when_nothing_remains(self):
+        data = fixture()
+        data['tasks'][8].update(status='done')
+        data['tasks'][8]['segments'][0]['end'] = '2026-10-03T14:30:00Z'
+        for task in data['tasks'][9:]:
+            task['status'] = 'cancelled'
+        data['decisions'] = data['decisions'][:1]
+        recent = section_fragment(ledger.render(data), 'recent')
+        self.assertIn('<h2>Recent work</h2>', recent)
+        self.assertEqual(set(re.findall(r'id="recent-task-(\d+)"', recent)), {'7', '8'})  # ended inside the four-hour lookback
+        self.assertIn('clipped at window edge', recent)
+        quiet = section_fragment(ledger.render(data, recent_hours=0.25), 'recent')
+        self.assertNotIn('id="recent-task-', quiet)
+        self.assertIn('Project total', quiet)
 
     def test_local_labels_omit_zone_suffixes_but_preserve_source_offsets(self):
         data=fixture()
@@ -407,31 +419,85 @@ class Renderer(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError,error):
                     ledger.validate(data)
 
-    def test_waiting_events_and_handoffs_show_real_boundaries(self):
-        html=ledger.render(fixture(), 'final', recent_hours=1)
-        recent=section_fragment(html,'recent')
-        self.assertIn('id="recent-task-9"',recent)
-        self.assertIn('data-event="E2"',recent)
-        self.assertNotIn('id="recent-task-10"',recent)  # starts exactly at window end
-        paths=[dict(re.findall(r'([\w-]+)="([^"]*)"',p)) for p in re.findall(r'<path [^>]*class="handoff[^>]*>',html)]
-        task9=next(p for p in paths if p.get('data-node')=='8')
-        self.assertEqual(task9['class'],'handoff projected')
-        self.assertAlmostEqual(float(task9['data-x']),1120/1320)
-        self.assertFalse(any(p.get('data-node')=='9' for p in paths))
-        self.assertLess(html.index('Scrollable timeline:'),html.index('class="chart-scroll"'))
+    def test_axis_cuts_idle_gaps_and_compresses_the_far_future(self):
+        at = lambda hours: ledger.timestamp('2026-10-03T00:00:00Z') + ledger.timedelta(hours=hours)
+        pieces, fraction = ledger.build_axis([(at(0), at(2)), (at(12), at(13))])
+        self.assertEqual([p['kind'] for p in pieces], ['time', 'cut', 'time'])
+        self.assertAlmostEqual(pieces[1]['x1'] - pieces[1]['x0'], 0.03)
+        self.assertAlmostEqual(pieces[-1]['x1'], 1)
+        marks = [fraction(at(h)) for h in (0, 1, 2, 7, 12, 13)]
+        self.assertEqual(marks, sorted(marks))
+        self.assertGreater(fraction(at(1)) - fraction(at(0)), 2 * (fraction(at(12)) - fraction(at(2))))  # 1h of work outweighs 10h idle
+        self.assertEqual([p['kind'] for p in ledger.build_axis([(at(0), at(2)), (at(2.5), at(3))])[0]], ['time'])
+        pieces, fraction = ledger.build_axis([(at(0), at(30))], squeeze_from=at(4))
+        self.assertEqual([p['kind'] for p in pieces], ['time', 'far'])
+        self.assertAlmostEqual(pieces[1]['x1'] - pieces[1]['x0'], ledger.FAR_SHARE)
+        pieces, _ = ledger.build_axis([(at(0), at(5))], squeeze_from=at(4))
+        self.assertEqual({p['kind'] for p in pieces}, {'time'})  # nothing to compress
+        recent = section_fragment(ledger.render(fixture(), recent_hours=1), 'recent')
+        self.assertIn('later, compressed', recent)
+        self.assertNotIn('later, compressed', section_fragment(ledger.render(fixture(), 'propose'), 'recent').replace('title=', ''))
 
-    def test_model_colours_have_chart_contrast_in_both_themes(self):
+    def test_mtoks_column_reports_known_tokens_without_inventing_zero(self):
+        key = ('synthetic-build', 'Builder A')
+        self.assertEqual(ledger.mtoks({key: 24000}, 0), '0.02')
+        self.assertEqual(ledger.mtoks({key: 171_300_000}, 0), '171.3')
+        self.assertIn('&lt;0.01+', ledger.mtoks({key: 3000}, 2))
+        self.assertIn('–', ledger.mtoks({}, 3))
+        data = fixture()
+        self.assertEqual(ledger.task_tokens(data['tasks'][0]), ({key: 3000}, 1))
+        self.assertEqual(ledger.task_tokens(data['tasks'][11]), ({}, 0))
+        task = data['tasks'][3]
+        for segment in task['segments']:
+            segment['cost'] = {}
+        task['cost'] = {'tokens': dict(value=5_000_000, source='synthetic task receipt', basis='reported')}
+        self.assertEqual(ledger.task_tokens(task), ({('unattributed', 'task total'): 5_000_000}, 0))
+        whole = section_fragment(ledger.render(data, 'final'), 'whole')
+        self.assertIn('>mtoks</div>', whole)
+        row = whole.split('id="whole-task-3"', 1)[1].split('id="whole-task-', 1)[0]
+        self.assertIn('<div class="cost">5.00</div>', row)
+        total = whole.split('class="chart-row total"', 1)[1]
+        self.assertIn('Project total', total)
+        self.assertIn('<div class="cost"><span title="Known subtotal; 9 observations unreported">5.02+</span></div>', total)
+
+    def test_issue_numbers_link_to_the_task_thread_and_reject_script_links(self):
+        data = fixture()
+        data['tasks'][8].update(title='#7 Exercise <recovery>, see #12', thread='https://example.test/threads/7')
+        data['tasks'][10].update(thread='t3-thread://v2/synthetic/one')
+        recent = section_fragment(ledger.render(data), 'recent')
+        link = '<a href="https://example.test/threads/7">'
+        self.assertIn(f'{link}#7</a> Exercise &lt;recovery&gt;, see {link}#12</a>', recent)
+        self.assertIn('<a href="t3-thread://v2/synthetic/one">Accept release candidate</a>', recent)
+        self.assertIn('>after #7</span>', recent)
+        self.assertNotIn('T09 ·', re.sub(r'title="[^"]*"', '', recent))  # internal ids only on hover
+        for bad in ('javascript:alert(1)', 'not a link', '', 7):
+            data['tasks'][8]['thread'] = bad
+            with self.subTest(bad=bad), self.assertRaisesRegex(ValueError, 'thread'):
+                ledger.render(data)
+
+    def test_model_colours_follow_provider_and_keep_chart_contrast_in_both_themes(self):
         def luminance(colour):
             channels=[int(colour[i:i+2],16)/255 for i in (1,3,5)]
             linear=[x/12.92 if x<=0.04045 else ((x+0.055)/1.055)**2.4 for x in channels]
             return sum(a*b for a,b in zip(linear,(0.2126,0.7152,0.0722)))
-        for selector,panel in [(r'\.report\{','#ffffff'),(r'\.report.dark\{','#202e40')]:
-            block=re.search(selector+r'([^}]+)',ledger.CSS).group(1)
-            colours=re.findall(r'--model-\d:(#[0-9a-f]{6})',block)
-            self.assertEqual(len(colours),6)
-            for colour in colours:
-                a,b=sorted((luminance(colour),luminance(panel)))
-                self.assertGreaterEqual((b+0.05)/(a+0.05),3,colour)
+        for family,(light,dark) in ledger.FAMILIES.items():
+            self.assertEqual((len(set(light)),len(set(dark))),(4,4),family)
+            for shades,panel in ((light,'#ffffff'),(dark,'#202e40')):
+                for colour in shades:
+                    a,b=sorted((luminance(colour),luminance(panel)))
+                    self.assertGreaterEqual((b+0.05)/(a+0.05),3,(family,colour))
+        identities={('claudeAgent','claude-fable-5-2'),('claudeAgent','claude-haiku-5-5'),('codex','gpt-6.1-sol'),
+                    ('opencode','litellm/deepseek-v4.1-flash'),('synthetic-a','Model one'),('synthetic-b','Model two')}
+        names,css=ledger.model_palette(identities)
+        light=dict(re.findall(r'(--m\d):(#[0-9a-f]{6})',css.split('.report.dark')[0]))
+        colour=lambda provider,model:light[names[(provider,model)][4:-1]]
+        self.assertEqual(colour('claudeAgent','claude-fable-5-2'),ledger.FAMILIES['orange'][0][0])
+        self.assertEqual(colour('claudeAgent','claude-haiku-5-5'),ledger.FAMILIES['orange'][0][1])
+        self.assertEqual(colour('codex','gpt-6.1-sol'),ledger.FAMILIES['green'][0][0])
+        self.assertEqual(colour('opencode','litellm/deepseek-v4.1-flash'),ledger.FAMILIES['blue'][0][0])
+        self.assertEqual({colour('synthetic-a','Model one'),colour('synthetic-b','Model two')},
+                         {ledger.FAMILIES['teal'][0][0],ledger.FAMILIES['pink'][0][0]})
+        self.assertIn('.report.auto{',css)
 
     def test_distinct_efforts_and_unknown_identity_are_not_mixed(self):
         data=fixture()
@@ -464,42 +530,33 @@ class Renderer(unittest.TestCase):
         self.assertTrue(costs['Builder C synthetic-build'][2].startswith('unknown'))
         self.assertNotIn('id="calibration"', ledger.render(fixture(), 'report'))
 
-    def test_gantt_marks_scoped_events_rounds_and_decisions_are_data_driven(self):
+    def test_chart_marks_rounds_targets_and_sections_are_data_driven(self):
         data = fixture()
         html = ledger.render(data, 'propose')
-        for element in ('id="whole"','id="recent"','class="baseline"','class="overrun',
-                        'class="dependency"','class="handoff"','class="event-band"',
-                        'class="now"','class="marker gate"','class="marker rebaseline"',
-                        'class="bar build projection"','id="owner"','id="running"','id="events"',
-                        'id="overruns"','id="recently-completed"','R2 · Reviewer B · high'):
+        for element in ('id="whole"','id="recent"','class="now"','class="marker gate"','class="marker milestone"',
+                        'class="bar build projection"','class="pbar"','id="owner"','id="running"','id="events"',
+                        'id="overruns"','id="recently-completed"','Review R2 · Reviewer B · high'):
             self.assertIn(element, html)
         self.assertLess(html.index('class="decision-strip"'), html.index('id="whole"'))
-        first = html.split('id="whole-task-0"',1)[1].split('id="whole-task-1"',1)[0]
-        self.assertNotIn('data-event="E1"', first)  # finished before provider outage
-        affected = html.split('id="whole-task-3"',1)[1].split('id="whole-task-4"',1)[0]
-        # Joined rows retain per-segment attribution instead of shading review
-        # merely because build on the same row experienced the provider event.
-        metadata = re.findall(r'<span class="lane-meta">([^<]*)</span>', affected)
-        build = [label for label in metadata if label.startswith('synthetic-build')]
-        review = [label for label in metadata if label.startswith('synthetic-review')]
-        self.assertTrue(any('events E1' in label for label in build))
-        self.assertTrue(review)
-        self.assertFalse(any('events E1' in label for label in review))
+        whole = section_fragment(html, 'whole')
+        self.assertEqual(len(re.findall(r'id="whole-task-\d+"', whole)), 12)
+        self.assertEqual(whole.count('class="chart-row group"'), 3)
+        self.assertNotIn('finished hidden', whole)
         for width_case in ('light','dark','auto'):
             self.assertIn(f'class="report {width_case}"', ledger.render(data, theme=width_case))
 
-    def test_short_clipped_segments_long_names_and_untrusted_text_stay_readable(self):
+    def test_long_names_and_untrusted_text_stay_escaped_and_reachable(self):
         data = fixture()
         name = 'Very long model name ' * 12 + '<script>alert("x")</script>'
         data['tasks'][8]['segments'][0]['model'] = name
         data['tasks'][8]['title'] = 'Long task ' * 20
-        data['tasks'][8]['segments'][0]['start'] = '2026-10-03T10:00:00Z'
         html = ledger.render(data)
         self.assertNotIn('<script>alert', html)
         self.assertIn('&lt;script&gt;alert', html)
-        # Complete identity is in the label, independently of the thin/clipped bar.
-        self.assertIn(f'<span class="lane-name">B · {ledger.esc(name)} · high</span>', html)
-        self.assertIn('clipped at window edge', html)
+        # Complete identity is on the bar for hover and assistive tech, and in the key.
+        self.assertIn(f'aria-label="Build B · {ledger.esc(name)} · high · synthetic-build', html)
+        self.assertIn(f'{ledger.esc(name)} · synthetic-build</span>', html)
+        self.assertIn('text-overflow:ellipsis', html)
         self.assertIn('overflow-wrap:anywhere', html)
         self.assertNotIn('<script src=', html)
         self.assertNotIn('<link ', html)

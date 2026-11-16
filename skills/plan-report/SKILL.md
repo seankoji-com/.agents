@@ -15,7 +15,7 @@ and decisions; it does not dispatch work or replace the host's task panel.
    solo tasks. Task completion means the agreed endpoint, such as merge or close,
    not each review or fix round; those get short chat updates. Apply an adopted
    project's `report_cadence` override when present. Whole-run timelines appear
-   only at proposal and final handback; progress reports show the recent timeline.
+   only at proposal and final handback; progress reports show the remaining work.
 2. The main-thread coordinator is the sole ledger writer and presenter. Delegates
    return segment start/completion timestamps, actual model/provider/effort,
    review round/result and exposed usage with sources. They never present the
@@ -38,7 +38,9 @@ and decisions; it does not dispatch work or replace the host's task panel.
    tasks, streams, dependencies, owner identities, forecasts, build/review
    allocations and planned review rounds; milestones/gates with required reviewers;
    decision records and relevant external events. Estimates are wall-clock minutes,
-   separate from tokens, turns and USD.
+   separate from tokens, turns and USD. Start titles with the issue number, such
+   as `#242 Widescreen`, and record each task's `thread` link when the host
+   exposes one; the chart links the number to it.
 4. Render proposal mode and present it. Record actual owner approval, its timestamp
    and approver. Freeze each task's original baseline at that point. A proposal
    or silence is not approval. Continue only work already authorised while a
@@ -82,9 +84,11 @@ asking and recording replies; the renderer only displays the ledger.
    ```
 
    Use `--mode propose` or `--mode final` for those boundaries. `--theme light`,
-   `dark` or `auto` controls appearance; `--recent-hours 4` shows four hours before
-   and after as-of. Recent comes first and stays expanded; each later section has
-   its own closed caret when it contains data. Empty sections are omitted entirely.
+   `dark` or `auto` controls appearance. The progress chart hides finished tasks
+   and starts where the oldest open task began; `--recent-hours 4` draws the next
+   four hours at full scale and compresses later time. It comes first and stays
+   expanded; each later section has its own closed caret when it contains data.
+   Empty sections are omitted entirely.
    Whole-run appears only in `propose` and `final`, never `report`, including
    on-request progress updates. Dates show absolute Sydney local clocks without repeated
    timezone labels; source offsets and DST arithmetic stay intact. The renderer
@@ -96,8 +100,8 @@ asking and recording replies; the renderer only displays the ledger.
 5. In T3 the main thread uses `html_preview` then `html_render` on the generated
    file. Outside T3 use the host's equivalent artifact or an accessible file link.
    Reports are self-contained and make no network requests. Inspect the timelines
-   included in that mode, scoped event rows, dependencies and populated tables before claiming
-   a report is readable. Explain any missing host presentation capability.
+   included in that mode, the progress bar, mtoks totals and populated tables before
+   claiming a report is readable. Explain any missing host presentation capability.
 
 ## Final calibration
 

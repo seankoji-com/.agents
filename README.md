@@ -198,16 +198,18 @@ are marked not comparable rather than inheriting another model's estimate.
 `ship`, `backlog-burn` and `implement` use it at proposal, task completion,
 final handback and on request, including solo tasks. Review and fix rounds get
 short chat updates. Whole-run timelines appear only at proposal and
-final handback; progress reports show the recent timeline. Empty collapsible
+final handback; progress reports show the remaining work. Empty collapsible
 sections are omitted. Only the main thread presents the report. The
 ledger and reports stay in a verified ignored worktree directory, outside GitHub;
 removing that worktree loses them. Host cost capabilities and their limits are
 documented in the skill's [cost evidence](skills/plan-report/references/host-costs.md).
 
-Task bars join solid build and striped review sections, preserve waiting gaps
-and put overlapping work on additional rows. Running forecasts have dashed,
-hatched sections labelled ETA. The recent view covers the last four and next
-four hours. Running now shows model, task ID and the value of the work; completed
+Each task is one compact row grouped by stream: solid build, hatched review and
+a dashed forecast split between build and review, coloured by provider. An
+overall bar shows estimated work done. Progress reports hide finished tasks and
+start where the oldest open task began; idle gaps over an hour are cut and time
+more than four hours ahead is compressed. An mtoks column totals reported
+tokens. Running now shows model, task ID and the value of the work; completed
 history stays out of progress reports. Future observation timestamps are rejected.
 
 `ship` batches foreseeable owner decisions before dispatch. Agreed owner-only
@@ -551,7 +553,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 1a730c6cdd54f82122dd8e62b74bb8d0a96176823c83adf7549f7ae777c5b89c -->
+<!-- skills-review: 7d0cfb3b736df0074f010b0f1793c93b1362a55c8949cac66a32ad7de5759ad9 -->
 
 ### Owner maintenance
 
