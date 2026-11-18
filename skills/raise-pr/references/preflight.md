@@ -3,6 +3,22 @@
 Read this at delivery start, or before creating a PR when there was no earlier
 preflight. Refresh it when the intended base, diff or repository policy changes.
 
+## Plan visual captures
+
+Before editing visible UI, name the baseline and the expected after-capture
+target, such as a local build, branch preview, staging or production. Check the
+supported browser or device, login and test data for the relevant flows and
+viewports. For a preview that does not exist yet, check how it is produced and
+probe an existing equivalent route when practical. Record what the probe
+establishes and which access still depends on the actual build. Apply
+[HTTP evidence rules](../../review/references/proof-quality.md#validate-http-access-claims)
+when using a read-only HTTP probe.
+
+If no pre-merge path is available, identify it early. Ask in the opening batch
+when the owner must choose access, post-release verification or a disclosed gap.
+Apply [raise-pr's visual evidence rules](../SKILL.md#include-visual-evidence)
+to any missing captures. Preflight grants no deployment or access changes.
+
 ## Read effective rules and their producers
 
 Read effective base-branch rules, including inherited rulesets, through the

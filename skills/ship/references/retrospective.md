@@ -20,36 +20,40 @@ drafts and an incomplete stage with an owner question, not completed tracking.
 1. At ship start, record the parent thread/run and the request's starting item
    or position. Keep a manifest of every owned delegate, descendant and resumed
    run, including failed or cancelled attempts, reviews and issue writers.
-2. After delivery and tracking, set a bounded history cutoff. Read the parent's
-   operational activity for this ship invocation and every manifest member,
-   including checks, tool errors, repairs, dispatch/permission events, handoffs
-   and delivery results. In T3 use `t3_thread_read` with `view: 'activity'`.
-   Use small pages, initially `limit: 25` and `maxCharsPerItem: 1500`.
-   Page with `afterPosition`/`nextPosition`, inventorying every operational event.
-   Classify outcomes from concise event data when sufficient. Follow truncated
-   bodies with `itemId` and `textOffset`/`nextTextOffset` only when needed to
-   determine the outcome, cause or proposed amendment; extract relevant fields
-   from large artifacts deterministically. Unclassifiable events remain gaps.
-   `runLimit` limits
-   run metadata, not the activity window: filter by recorded run/item boundaries.
-3. Reconcile children found in the activity with the manifest recursively.
-   A final delegate summary alone does not establish coverage of its execution.
-   Read through supported APIs or authorised log artifacts; never alter T3's live
-   database or inspect unrelated threads or credentials. Activity APIs can
-   include reasoning items; do not analyse, quote or publish private reasoning.
-   Record each covered run/range and any missing or inaccessible operational logs.
-   Missing logs make the retrospective incomplete, even if delivery succeeded.
+2. At existing task completions and handoffs, record the observed outcome,
+   run or item range covered, failed or blocked steps, and evidence links for
+   consequential results. Reuse the run ledger and verified tool receipts.
+   Include the parent's own checks and delivery transitions. A status flag or
+   final summary without supporting evidence establishes no operational coverage.
+3. After delivery and tracking, freeze the history cutoff and reconcile the
+   manifest against host task/run records, including descendants and failed or
+   cancelled attempts. For a small run, read the scoped operational activity
+   directly. If the history will not fit the inspection budget, use the evidence
+   recorded as work happened to account for routine outcomes. Read underlying
+   activity for uncovered ranges, failures, disputed results, handoffs and any
+   evidence cited for a proposed amendment. Record the ranges covered by each
+   method. Coverage is complete when direct reads or recorded evidence support
+   the outcome of every scoped operational event in the reconciled manifest and
+   parent history. A missing, inaccessible or unclassified range leaves the
+   retrospective incomplete, even if delivery succeeded.
+
+In T3, read activity with `t3_thread_read` using `view: 'activity'`, initially
+`limit: 25` and `maxCharsPerItem: 1500`. Use `afterPosition`/`nextPosition` and
+filter by the recorded execution boundaries. `runLimit` limits run metadata,
+not the activity window. Follow truncated items with `itemId` and
+`textOffset`/`nextTextOffset` where the evidence needs it. Extract relevant fields
+from larger authorised artifacts deterministically. Use supported APIs and
+authorised logs. Exclude unrelated threads, credentials and private reasoning.
 
 Set an inspection budget before starting: by default at most 30 history/detail
 reads or 10 minutes, whichever comes first. Keep the counts, cursor and covered
 ranges across resumes. Do not reset the budget; request an extension only when
 needed and authorised. At exhaustion, report partial coverage and the remaining
-range instead of silently skipping it or claiming completion. Coverage means
-every operational event has a supported outcome classification, with deeper
-inspection where necessary; it does not require copying every log byte into
-the main context. Before task/worktree cleanup, preserve required evidence in
-a verified host-approved parent location or inspect it first, then follow host
-cleanup rules. Keep logs and evidence addresses usable through this phase.
+range and mark the retrospective incomplete. Group related routine events
+when the recorded evidence supports their outcome, and label any unclassified
+events as gaps. Before task/worktree cleanup, preserve required evidence in a
+verified host-approved parent location or inspect it first. Keep evidence
+addresses usable through this phase.
 
 ## Propose reusable changes
 

@@ -95,6 +95,10 @@ calling workflow. If the destination forbids the submission or required
 disclosure, preserve the draft and report the conflict rather than silently
 removing the byline or disguising AI involvement.
 
+Source historical event times from the event record. Read the clock for a
+current status timestamp. Use the operator's timezone in prose, preserving the
+original timestamp in quoted evidence. Omit an unknown time or label it unknown.
+
 GitHub closes an issue referenced after a closing keyword (close, fix, resolve
 and their variants), even in a negated sentence. Use those keywords only for
 issues the change resolves; refer to others neutrally, such as "#N stays open".

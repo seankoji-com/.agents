@@ -67,8 +67,8 @@ Keep the recovery record current at phase changes and use
 
 Before T3 dispatch apply the shared
 [dispatch preflight](../agent-tuneup/references/t3-dispatch.md).
-Record the execution boundary and task/thread manifest required by the
-[retrospective](references/retrospective.md) from the start, not only at handback.
+Record the execution boundary, manifest and evidence for the
+[retrospective](references/retrospective.md) as work happens.
 
 ## Choose supporting skills
 
@@ -84,8 +84,8 @@ evidence. These are options, not a required sequence:
 
 ## Finish the endpoint
 
-1. For UI changes, apply [raise-pr](../raise-pr/SKILL.md) before editing to capture
-   practical mobile and desktop before screenshots.
+1. For UI changes, apply [raise-pr](../raise-pr/SKILL.md) before editing to plan
+   the after captures and take practical mobile and desktop baseline screenshots.
    At delivery start, apply its [preflight](../raise-pr/references/preflight.md)
    to identify effective rules and validation gates early.
    Finish the smallest change that meets the request. Preserve unrelated work.
@@ -109,13 +109,13 @@ evidence. These are options, not a required sequence:
    path. Merge with the repository's permitted method once the gate below passes;
    verify the resulting merge.
 6. After delivery and required deferred-bug tracking, perform the final
-   [workflow retrospective](references/retrospective.md) across the parent and
-   every delegate's operational logs. Pitch supported, broadly applicable skill
+   [workflow retrospective](references/retrospective.md) using the recorded
+   evidence and targeted log reads. Pitch supported, broadly applicable skill
    amendments through [raise-issue](../raise-issue/SKILL.md) in the authorised
    skill repository, `seankoji-com/.agents` for this owner.
-   Complete log coverage is required. Record verified proposal URLs, or evidence
-   that no amendment is warranted. Missing logs or blocked filing remain explicit
-   incomplete stages. This is the last stage, not an automatic edit-and-ship loop.
+   Apply the retrospective's coverage rules. Record verified proposal URLs or
+   evidence that no amendment is warranted. Coverage gaps and blocked filing
+   leave the retrospective incomplete. This stage ends with proposals.
 
 Where repository policy requires direct publication instead of PRs, use its
 prescribed delivery path through the same proof and review gates. Do not create
@@ -165,9 +165,10 @@ leave dependent work incomplete and report the specific next action.
 
 ## Report
 
-Return the delivery link and revision, observed proof, review status, decisions
-made and any unmet endpoint. Delegates return complete plain-text reports with
-descendant task/thread IDs and operational evidence to their coordinator.
+Return the delivery link and revision, [cited proof](../review/references/proof-quality.md#cite-verification-in-the-handoff)
+for material verification claims, review status, decisions and any unmet
+endpoint. Delegates return complete plain-text reports with descendant
+task/thread IDs and operational evidence to their coordinator.
 The parent includes task-list status, history coverage and amendment issue URLs
 or the no-change rationale. In T3 Code, only the main-thread coordinator uses
 `html_preview` then `html_render` for a substantive report; use readable text when

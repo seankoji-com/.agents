@@ -87,6 +87,11 @@ automatically need this loop.
    not advance the score counter; stop incomplete if recovery fails.
 5. Verify each finding using severity, location, reproduction or supporting evidence,
    and impact, and apply review's release treatment for its SEV level.
+   When two consecutive completed code review rounds produce distinct, verified
+   material findings that expose the same design assumption, reconsider it before
+   the next permitted repair. Record the assumption, both finding IDs and one
+   option that removes the assumption while meeting the existing criteria. If
+   no such option is viable, record why.
    Repair findings selected by the
    parent and unmet criteria within scope. Capture fresh evidence for visible
    fixes and preserve original findings. Prefer deleting or narrowing when it fixes the
@@ -98,9 +103,13 @@ automatically need this loop.
    [coordinator verification](../review/references/single-round.md); read it before using that exception.
    Otherwise later rounds use fresh read-only evaluation tasks focused on changed
    behavior and unresolved findings. Supply the full scoped diff, the delta since the last
-   review, checks and finding ledger. Broaden review when a change affects shared
+   review, checks and finding ledger. If step 5 identified a shared assumption,
+   name it in the next reviewer brief and ask whether the revised design still
+   depends on it. Broaden review when a change affects shared
    assumptions, interfaces or previously reviewed behavior. Keep the phase's base
    and scope explicit; if either changes, record why and reassess affected evidence.
+   Keep handed-off candidates reachable. Name the revised SHA and its own checks
+   when a repair or authorised rebase supersedes one.
    Re-review material behavior changes, unresolved consequential findings or gaps
    in acceptance coverage. Editorial corrections and declined nits need no new
    round. Never transfer approval across unreviewed behavior or shop for reviewers.

@@ -80,6 +80,7 @@ flowchart TD
         <div>
           <h3>Bring evidence to the review</h3>
           <p><a href="https://github.com/seankoji-com/.agents/blob/main/skills/review-loop/SKILL.md">review-loop</a> repairs and re-reviews until the score target and required checks pass, or stops after two rounds that fail to beat the best score. <a href="https://github.com/seankoji-com/.agents/blob/main/skills/review/SKILL.md">review</a> supplies the formal reviewer and the evidence and severity rules.</p>
+          <p>If two code reviews in a row find different material bugs that come from the same design assumption, the coordinator considers a repair that removes that assumption.</p>
           <p>Use <a href="https://github.com/seankoji-com/.agents/blob/main/skills/hillclimb/SKILL.md">hillclimb</a> for scored improvement of a workflow, artifact or product. Approve the judging roster and any shared lineage. When the full panel joins, you can upgrade the primary before the panel scores the same candidate to set its baseline. UI judges use the real interface. One report keeps the evidence and scores for every round.</p>
         </div>
         <div>
@@ -228,7 +229,7 @@ flowchart TD
         </div>
         <div>
           <h3>A retrospective from the logs</h3>
-          <p>The last stage reads the run's activity across the parent and every delegate, including failed attempts. Missing logs are reported as a gap. With posting authority, proposed skill changes go to the operator's own configured repository as issues. Otherwise they remain drafts and the retrospective stays incomplete with an owner question. Proposals do not automatically change the skills.</p>
+          <p>The coordinator records evidence as work finishes. The retrospective reconciles the parent and delegate results, including failed attempts, and opens detailed logs for gaps and consequential events. Unresolved gaps leave it incomplete. With posting authority, proposed skill changes go to the operator's configured repository as issues. Otherwise they remain drafts.</p>
         </div>
         <div>
           <h3>AI-written text is labelled</h3>

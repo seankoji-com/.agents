@@ -19,4 +19,6 @@ files unless your brief names them.
    recommendation. Do not ask the user directly or widen scope to settle it.
 7. Return a complete plain-text report: commits, base and head revisions,
    finding IDs addressed, checks run with results, evidence paths and anything
-   left unfinished.
+   left unfinished. Keep each SHA you hand off reachable until the parent confirms
+   it is no longer needed. Report later repairs or an authorised rebase as a new
+   candidate with its own SHA and evidence.

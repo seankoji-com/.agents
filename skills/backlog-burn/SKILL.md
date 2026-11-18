@@ -13,13 +13,10 @@ The main thread presents the report.
 
 ## The turn rule
 
-- Each turn completes steps 2–7 before watching or yielding.
-- `watch_pull_request` tells you to end your turn. So call it **last**, in
-  step 8, after the pass. Never watch a PR and then stop with untriaged items,
-  free slots or unasked questions.
-- A watch wakes you only for that PR. Triage the issues this turn.
-- Stop early only when a tool forces it or context is nearly full. Write the
-  ledger's resume record first and name the next step.
+- Complete steps 2–7 before watching or voluntarily yielding. A PR watch only
+  wakes you for that PR. Call it **last**, after the pass.
+- If a tool forces a yield or context is nearly full, save the ledger's resume
+  record and next action. Resume unfinished work on wake.
 
 ## Scope and authority
 
@@ -73,7 +70,10 @@ write it to the ledger. Headers only; no bodies yet.
 - Issue classes are listed in [the ledger](references/ledger.md#table).
 - Mark issues covered by an open PR as `in-flight` and link the PR.
 
-Steps 3 and 4 check each item before you act.
+After header triage, interleave steps 3 and 4. With free capacity, check likely
+independent fixes and dispatch verified ready work before unrelated PR history.
+Check a PR first when it may own or overlap that issue. Then return to PR
+ownership and actionable repairs. Refill after completions and on wake.
 
 ## 3. Settle each PR's owner
 

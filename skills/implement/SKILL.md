@@ -129,6 +129,9 @@ revision. Ready means the agreed criteria, required checks and applicable
 runtime/UI evidence are met, with an eligible completed cross-lineage review
 and finding dispositions allowed by review. Missing material evidence or
 unresolved gates must be reported as incomplete.
+Keep every handed-off candidate SHA reachable until the parent confirms it is
+no longer needed. Submit repairs or an authorised rebase as a new candidate with its
+own exact SHA and evidence. Identify which candidate the new one supersedes.
 Apply review's deferred-bug tracking rule. Code-ready work may return with
 non-blocking filing requests for the main thread to dispatch through
 [raise-issue](../raise-issue/SKILL.md). Include the evidence, finding IDs, source

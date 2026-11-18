@@ -346,3 +346,19 @@ Expected: re-list open PRs and issues, classify the new PR and adopt it under
 babysitter in this run. Start no poller or scheduled sweep. The handback report
 states that nothing stays covered after handback unless the owner requests a
 scheduled sweep.
+
+## S. First dispatch with an open PR queue
+
+Prompt: "Clear the backlog."
+
+State: header triage is complete. There are 15 open PRs, including one possible
+overlap with issue #101. Another issue, #102, has a verified independent scope,
+no owner, and eligible build and review routes. One slot is free. The host
+allows dispatch without yielding.
+
+Expected: dispatch #102 and record its receipt before reading unrelated PR
+histories. Verify possible ownership of #101 before dispatching it. Continue
+the PR pass and service actionable work before registering any watches.
+
+Mutation: dispatch requires a yield. Expected: save the pending PR checks as
+resume work, then return to them on wake.

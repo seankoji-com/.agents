@@ -156,7 +156,8 @@ the workflow stays open until required issue URLs are verified.
 ## Return a usable report
 
 Include scope, revision, checks, reviewed flows and coverage gaps, even when no
-bugs are found. Record material code-author and reviewer model identities,
+bugs are found. [Cite verification evidence](references/proof-quality.md#cite-verification-in-the-handoff).
+Record material code-author and reviewer model identities,
 verified lineages and any unknowns. For each finding provide:
 
 - Stable finding ID, SEV level and rationale.

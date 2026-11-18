@@ -14,6 +14,9 @@ Apply [T3 dispatch preflight](../agent-tuneup/references/t3-dispatch.md) before 
 Ask the currently answerable questions together through the host's question tool,
 or numbered text questions when no question tool is available,
 with one decision per question, your recommendation first and its tradeoff.
+Before asking whether to adopt a proposal, describe the concrete problem in
+plain language. Give one observed example when available. If the problem is
+still a hypothesis, say what evidence would resolve it.
 Defer questions that depend on an unanswered decision. Do not turn routine,
 reversible choices into owner decisions.
 

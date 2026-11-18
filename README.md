@@ -138,6 +138,8 @@ The [review](skills/review/SKILL.md) skill applies this in a few rules:
   also found that strong models from different providers still share many errors,
   so a second family reduces shared blind spots without removing them.
 - When several judges score a loop round, the round takes the lowest score.
+- If two consecutive code reviews expose the same design assumption through
+  distinct material findings, `review-loop` reconsiders it before the next repair.
 - Extra plan and visual judges may share a lineage without an effort exception.
   Their judgments do not replace independent review of authored code.
 - If no eligible second family is reachable for code review, the agent reports it as unavailable.
@@ -440,11 +442,9 @@ nothing stays covered after handback without a scheduled sweep. Naming an
 organisation launches one independent repository run per repository with open
 work, skips repositories that already have one, and hands back.
 
-The entrypoint is a numbered runbook that cheaper coordinator models can follow.
-Each turn triages every open item from its headers, checks PR ownership against
-T3 threads and recent human activity, closes, dispatches and asks, and only then
-registers PR watches. The watch tool ends the turn, so watching first would
-stop the run with the backlog untouched.
+Each turn triages open items from their headers. It checks PR ownership and
+verifies ready issue fixes side by side, dispatching independent work while it
+checks unrelated PRs. It registers PR watches after completing the pass.
 
 It dispatches each worthwhile verified ready issue before reading unrelated
 histories, while continuing discovery and owner questions where the host permits.
@@ -570,7 +570,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 1a0d40c74099e8e6f1288a366600fee2d91dc1521955d14c6d14f14457ae3b5c -->
+<!-- skills-review: a1f59ab36f8370f4de2b80b852a9020e6ff08446c3686684c0003c736bc159e5 -->
 
 ### Owner maintenance
 

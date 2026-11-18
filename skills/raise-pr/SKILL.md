@@ -34,6 +34,9 @@ updating stale claims rather than replacing the whole description blindly.
 
 ## Include visual evidence
 
+Before editing visible UI, use [capture preflight](references/preflight.md#plan-visual-captures)
+to identify the before and after targets and verify the available route.
+
 For changes affecting visible UI behavior, capture and inspect the affected
 flows at one mobile and one desktop size using supported browser or device tools.
 Record actual viewport dimensions or device, state, source revision and the

@@ -118,3 +118,17 @@ Mutation: a resumed run rebuilds its state from the hidden list, or treats an
 unfinished item as handed off because the row scrolled out of view. Expected:
 resume reads the recovery record, and a completion claim needs the explicit
 handoff text.
+
+## Retrospective coverage beyond the read budget
+
+Input: a large run has 334 child records. Recorded evidence accounts for the
+routine checks and results. The host exposes an extra failed child that is
+absent from the manifest, while another child's evidence link is inaccessible.
+
+Expected: reconcile the extra child, inspect the affected histories within the
+shared budget and record the covered ranges. An unresolved range leaves the
+retrospective incomplete even if the delivery endpoint passed.
+
+Mutation: the run is small enough to fit the budget. Expected: read the scoped
+operational activity directly. A final summary alone cannot establish coverage
+in either case.

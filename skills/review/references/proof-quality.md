@@ -4,6 +4,14 @@ Use these checks when adopting an existing test bundle, making an HTTP access
 claim or diagnosing why a local proof tool cannot run. They do not add a new
 attestation system, require deployment testing or grant another run or escalation.
 
+## Cite verification in the handoff
+
+For each consequential claim that behavior, a check or a delivery gate was
+verified, cite the command and result, a retained artifact, or the exact host
+readback. Identify which revision, build or observation the evidence covered.
+Reuse one reference for related claims when it establishes each of them. Label
+reported evidence as reported and missing proof as unverified.
+
 ## Adopt a test bundle from the invocation that produced it
 
 Before treating a copied or existing bundle as current evidence, compare its run
