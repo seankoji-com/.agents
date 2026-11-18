@@ -55,7 +55,7 @@ which runs agents from several providers, such as Codex, Claude and OpenCode, in
 one app. They use what T3 provides:
 
 - **Separate reviewers.** `review`, `think`, `challenge`, `review-loop` and
-  `design-loop` obtain a separate review. Written-code reviewers differ in family
+  `hillclimb` use separate reviewers or judges. Written-code reviewers differ in family
   from the code authors. A model checking its own code tends to share the blind spots that produced it
   ([research](#why-a-different-model-family-reviews-the-work)). T3 can start that
   reviewer on another provider from inside the same conversation.
@@ -115,8 +115,8 @@ The [review](skills/review/SKILL.md) skill applies this in a few rules:
   materially authored the reviewed code. On exhausted
   credits or insufficient subscription headroom, Sol falls back to Opus, then Sonnet via AGY; Opus falls back to Sonnet
   via AGY, then Sol. All three use high effort. For primary fallbacks, only code-author lineage conflicts unlock
-  Grok 4.7, then Hydrogen high. DeepSeek Flash V4.1 is used only inside OCR,
-  never as a directly dispatched reviewer. Other models require
+  Grok 4.7, then Hydrogen high. Formal review uses DeepSeek Flash V4.1 only
+  inside OCR. Other models require
   your explicit selection. The [selection rules](skills/review/references/model-selection.md)
   apply inside `implement` too. If no eligible authorised route remains, review stays pending.
 - Cross-lineage restrictions apply only to written code, measured against models
@@ -161,7 +161,6 @@ Settle what to build and how people will use it before implementation.
 - [think](skills/think/SKILL.md): Turn an idea into a buildable brief through focused questions and a check for unresolved decisions.
 - [challenge](skills/challenge/SKILL.md): Get an independent critique of a proposal, a simpler alternative, and evidence that would help you choose. No implementation.
 - [choose-design](skills/choose-design/SKILL.md): Compare visual options for a new interface or a material interaction change, then choose before building.
-- [design-loop](skills/design-loop/SKILL.md): Research comparable products and autonomously improve the real UI toward a fixed score target, with parallel judges and annotated reports each round.
 - [focus-group](skills/focus-group/SKILL.md): Explore a product through fictional participants in a clearly labelled synthetic study. Model responses are not human research.
 
 ### Engineering
@@ -173,6 +172,7 @@ Build, check, and deliver changes with evidence of what works and what remains.
 - [plan-report](skills/plan-report/SKILL.md): Show proposed plans, progress and final calibration on a timeline from a private ledger.
 - [review](skills/review/SKILL.md): Evaluate a plan, change, or release against its requirements. Code reviewers differ in family from code authors. Return evidence-backed findings without edits.
 - [review-loop](skills/review-loop/SKILL.md): Hill-climb through repairs and review until the score target and required gates pass or two consecutive rounds fail to improve the best score.
+- [hillclimb](skills/hillclimb/SKILL.md): Improve a workflow, artifact or product toward a fixed score target. Confirm the judging roster, follow the rounds in one report and use the real interface for UI judging.
 - [test-writer](skills/test-writer/SKILL.md): Choose tests that catch consequential failures, with attention to reliability, maintenance, and CI time.
 - [raise-pr](skills/raise-pr/SKILL.md): Prepare PR descriptions and evidence that meet the repository's requirements. Creating or updating the PR needs authority from your request.
 - [babysitter](skills/babysitter/SKILL.md): Repair an existing PR, handle checks and review gates, and verify its merge when permitted. Explicit limits such as no-merge still apply.
@@ -226,7 +226,7 @@ The project's [Delegation settings](skills/ship/references/project-settings.md)
 can name routes, capacity ceilings, cadence and screenshot commit permission.
 Ready independent work refills available capacity within authority. Routing
 changes preserve checkpoints and checkout ownership; they add a new model segment.
-Lineage rules and DeepSeek's OCR-only restriction still apply. Opting into
+Formal review keeps its lineage rules and uses DeepSeek only inside OCR. Opting into
 `review_rounds: 1` keeps primary and companion coverage and permits coordinator
 verification of that round's repairs, disclosed as not independently re-reviewed.
 The original score stays reported; coordinator verification replaces that score
@@ -294,6 +294,10 @@ a job, especially one that can publish or merge changes.
   Plans, prose and visual judgments have no lineage exclusion. The primary reviews
   the whole scope, UI included; OCR in a PR-less repository, or Hydrogen high,
   runs alongside it according to the scope.
+- **Hillclimb scoring.** Confirm the models, effort and any shared lineage before
+  a run. Choose whether to upgrade the primary before the full panel scores its
+  first candidate. Direct DeepSeek Flash high is available for this scoring role
+  when the route and settings can be verified.
 - **Evidence.** The agent reports checks against the revision it actually tested.
   Missing access, unavailable reviewers, and unverified behavior remain visible gaps.
 - **Follow-through.** Confirmed bugs deliberately left unfixed need tracking.
@@ -304,6 +308,10 @@ structure and helper behavior; they do not establish how reliably a live model
 will follow every instruction or prove a cost or quality advantage.
 
 ## Use the library
+
+`hillclimb` replaces `design-loop`. Start new runs with the new name. For an
+in-progress run, use its recorded instructions and references from the version
+it started on.
 
 Pick the skills you need. You can install one or more through
 [skills.sh](https://skills.sh/seankoji-com/.agents) without adopting this owner's
@@ -490,9 +498,9 @@ for a human introduction, or open a skill here to read its exact instructions.
 | [backlog-burn](skills/backlog-burn/SKILL.md) | Burn a repository's open issues and pull requests down to zero, or launch one run per repository for a named organisation. Use for backlog reduction, clearing open PRs, unblocking owner decisions or dispatching issue fixes. Prefer evidence-based closure and useful delegation up to 20. |
 | [challenge](skills/challenge/SKILL.md) | Pressure-test an idea, design or proposal with an independent reviewer. Use when the user asks for an adversarial second opinion, asks "are you sure", or wants to challenge assumptions; return findings without implementation. |
 | [choose-design](skills/choose-design/SKILL.md) | Use after product decisions are settled for new UI, requested redesigns or material unresolved visual or interaction choices. For existing UI, preserve its design and limit choices to the requested change; routine edits need no chooser. |
-| [design-loop](skills/design-loop/SKILL.md) | Improve a product's UI through reference research, direct interaction and scored judging, with annotated HTML reports each round and a final PR. Use for autonomous design iteration toward a score target, rather than operator-selected mockup options. |
 | [focus-group](skills/focus-group/SKILL.md) | Use when the user requests a synthetic focus group or persona-based product evaluation, including planning, running or reviewing the study. |
 | [github-writing](skills/github-writing/SKILL.md) | Use whenever drafting or editing LLM-written GitHub issues, pull requests, comments, reviews, discussions or release notes on the user's behalf. |
+| [hillclimb](skills/hillclimb/SKILL.md) | Improve a candidate in scored rounds toward an agreed target, with a confirmed judging roster, a rolling report and a reviewed delivery. Use when the user asks for scored iteration on a workflow, artifact or product, including UI work judged on the real interface. |
 | [implement](skills/implement/SKILL.md) | Use when the user invokes implement or requests implementation through T3 delegates, returning reviewed commits for the main thread to integrate and ship. |
 | [plan-report](skills/plan-report/SKILL.md) | Propose a project plan or report progress and final calibration as a Gantt-style HTML report from a private JSON ledger. Use for coordinated runs, explicit timeline requests, or when ship, backlog-burn or implement calls for plan reporting. |
 | [raise-issue](skills/raise-issue/SKILL.md) | Use when the user or an authorised workflow asks to investigate, prepare, file or follow up on a bug, feature or task issue in an owned, organisation or external repository, using an asynchronous T3 delegate. |
@@ -562,7 +570,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 22aff8fd7f7877df56aca47fc8585c115552765eaebffc811609fdf773c3b8f8 -->
+<!-- skills-review: 1a0d40c74099e8e6f1288a366600fee2d91dc1521955d14c6d14f14457ae3b5c -->
 
 ### Owner maintenance
 

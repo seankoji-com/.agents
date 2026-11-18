@@ -14,7 +14,7 @@ from urllib.parse import unquote, urlsplit
 SKILLS = ('babysitter', 'review-loop', 'challenge', 'focus-group',
           'agent-tuneup', 'test-writer', 'raise-issue', 'ship',
           'think', 'review', 'choose-design', 'raise-pr',
-          'implement', 'github-writing', 'design-loop', 'backlog-burn', 'plan-report')
+          'implement', 'github-writing', 'hillclimb', 'backlog-burn', 'plan-report')
 RETIRED = re.compile(r'agents-bootstrap|PKG/|(?:core|shared|plugins)/|bin/agents|'
                      r'scripts/(?:install|agents_bootstrap|source_runtime)|'
                      r'migration/|agents start|\.local/share/t3-plugins')
@@ -222,9 +222,8 @@ def check(root, update_readme=False, acknowledge_docs=False):
         return ['library root must be a Git checkout']
     paths = {root / p for p in tracked
              if p and not p.startswith('skills/synced/') and (root / p).is_file()}
-    entries = {Path(p).parts[1] for p in tracked
-               if len(Path(p).parts) == 3 and Path(p).parts[0] == 'skills'
-               and Path(p).name == 'SKILL.md' and Path(p).parts[1] != 'synced'}
+    entries = {path.parent.name for path in paths
+               if path.name == 'SKILL.md' and path.parent.parent == root / 'skills'}
     for name in sorted(entries - set(SKILLS)):
         errors.append(f'unregistered skill: {name}; add it to SKILLS and update the README')
     descriptions = {}

@@ -48,10 +48,9 @@ Apply [T3 dispatch preflight](../agent-tuneup/references/t3-dispatch.md) before 
    otherwise report the specific review gate.
 4. For adopted `review_rounds: 1`, apply the
    [single-round procedure](references/single-round.md) before repairs.
-   Otherwise follow the caller's stopping rule across repairs and resumes. Review-loop
-   and design-loop use score targets and two-round stagnation without a required
-   cap; their evaluations do not inherit the standalone limit. A
-   standalone review allows at most three rounds, including failed attempts.
+   Otherwise follow the caller's stopping rule. `review-loop` and `hillclimb`
+   use score targets and two-round stagnation. Hillclimb's scoring roster
+   follows its own skill. Standalone review allows three rounds, including failures.
    On stalling or exhaustion, apply the [budget diagnosis](references/budget-exhaustion.md).
    Recheck material changes or unresolved findings; do not seek unanimity or
    restart budgets by changing reviewer. Receive the complete report before

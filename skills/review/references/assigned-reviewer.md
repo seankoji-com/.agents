@@ -15,12 +15,13 @@ review skill. Do not read other skill files unless your brief names them.
    brief, including any explicit user reassignment. If they conflict or evidence
    is missing, report it first and leave the requested model/settings unverified.
    The parent checks host evidence unavailable to you.
-   For written code, compare your lineage only with the material code authors,
+   For formal code review, compare your lineage only with the material code authors,
    including repairers. Versions, effort and provider aliases do not change lineage.
    If a code-author identity is missing or matches yours, report the code-review
    gap. The orchestrator matters only if it wrote code; matching it needs no waiver.
-   Plans, prose and visual judgments have no lineage exclusion and cannot replace
-   independent review of the underlying code.
+   Plans, prose and visual judgments have no lineage exclusion. In Hillclimb
+   scoring assignments, follow the confirmed scoring roster and flag unapproved
+   overlap. A scoring assignment cannot replace formal code review.
 5. Separate what you observed from what you suspect. Uncertainty is an evidence
    gap. It does not lower severity.
 

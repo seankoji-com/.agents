@@ -3,6 +3,10 @@
 Read before selecting any reviewer or judge, including rechecks, additional
 opinions and reviews inside implement.
 
+For [Hillclimb scoring](../../hillclimb/references/judges.md), use its confirmed
+roster and scoped DeepSeek exception. Apply this reference to Hillclimb's formal
+delivery review as usual.
+
 1. Preserve explicit reviewer/settings choices within the route restrictions
    below, and preserve narrower fallback limits.
    If an explicitly named reviewer is lineage-ineligible, report the conflict

@@ -72,9 +72,7 @@ merely as checklist items.
 
 The other multi-step skills do not point here:
 
-- `design-loop`: its 1,486-word entry leaves about 14 words, and its run record
-  already tracks rounds, candidates and scores; a list would show a competing
-  progress view.
+- `hillclimb`: the rolling report keeps rounds, candidates and scores together.
 - `backlog-burn`: the queue spans turns, so a whole-queue list would not stay
   readable, and an active-batch list duplicates `plan-report`'s compact rows.
 - `babysitter`: per-PR items duplicate the native PR watch, and ship's parent

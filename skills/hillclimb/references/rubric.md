@@ -1,12 +1,28 @@
 # Fix the evaluation contract
 
-Use observed examples as quality anchors and measurable checks as separate gates.
-Do not describe a model score as an objective measurement. Agreement across model
-families still does not establish human preference or production usability.
+Use evidence-backed quality anchors and measurable checks as separate gates.
+Treat model scores as judgments. Verify human preference and production behavior
+separately when they are part of the goal.
 
-## Reference anchors
+## General mode
 
-Research a small set of leading products comparable in audience, task and platform.
+Name the candidate, user outcome, required behaviors and constraints. Capture the
+baseline under repeatable conditions. Pick task-specific dimensions and weights,
+define observable anchors and set the target before scoring. Keep the dimensions
+distinct. For example, judge a runbook on correctness, ability to follow its steps
+and recovery coverage; check its commands and links separately where applicable.
+
+Choose evidence the judges can verify. Use reproduction results, benchmark
+measurements, representative inputs, source or artifact references as appropriate.
+Set thresholds and evidence requirements for required checks. Record methods,
+conditions and limitations alongside results. Use external references when they
+materially establish quality expectations. The UI sections below add live
+interaction, evidence and an optional starting rubric for visible work.
+
+## UI reference anchors
+
+For UI work that benefits from reference research, choose a small set of leading
+products comparable in audience, task and platform.
 Record why each qualifies, the source URL, capture date, observed flow/state and
 viewport. Capture relevant interactions as well as polished landing screens.
 Keep reference images in the local report; cite source URLs in the PR. Upload
@@ -16,9 +32,9 @@ Capture the product baseline under comparable conditions with synthetic or redac
 data. Label differences that prevent direct comparison. An inaccessible reference
 or state remains a gap; it cannot anchor a claim about unobserved behavior.
 
-## Choose dimensions before scoring
+## UI dimensions
 
-Use this default rubric unless the product warrants different dimensions or weights.
+Use this UI rubric as the starting point and scale it to the scoped work.
 Record the scoped user outcome, audience/context and intended emotional response,
 such as calm confidence or creative expression. Map these to the dimensions below;
 justify each addition, replacement or weight change with a concrete product
@@ -28,10 +44,8 @@ reopening product strategy. Keep the defaults when evidence gives no reason to
 change them. Novelty earns credit when it serves the intended experience.
 
 Record the chosen dimensions, weights, product-specific anchors and target before
-baseline scoring or edits, and freeze them for the run. Weights must be positive
-and sum to 100. These weights are working defaults, not empirically validated
-predictors of delight. Model scoring is an evaluation aid, not a validated user
-questionnaire or evidence of how the audience actually feels.
+baseline scoring or edits, and freeze them for the run. Treat the default weights
+as evaluation choices. Evidence from the audience is needed to assess its experience.
 
 | Dimension | Default weight | What the judge must explain with observed evidence |
 | --- | --- | --- |
@@ -53,9 +67,10 @@ affect another score only with a distinct observed consequence, explaining why.
 
 ## Scoring
 
-Judges assign each dimension an integer from 1 to 10. Define product-specific
-examples for every dimension's anchors before scoring, including emotional appeal
-and brand fit. Adapt the task-oriented descriptions below to those qualities:
+Judges assign each dimension an integer from 1 to 10. Use positive integer
+weights summing to 100. Define examples for each dimension's anchors before
+scoring, including emotional appeal and brand fit when they apply. Adapt these
+UI anchors to the scope:
 
 | Score | Anchor |
 | --- | --- |
@@ -75,13 +90,14 @@ progress. For example, weighted sum 845 gives 8.5. Retain dimension scores and t
 unrounded sum to make the calculation auditable. A missing dimension means an
 incomplete evaluation, not zero or a reweighted average.
 
-The operator chooses the target. Do not lower it, change weights or replace a
-strict judge merely to obtain a pass. No individual score cancels a confirmed bug.
+The operator chooses the target. Keep the target and weights fixed across the
+approved panel transition. Resolve confirmed bugs under the required gates and
+finding severity rules.
 
 ## Measurable checks and coverage
 
 At setup list each required check, method, threshold, scoped states and evidence.
-Use repository checks plus explicit gates for functional correctness, reliability,
+Use applicable repository checks plus explicit gates for functional correctness, reliability,
 accessibility and performance suited to the actual product. Examples include
 completing named tasks, keyboard reachability/focus, assistive-technology use,
 measured contrast, zoom/reflow, horizontal overflow, reduced motion, failure
@@ -96,12 +112,12 @@ verification. Record baseline failures instead of silently exempting them.
 Perceived confidence also does not establish actual security or privacy protection;
 retain any required technical checks separately.
 
-Coverage includes the named flows at supported sizes and relevant loading, empty,
-error and recovery states. Every judge must perform the required interactions on
-the actual candidate and provide action/results evidence. Missing required checks,
-unviewed states or inaccessible UI prevent goal acceptance even when scores pass.
+UI coverage includes the named flows at supported sizes and relevant loading,
+empty, error and recovery states. Every UI judge performs the required interactions
+on the actual candidate and provides action and result evidence. Acceptance
+requires the specified coverage and checks as well as passing scores.
 
-## Research basis and limits
+## UI research basis and limits
 
 These dimensions synthesize complementary frameworks rather than reproduce a
 validated instrument. [Norman's emotional design](https://jnd.org/emotional-design-people-and-things/)

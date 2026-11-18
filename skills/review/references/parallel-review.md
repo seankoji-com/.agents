@@ -2,6 +2,8 @@
 
 Read before starting a review or recheck. Keep the primary selected under
 model-selection.md; these companions are additional, not replacements.
+Hillclimb uses these companions for formal delivery review. Its scoring
+assignments use its own confirmed roster.
 
 1. Classify the reviewed scope by behavior, not filename. The primary reviews the
    whole scope, including UI/visual behavior, and captures its own screenshots.

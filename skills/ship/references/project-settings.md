@@ -28,7 +28,8 @@ setting grants neither delegation nor publication authority.
    Preserve narrower limits and verify outgoing settings through the host.
 2. Apply review's code-author lineage and model-selection rules, subscription
    headroom, the host's effort ceiling and permission/provider restrictions.
-   DeepSeek remains OCR-only; a routing row cannot enable direct dispatch.
+   For review, DeepSeek remains OCR-only. A routing row cannot extend
+   [Hillclimb's scoring exception](../../hillclimb/references/judges.md).
    Gate reviewers supplement required primary/companion coverage unless the
    owner explicitly changes an overridable requirement.
 3. On a conflict, name the setting, constraint, affected task and eligible
