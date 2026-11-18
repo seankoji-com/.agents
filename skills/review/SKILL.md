@@ -28,8 +28,8 @@ Apply [T3 dispatch preflight](../agent-tuneup/references/t3-dispatch.md) before 
    named choices and apply its authorised credit/lineage fallbacks and holds.
    Run the required [parallel companions](references/parallel-review.md) on the
    same frozen revision; OCR runs only where the repository has no PR path.
-   Extra plan or visual judges may share any lineage;
-   their judgments cannot replace independent review of authored code.
+   The primary reviews the whole scope, visuals included; other judges may share
+   any lineage but cannot replace it.
 3. Reuse completed reviews only when eligible against all current code authors,
    including repairers, and covering the current head or decision brief with all
    required companion reports. Obtain missing companion coverage before reuse.

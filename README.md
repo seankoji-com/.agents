@@ -124,13 +124,14 @@ The [review](skills/review/SKILL.md) skill applies this in a few rules:
   wrote code. Sol can review Opus/Fable-authored code while Sol orchestrates,
   without a waiver. Plans, prose and visual judgments have no lineage exclusion.
   Versions, effort settings and provider aliases do not change a model's lineage.
-- Run the primary and required companions in parallel. `opencodereview`, invoking
-  the OCR library, is the non-UI/visual companion only where the repository has no
-  PR path: its delivery policy requires direct publication, or the host reports
+- Run the primary and required companions in parallel. The primary reviews the
+  whole scope, UI/visual behavior included. `opencodereview`, invoking the OCR
+  library, is the non-UI/visual companion only where the repository has no PR
+  path: its delivery policy requires direct publication, or the host reports
   pull requests unavailable. A repository that accepts PRs uses the primary alone,
-  and OCR runs only when you ask for it. Hydrogen high is the companion for
-  UI/visual changes; mixed scope uses Hydrogen, plus OCR in a PR-less repository.
-  The [parallel-review guide](skills/review/references/parallel-review.md)
+  and OCR runs only when you ask for it. Hydrogen high adds a second visual review
+  for UI/visual changes; mixed scope uses Hydrogen, plus OCR in a PR-less
+  repository. The [parallel-review guide](skills/review/references/parallel-review.md)
   defines invocation, coverage and reporting. Companions do not replace the primary.
 - Findings need evidence, such as a reproduction, test output, screenshot or
   file and line. A verdict without supporting reasoning does not count. Kim et al.
@@ -290,8 +291,9 @@ a job, especially one that can publish or merge changes.
   and exclude secrets and unrelated files. Covered authorization needs no repeated question.
 - **Review.** Written-code review uses a different model family from the code
   authors. The orchestrator's family is irrelevant unless it wrote code.
-  Plans, prose and visual judgments have no lineage exclusion. OCR in a PR-less
-  repository, or Hydrogen high, runs alongside the primary according to the scope.
+  Plans, prose and visual judgments have no lineage exclusion. The primary reviews
+  the whole scope, UI included; OCR in a PR-less repository, or Hydrogen high,
+  runs alongside it according to the scope.
 - **Evidence.** The agent reports checks against the revision it actually tested.
   Missing access, unavailable reviewers, and unverified behavior remain visible gaps.
 - **Follow-through.** Confirmed bugs deliberately left unfixed need tracking.
@@ -359,7 +361,8 @@ required capability is missing. Inline issue work requires an explicit request.
 Reading the instructions needs no running service. Python helpers require Python
 3.10+ and the standard library. Diff reviews that use OCR also require the installed
 [OpenCodeReview CLI](https://github.com/alibaba/open-code-review) and a configured,
-authorised OCR provider. UI/visual review needs host access to Hydrogen high.
+authorised OCR provider. UI/visual review needs host browser or device access and
+Hydrogen high.
 Owner host-delivery configuration is only for
 maintaining this repository, not for using skills from a clone.
 
@@ -559,7 +562,7 @@ discovery or deployment success. Those need separate evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 25c0f64bfc32ec5030420cb83ee8fe49a91b3f9d5f9b96144475fa5ab85a5b2b -->
+<!-- skills-review: 22aff8fd7f7877df56aca47fc8585c115552765eaebffc811609fdf773c3b8f8 -->
 
 ### Owner maintenance
 

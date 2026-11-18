@@ -37,7 +37,8 @@ opinions and reviews inside implement.
    only as OCR's backend under [parallel review](parallel-review.md).
    A named DeepSeek request still uses OCR, not direct host-model dispatch.
    The required Hydrogen visual companion has standing authority independently
-   of this primary-fallback gate.
+   of this primary-fallback gate; it adds a second visual review rather than
+   replacing the primary's.
 4. Record the quota evidence and every lineage exclusion. Other failures do not
    establish exhausted credits or insufficient headroom. If no authorised eligible route
    remains, report the gate and hold dependent review for the user's choice.

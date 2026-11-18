@@ -195,7 +195,7 @@ const SKILLS = [
     try: "Use plan-report to show this coordinated run and the decisions waiting on me.",
     uses: [] },
   { name: "review", group: "build", t3prep: true,
-    text: "Have work checked against the goal. Code reviewers must differ in family from the code authors; the orchestrator's family is irrelevant unless it wrote code. Plans, prose and visual judgments have no family restriction. Review defaults to Sol high, or Opus high for Sol-authored code, with credit fallbacks. OCR runs alongside the primary for nonvisual changes only where the repository has no PR path; a repository that accepts PRs uses the primary alone. Hydrogen high runs alongside it for UI/visual changes. DeepSeek is available only through OCR. The reviewers return findings tied to evidence and ranked by severity.",
+    text: "Have work checked against the goal. Code reviewers must differ in family from the code authors; the orchestrator's family is irrelevant unless it wrote code. Plans, prose and visual judgments have no family restriction. Review defaults to Sol high, or Opus high for Sol-authored code, with credit fallbacks. OCR runs alongside the primary for nonvisual changes only where the repository has no PR path; a repository that accepts PRs uses the primary alone. The primary also reviews UI/visual behavior, with Hydrogen high adding a second visual review. DeepSeek is available only through OCR. The reviewers return findings tied to evidence and ranked by severity.",
     try: "Use review to check this branch against the brief. Do not edit files.",
     uses: ["implement", "raise-issue", "github-writing"] },
   { name: "review-loop", group: "build",
