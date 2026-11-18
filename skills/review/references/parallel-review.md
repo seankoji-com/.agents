@@ -4,17 +4,27 @@ Read before starting a review or recheck. Keep the primary selected under
 model-selection.md; these companions are additional, not replacements.
 
 1. Classify the reviewed scope by behavior, not filename. Code, configuration,
-   plans and prose without UI/visual changes use `opencodereview`. UI/visual
-   changes use Hydrogen high. Mixed changes use both, scoped to their respective
-   parts. Editing documentation-site copy alone is prose, not a visual redesign.
+   plans and prose without UI/visual changes qualify for the `opencodereview`
+   lane. UI/visual changes use Hydrogen high. Mixed changes use Hydrogen for the
+   visual part and OCR for the code part when that lane applies. Editing
+   documentation-site copy alone is prose, not a visual redesign.
    A plan or decision brief with no repository changes needs no diff-based OCR
    lane; mark it not applicable instead of inventing a diff or blocking discussion.
-2. Start the primary and required companions in parallel against the same frozen
+2. Determine the repository's PR path before adding OCR. A repository is PR-less
+   when its delivery policy requires direct publication or the host reports pull
+   requests unavailable, such as GitHub's `has_pull_requests: false`. In a PR-less
+   repository, OCR is the required companion for code, configuration and mixed
+   code scope. A repository that accepts PRs does not add or suggest OCR; the
+   primary review alone supplies companion coverage there, and OCR runs only when
+   the user asks for it. If neither the delivery policy nor the host setting can
+   be read, keep the OCR lane and report the gap rather than silently dropping it.
+   Visual companions are unaffected by the PR path.
+3. Start the primary and required companions in parallel against the same frozen
    revision and acceptance criteria. Reserve the necessary host capacity. Collect
    every required report before accepting review; a missing or failed companion
    remains incomplete. Keep findings and coverage from each report distinct.
    Companions supply evidence and findings, not a score unless assigned a rubric.
-3. Apply code-author lineage restrictions only to code review. A matching
+4. Apply code-author lineage restrictions only to code review. A matching
    orchestrator is irrelevant. Visual judgments have no lineage exclusion; they
    cannot stand in for independent review of the underlying code.
 
@@ -22,8 +32,8 @@ model-selection.md; these companions are additional, not replacements.
 
 This option invokes the OpenCodeReview library's `ocr` CLI from
 `@alibaba-group/open-code-review`, not the unrelated OpenCode coding agent.
-Use the installed library directly; add no wrapper, provider SDK or model task
-pretending to be OCR.
+Run this lane only where step 2 requires it. Use the installed library directly;
+add no wrapper, provider SDK or model task pretending to be OCR.
 
 1. Check `ocr version` and `ocr review --help`. Respect existing sharing authority
    for the provider and scope; exclude secrets and unrelated paths. Reuse covered

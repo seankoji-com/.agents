@@ -27,7 +27,8 @@ Apply [T3 dispatch preflight](../agent-tuneup/references/t3-dispatch.md) before 
    review, recheck and additional opinion, including inside implement. Preserve
    named choices and apply its authorised credit/lineage fallbacks and holds.
    Run the required [parallel companions](references/parallel-review.md) on the
-   same frozen revision. Extra plan or visual judges may share any lineage;
+   same frozen revision; OCR runs only where the repository has no PR path.
+   Extra plan or visual judges may share any lineage;
    their judgments cannot replace independent review of authored code.
 3. Reuse completed reviews only when eligible against all current code authors,
    including repairers, and covering the current head or decision brief with all
