@@ -193,6 +193,7 @@ Understand the work and communicate it clearly.
 Maintain the instructions and configuration your agents depend on.
 
 - [agent-tuneup](skills/agent-tuneup/SKILL.md): Diagnose settings, permissions, connections, or missing skills. Separate saved configuration from observed behavior.
+- [reremember](skills/reremember/SKILL.md): Keep a project's long-term memory accurate. Verify claims against the code, record decisions so a later agent can check them, and supersede stale records.
 
 ## What it looks like in practice
 
@@ -512,6 +513,7 @@ for a human introduction, or open a skill here to read its exact instructions.
 | [plan-report](skills/plan-report/SKILL.md) | Show a plan, progress or final calibration on an HTML timeline from a private ledger. Use for coordinated work, timeline requests or reporting in ship, backlog-burn and implement. |
 | [raise-issue](skills/raise-issue/SKILL.md) | Investigate, draft, file or follow up on a bug, feature or task issue when the user or an authorised workflow asks. Use an asynchronous T3 delegate. |
 | [raise-pr](skills/raise-pr/SKILL.md) | Prepare, create or update a pull request during implementation, review-loop, ship or PR maintenance. Include the repository's required evidence and checks. |
+| [reremember](skills/reremember/SKILL.md) | Use when a remembered claim is contradicted by the code, when asked to correct or consolidate what the project remembers, or when a session settles a decision later work depends on. |
 | [review](skills/review/SKILL.md) | Review plans, code, UI, backend or releases independently, including review-loop and think's readiness check. Code reviewers must come from a different model family than the code authors. |
 | [review-loop](skills/review-loop/SKILL.md) | Implement, review and repair in rounds when asked to iterate with independent review or when the user invokes review-loop. Work toward the agreed score and acceptance criteria. |
 | [ship](skills/ship/SKILL.md) | Deliver and verify a change when the user explicitly asks to ship or backlog-burn calls for delivery. Show progress and finish with a retrospective. |
@@ -577,7 +579,7 @@ installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: c36e233f4af1721d03605454b11d317273715db2af17315d4da77e0ff25032b9 -->
+<!-- skills-review: 476efea2c40df93eba2918819a76f525ee4ff5ec62d3fe8a1ef5767b92d40557 -->
 
 ### Owner maintenance
 
