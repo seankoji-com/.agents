@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>How the .agents skills work together</title>
-<meta name="description" content="How backlog-burn, ship, think, choose-design, implement, review-loop, raise-pr and babysitter hand work to each other in T3 Code, from an idea or issue backlog to verified delivery.">
+<meta name="description" content="See how .agents skills share product decisions, implementation, independent review and delivery in T3 Code.">
 <link rel="canonical" href="https://seankoji-com.github.io/.agents/workflows.html">
 <meta property="og:title" content="How the .agents skills work together">
-<meta property="og:description" content="The handoffs between skills, from an idea to a verified merge.">
+<meta property="og:description" content="See how .agents skills share work and verify delivery in T3 Code.">
 <meta property="og:url" content="https://seankoji-com.github.io/.agents/workflows.html">
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23233a8f'/%3E%3Cpath d='M9 21h14' stroke='%23f5c84c' stroke-width='4' stroke-linecap='round'/%3E%3Ccircle cx='11' cy='12' r='2.6' fill='%23fff'/%3E%3C/svg%3E">
@@ -30,48 +30,23 @@
 
   <main class="guide">
     <div class="hero">
-      <h1>How the skills work together</h1>
-      <p class="lede">You do not need the whole library for every change. This page shows who hands what to whom when you do use several skills. Each skill's own file holds the exact rules.</p>
+      <h1>How skills work together</h1>
+      <p class="lede">See who owns each step of a pull request, backlog run or delegated build. <a href="./#skills">Find and install skills</a>.</p>
     </div>
 
     <section id="outcome" aria-labelledby="outcome-title">
-      <h2 id="outcome-title">Start with the outcome</h2>
-      <p class="section-intro">Ask for a result and let the agent pick the skills that help. The dashed arrows are choices the agent makes for the task. They are not a fixed sequence.</p>
-      <pre class="mermaid">
-flowchart TD
-    classDef skill fill:#e8f0ff,stroke:#315fa8,color:#152845,stroke-width:2px
-    ship["ship&lt;br/&gt;Own the outcome"]:::skill
-    plan["Parent task list&lt;br/&gt;Plan and track progress"]
-    think["think&lt;br/&gt;Settle product decisions"]:::skill
-    design["choose-design&lt;br/&gt;Choose the UI"]:::skill
-    implementation["Implementation&lt;br/&gt;Direct or delegated"]
-    review_loop["review-loop&lt;br/&gt;Evaluate and repair"]:::skill
-    raise_pr["raise-pr&lt;br/&gt;PR and evidence"]:::skill
-    babysitter["babysitter&lt;br/&gt;CI and merge gates"]:::skill
-    merge(["Verified merge"])
-    retrospective["Final retrospective&lt;br/&gt;Parent and delegate logs"]
-    proposals["raise-issue&lt;br/&gt;Workflow proposals"]:::skill
-    finished(["Ship complete"])
-
-    ship --&gt; plan
-    plan -. "Product unclear" .-&gt; think
-    plan -. "UI choice unresolved" .-&gt; design
-    think -. "UI choice remains" .-&gt; design
-    plan --&gt; implementation
-    report["plan-report&lt;br/&gt;Estimates, progress and calibration"]:::skill
-    plan -. "Proposal" .-&gt; report
-    implementation -. "Task completion" .-&gt; report
-    think --&gt; implementation
-    design --&gt; implementation
-    implementation --&gt; review_loop
-    review_loop --&gt; raise_pr
-    raise_pr --&gt; babysitter
-    babysitter --&gt; merge
-    merge --&gt;|"Required bug tracking complete"| retrospective
-    retrospective -. "Supported amendments" .-&gt; proposals
-    retrospective --&gt;|"No change warranted"| finished
-    proposals --&gt;|"Issue URLs verified"| finished
-      </pre>
+      <h2 id="outcome-title">Deliver a pull request</h2>
+      <p class="section-intro">Use the steps that fit your change.</p>
+      <figure class="workflow-map">
+        <figcaption>From decisions to verified merge</figcaption>
+        <ol class="workflow-steps" role="list">
+          <li><strong>Settle open decisions</strong><p>Use <a href="./#skill-think">think</a> for the brief and <a href="./#skill-choose-design">choose-design</a> when a UI choice remains.</p></li>
+          <li><strong>Build the change</strong><p><a href="./#skill-ship">ship</a> owns delivery. <a href="./#skill-implement">implement</a> can do the coding in a separate worktree.</p></li>
+          <li><strong>Check and repair</strong><p><a href="./#skill-review-loop">review-loop</a> uses independent findings to guide repairs and verify the result.</p></li>
+          <li><strong>Open and finish the PR</strong><p><a href="./#skill-raise-pr">raise-pr</a> prepares the evidence. <a href="./#skill-babysitter">babysitter</a> handles checks, reviews and the merge.</p></li>
+          <li><strong>Review the run</strong><p><a href="./#skill-ship">ship</a> verifies the requested endpoint, accounts for tracked bugs and records what to change next time.</p></li>
+        </ol>
+      </figure>
       <div class="facts">
         <div>
           <h3>Settle the choices that change the build</h3>
@@ -81,109 +56,72 @@ flowchart TD
           <h3>Bring evidence to the review</h3>
           <p><a href="https://github.com/seankoji-com/.agents/blob/main/skills/review-loop/SKILL.md">review-loop</a> repairs and re-reviews until the score target and required checks pass, or stops after two rounds that fail to beat the best score. <a href="https://github.com/seankoji-com/.agents/blob/main/skills/review/SKILL.md">review</a> supplies the formal reviewer and the evidence and severity rules.</p>
           <p>If two code reviews in a row find different material bugs that come from the same design assumption, the coordinator considers a repair that removes that assumption.</p>
-          <p>Use <a href="https://github.com/seankoji-com/.agents/blob/main/skills/hillclimb/SKILL.md">hillclimb</a> for scored improvement of a workflow, artifact or product. Approve the judging roster and any shared lineage. When the full panel joins, you can upgrade the primary before the panel scores the same candidate to set its baseline. UI judges use the real interface. One report keeps the evidence and scores for every round.</p>
+          <p>Use <a href="https://github.com/seankoji-com/.agents/blob/main/skills/hillclimb/SKILL.md">hillclimb</a> to improve a workflow, artifact or product against a rubric. Confirm the judges before work begins. When the full panel joins, you can upgrade the lead judge before they all score the same version. UI judges use the running interface. One report shows the evidence and scores.</p>
+          <p>If either loop stops short, the implementer explains what stalled and proposes a change. You can approve continuing from the latest candidate. Judges keep access checks that still apply.</p>
         </div>
         <div>
-          <h3>Finish the endpoint you authorised</h3>
-          <p><a href="https://github.com/seankoji-com/.agents/blob/main/skills/ship/SKILL.md">ship</a> hands the pull request to <a href="https://github.com/seankoji-com/.agents/blob/main/skills/babysitter/SKILL.md">babysitter</a>, which owns CI, review threads and the merge. Before it waits on a T3 pull request watch, it fixes conflicts, failing checks and open comments. A merge proves a merge. Deployment and live behaviour need their own check.</p>
+          <h3>Verify delivery</h3>
+          <p><a href="https://github.com/seankoji-com/.agents/blob/main/skills/ship/SKILL.md">ship</a> hands the pull request to <a href="https://github.com/seankoji-com/.agents/blob/main/skills/babysitter/SKILL.md">babysitter</a>, which handles CI, review threads and merge verification. It works through actionable failures before registering a T3 pull request watch. Check deployment and live behaviour separately when the task requires them.</p>
         </div>
         <div>
-          <h3>Feedback does not have to become code</h3>
-          <p>The coordinator can fix a finding, decline an invalid or out-of-scope request with reasons, or file a minor one as a linked issue. Required approvals and changes-requested reviews still block the merge.</p>
+          <h3>Decide how to handle findings</h3>
+          <p>The coordinator fixes material findings, records reasons for declining invalid or out-of-scope requests, and files eligible deferred bugs as issues. Required approvals and changes-requested reviews still block the merge.</p>
         </div>
       </div>
     </section>
 
     <section id="backlog" aria-labelledby="backlog-title">
       <h2 id="backlog-title">Drive open issues and pull requests to zero</h2>
-      <p class="section-intro"><a href="https://github.com/seankoji-com/.agents/blob/main/skills/backlog-burn/SKILL.md">backlog-burn</a> treats a repository's open issues and open pull requests as one backlog. It assesses closure first. It strongly prefers closing ordinary obsolete, already-done or low-value issues, and superseded or already-landed PRs, with evidence. Material defects remain actionable and protected closures need owner review. Every PR without a live owner goes to <a href="https://github.com/seankoji-com/.agents/blob/main/skills/babysitter/SKILL.md">babysitter</a> through merge. PRs another live thread or person owns are recorded and left alone. It fills host-supported concurrency up to 20 delegates, including nested workers and reviewers, and refills on every wake. Ship delivers worthwhile fixes under one parent plan and one final retrospective.</p>
-      <p>Naming an organisation changes the job. Org mode launches one independent repository run per repository with open work, skips repositories that already have one, reports the thread links and hands back. It does not watch or wait for those runs.</p>
-      <pre class="mermaid">
-flowchart TD
-    classDef skill fill:#e8f0ff,stroke:#315fa8,color:#152845,stroke-width:2px
-    backlog["backlog-burn&lt;br/&gt;Discover and refill on every wake"]:::skill
-    prs["Open PRs&lt;br/&gt;Classify ownership first"]
-    babysitter["babysitter&lt;br/&gt;Repair and merge unowned PRs"]:::skill
-    elsewhere["Live owner elsewhere&lt;br/&gt;Record owner and next trigger"]
-    candidate["Next issue&lt;br/&gt;Assess closure, value and ownership"]
-    questions["Owner decisions&lt;br/&gt;Pause dependent work"]
-    ship["ship&lt;br/&gt;Proof, review and delivery"]:::skill
-    implement["implement&lt;br/&gt;Shared delegate cap up to 20"]:::skill
-    acceptance["Backlog coordinator&lt;br/&gt;Verify delivery or justified retirement"]
-    inventory["Refresh open issues and PRs"]
-    retrospective["One final retrospective&lt;br/&gt;Parent and all owned delegates"]
-
-    backlog --&gt; prs
-    prs --&gt;|"No live owner: adopt"| babysitter
-    prs --&gt;|"Superseded or landed: close with evidence"| acceptance
-    prs -. "Owned elsewhere" .-&gt; elsewhere
-    babysitter --&gt;|"Merged"| acceptance
-    backlog --&gt; candidate
-    candidate --&gt;|"Ordinary done, obsolete or low-value: close with evidence"| acceptance
-    candidate -. "Decision missing" .-&gt; questions
-    questions --&gt;|"Answer recorded, dispatch newly ready work"| backlog
-    candidate --&gt;|"Ready: dispatch now"| ship
-    ship --&gt; implement
-    implement --&gt;|"Reviewed commits"| ship
-    ship -. "Continue discovery when host permits" .-&gt; backlog
-    ship --&gt;|"Delivery evidence"| acceptance
-    acceptance --&gt; inventory
-    inventory --&gt;|"Actionable work remains"| backlog
-    inventory -. "Unanswered questions, including mixed holds" .-&gt; questions
-    inventory --&gt;|"Zero, or only held or owned-elsewhere items"| retrospective
-    retrospective --&gt;|"New target issues filed, preserve retrospective"| backlog
-      </pre>
-      <p>The main coordinator owns PR delivery and native watches. Coding leads and workers default to the main thread's model and effort unless the owner selects another. Reviewers use review's Sol/Opus defaults and cross-lineage eligibility. Leads return reviewed commits; the parent does not implement issue fixes inline. Child-slot budgets keep the entire run within the host limit and the cap of 20, with room for review. The coordinator records why capacity is unused and continues classification, investigation and owner questions when slots are full. Ready independent work starts before blocking questions. A watched PR, one unanswered question or a blocked push does not finish other ready work. Unexamined issues and unasked live approvals still need action. Work with a verified live owner elsewhere is recorded with that owner and left alone; an assignee or old branch is not ownership. Each wake re-lists the scope, so PRs opened mid-run are adopted. Dependency bumps get small in-PR repairs, and a real migration becomes an owner question. Awaiting-owner applies only when all remaining work is explicitly held, owned elsewhere or awaits an actual unanswered question. Success is a fresh zero for both issues and PRs. A required host yield preserves the queue and its next action. Each turn triages every item, dispatches and asks before it registers any PR watch, because the watch call ends the turn. Reports separate completed outcomes from work retired as not planned. New delivery-review bugs still need fixing or tracking. Missing required live acceptance keeps issues open; direct publication needs authorization.</p>
+      <p class="section-intro"><a href="https://github.com/seankoji-com/.agents/blob/main/skills/backlog-burn/SKILL.md">backlog-burn</a> handles open issues and pull requests together. It closes obsolete or completed work with evidence, sends worthwhile fixes through <code>ship</code>, and uses <code>babysitter</code> to repair and merge PRs without an active owner.</p>
+      <p>For an organisation, it starts one run per repository with open work, skips active runs and returns links to the threads.</p>
+      <figure class="workflow-map">
+        <figcaption>How a backlog run moves work</figcaption>
+        <ol class="workflow-steps" role="list">
+          <li><strong>Sort open work</strong><p><a href="./#skill-backlog-burn">backlog-burn</a> checks ownership and looks for obsolete, completed or superseded items it can close with evidence.</p></li>
+          <li><strong>Run two work queues</strong><p>Send unowned PRs to <a href="./#skill-babysitter">babysitter</a> and worthwhile issue fixes to <a href="./#skill-ship">ship</a>. Keep work with a live owner on record.</p></li>
+          <li><strong>Keep ready work moving</strong><p>Send decisions to the owner and continue independent work. Refresh the issue and PR lists on each wake.</p></li>
+          <li><strong>Verify what remains</strong><p>Check for zero open issues and PRs. Record outstanding holds and live owners, then write one retrospective.</p></li>
+        </ol>
+      </figure>
+      <p>The coordinator owns PR delivery and monitoring. It uses the available delegate slots for ready work, up to 20 across coding and review, and checks for newly opened PRs when it resumes. Dependency bumps get small in-PR repairs. A migration that changes scope goes back to the owner.</p>
+      <p>A fresh inventory verifies zero open issues and PRs. The report records any items still held, awaiting a decision or actively owned elsewhere, and distinguishes delivered fixes from work closed with evidence.</p>
     </section>
 
     <section id="cards" aria-labelledby="cards-title">
-      <h2 id="cards-title">Small models read a card, not a skill</h2>
-      <p class="section-intro">A strong model coordinates. Coding workers can use cheaper models; reviewers use Sol high or Opus high under review's selection rules. They get a short card instead of a 1,500-word skill and its links.</p>
+      <h2 id="cards-title">Short role cards for delegates</h2>
+      <p class="section-intro">The coordinator reads the workflow and gives each worker or reviewer the card for their assignment.</p>
       <div class="facts">
         <div>
           <h3>Assigned reviewer</h3>
-          <p>The <a href="https://github.com/seankoji-com/.agents/blob/main/skills/review/references/assigned-reviewer.md">assigned-reviewer card</a> covers the whole job in about 450 words: stay read-only, check your own model family, gather evidence, rate severity and return one report.</p>
+          <p>The <a href="https://github.com/seankoji-com/.agents/blob/main/skills/review/references/assigned-reviewer.md">assigned-reviewer card</a> tells the reviewer to stay read-only, check their model's eligibility and return evidence-backed findings by severity.</p>
         </div>
         <div>
           <h3>Implementation participant</h3>
           <p>The <a href="https://github.com/seankoji-com/.agents/blob/main/skills/review/references/implementation-participant.md">implementation-participant card</a> tells a worker to repair what it was given, prove each repair and hand decisions back to its parent.</p>
         </div>
         <div>
-          <h3>Measured, not guessed</h3>
+          <h3>Check how much each role reads</h3>
           <p><code>python3 scripts/check_library.py --stats</code> prints how many words each skill loads on its own, with its folder, and if an agent follows every link.</p>
         </div>
       </div>
     </section>
 
     <section id="implement" aria-labelledby="implement-title">
-      <h2 id="implement-title">Keep implementation off the main thread</h2>
+      <h2 id="implement-title">Implement in a separate worktree</h2>
       <p class="section-intro"><a href="https://github.com/seankoji-com/.agents/blob/main/skills/implement/SKILL.md">implement</a> starts one lead in its own T3 worktree. The lead codes, adds workers only for large independent parts, and returns reviewed commits. Your main conversation keeps acceptance, integration and shipping.</p>
-      <pre class="mermaid">
-flowchart TD
-    classDef skill fill:#e8f0ff,stroke:#315fa8,color:#152845,stroke-width:2px
-    main["Main thread&lt;br/&gt;Brief and decisions"]
-    implement["implement&lt;br/&gt;Lead in an isolated worktree"]:::skill
-    workers["Optional coding workers&lt;br/&gt;Separate worktrees"]
-    integrate["Lead codes and integrates"]
-    loop["review-loop&lt;br/&gt;Check, evaluate and repair"]:::skill
-    reviewer["review&lt;br/&gt;Primary and parallel companions"]:::skill
-    handoff["Reviewed commits&lt;br/&gt;Exact revision and evidence"]
-    accepted["Main thread&lt;br/&gt;Acceptance, integration and shipping"]
-
-    main --&gt; implement
-    implement -. "Useful independent work" .-&gt; workers
-    workers --&gt;|"Scoped commits"| integrate
-    implement --&gt; integrate
-    integrate --&gt; loop
-    loop --&gt; reviewer
-    reviewer --&gt;|"Findings and evidence"| loop
-    loop --&gt;|"Criteria met"| handoff
-    handoff --&gt; accepted
-      </pre>
+      <figure class="workflow-map">
+        <figcaption>How a worktree hands code back</figcaption>
+        <ol class="workflow-steps" role="list">
+          <li><strong>Brief the lead</strong><p>The main thread gives <a href="./#skill-implement">implement</a> the goal, limits and expected evidence.</p></li>
+          <li><strong>Build in isolation</strong><p>The lead codes in a separate worktree and adds workers when independent parts justify them.</p></li>
+          <li><strong>Review and repair</strong><p><a href="./#skill-review-loop">review-loop</a> checks the actual diff and fixes supported findings.</p></li>
+          <li><strong>Hand back reviewed commits</strong><p>The main thread checks the exact revision and evidence before integration and delivery.</p></li>
+        </ol>
+      </figure>
       <div class="facts">
         <div>
-          <h3>Cheapest route that does the job</h3>
-          <p>Coding model choice aims for the lowest total cost including review, retries and repairs. One evidenced coding model or effort upgrade is allowed per task. Review defaults to Sol high, or Opus high for Sol-authored code. If Sol runs out of credits, try Opus high, then Sonnet high via AGY. If Opus runs out, try Sonnet high via AGY, then Sol high. For primary fallbacks, only code-author family conflicts unlock Grok 4.7, then Hydrogen high. Skip code-author family matches; unlisted direct models require your explicit choice. The orchestrator's family is irrelevant unless it wrote code. Plans, prose and visual judgments have no family restriction. For nonvisual changes in a repository without a PR path, opencodereview invokes the OCR library alongside the primary; repositories that accept PRs use the primary alone. Formal review uses DeepSeek only inside OCR. UI/visual changes have the primary review the interface, with Hydrogen high adding a second visual review independently of the fallback rule. Mixed changes use Hydrogen, plus OCR in a PR-less repository. Missing required coverage keeps review incomplete. Changing models does not reset scores or counters.</p>
+          <h3>Choose coding and review models</h3>
+          <p>The lead weighs coding cost alongside review, retries and repairs. Code reviewers must come from a different model family from the code authors. The primary checks the full scope, including UI behaviour when it changes. The current routing and companion rules are in <a href="https://github.com/seankoji-com/.agents/blob/main/skills/review/references/model-selection.md">reviewer model selection</a> and <a href="https://github.com/seankoji-com/.agents/blob/main/skills/review/references/parallel-review.md">parallel review</a>.</p>
         </div>
         <div>
           <h3>Decisions come back to you</h3>
@@ -193,77 +131,62 @@ flowchart TD
     </section>
 
     <section id="issues" aria-labelledby="issues-title">
-      <h2 id="issues-title">File deferred bugs without holding the merge</h2>
-      <p class="section-intro">Every confirmed bug left unfixed needs a verified issue link before the workflow is complete, including minor ones. <a href="https://github.com/seankoji-com/.agents/blob/main/skills/raise-issue/SKILL.md">raise-issue</a> files them in a background T3 task. Filing does not lower severity or waive a blocker.</p>
-      <pre class="mermaid">
-flowchart TD
-    classDef skill fill:#e8f0ff,stroke:#315fa8,color:#152845,stroke-width:2px
-    bug["Confirmed bug&lt;br/&gt;Already judged non-blocking"]
-    packet["Main thread owns the filing packet"]
-    issue["raise-issue&lt;br/&gt;Async T3 issue writer"]:::skill
-    url["Verified issue URL"]
-    gates["Required checks and review pass"]
-    merge["Merge may proceed"]
-    done(["Ready for final retrospective&lt;br/&gt;Merge AND every bug issue URL verified"])
-
-    bug --&gt; packet
-    packet --&gt; issue
-    issue --&gt; url
-    packet --&gt;|"No filing hold on merge"| gates
-    gates --&gt; merge
-    merge --&gt; done
-    url --&gt; done
-      </pre>
+      <h2 id="issues-title">Track deferred bugs</h2>
+      <p class="section-intro">Every confirmed bug intentionally left unfixed needs a verified issue link before the workflow is complete. <a href="https://github.com/seankoji-com/.agents/blob/main/skills/raise-issue/SKILL.md">raise-issue</a> files those issues in a background T3 task. Required fixes and checks still gate the merge.</p>
+      <figure class="workflow-map">
+        <figcaption>How bug tracking and delivery finish</figcaption>
+        <ol class="workflow-steps" role="list">
+          <li><strong>Confirm the bug can wait</strong><p>Fix blockers before delivery. Track confirmed bugs you can defer.</p></li>
+          <li><strong>Track it and keep delivery moving</strong><p><a href="./#skill-raise-issue">raise-issue</a> files the bug in a background task while required checks and reviews continue.</p></li>
+          <li><strong>Verify both results</strong><p>Read back the issue URL and confirm the authorised delivery endpoint before final handoff.</p></li>
+        </ol>
+      </figure>
     </section>
 
     <section id="progress" aria-labelledby="progress-title">
-      <h2 id="progress-title">Visible progress and a look back</h2>
+      <h2 id="progress-title">Progress reports and the retrospective</h2>
       <div class="facts">
         <div>
-          <h3>One task list in the parent</h3>
-          <p>ship, implement and review-loop show their phases in T3's Tasks row when the host exposes a todo tool, and ship updates the same list through handoffs and resumes. The list is best-effort: it can fail or vanish when the turn settles, so unfinished work, blockers and owner questions also go in the handoff. Without a tool the run says so and posts a short status list at each phase change. <a href="https://github.com/seankoji-com/.agents/blob/main/skills/plan-report/SKILL.md">plan-report</a> adds a timeline from a private ignored JSON ledger: approved estimates, overruns, dependencies, milestones, build and review segments with their models, scoped events and owner decisions. Replans preserve the original estimates.</p>
-          <p>ship, backlog-burn and implement use plan-report at proposal, task completion, final handback and on request, including solo tasks. Review and fix rounds get short chat updates. Each task is one compact row: solid build, hatched review and a dashed forecast split between build and review, coloured by provider. An overall bar shows estimated work done and an mtoks column totals reported tokens. Running now shows model, task ID and value; progress reports hide finished tasks and start where the oldest open task began. Idle gaps are cut and time more than four hours ahead is compressed. The observed clock cannot be in the future. Whole-run timelines appear only at proposal and final handback. Empty sections are omitted. Only the main thread presents reports. Final calibration compares estimates, actual work and review rounds with sourced costs or unknown coverage. Changed models are not comparable. Reports stay out of GitHub; removing the worktree loses the ledger.</p>
-          <p>ship batches foreseeable decisions before dispatch. Agreed owner-only manual follow-ups remain tracked and unverified; required gates still block delivery. Completed visible work gets a captioned screenshot. Adopted <a href="https://github.com/seankoji-com/.agents/blob/main/skills/ship/references/project-settings.md">Delegation settings</a> choose routing, capacity limits, cadence and screenshot commit permission. Ready independent work starts within authority and capacity. Routing changes preserve the owning checkout and record a new model segment. An opt-in one-round review keeps primary and companion coverage and permits coordinator verification only of that round's repairs, disclosed as not independently re-reviewed. New behavior and later CI/bot findings retain normal review. Formal review keeps its lineage rules and uses DeepSeek only inside OCR.</p>
-          <p>Under the one-round policy, the original score stays reported; coordinator verification replaces that score gate for eligible repairs. Acceptance criteria, required proof and release gates still apply.</p>
-          <p>Immediately before each merge, fresh rules determine the explicit allowed method. A dead required check needs an owner decision. Any authorized exception names its actual scope in the merge message; read-back verifies the landed result. A broad admin bypass cannot silently stand in for permission to skip one check.</p>
+          <h3>Task list and timeline</h3>
+          <p><code>ship</code>, <code>implement</code> and <code>review-loop</code> show phases in T3's Tasks row when it is available. The main thread records unfinished work, blockers and owner decisions in the handoff.</p>
+          <p><a href="https://github.com/seankoji-com/.agents/blob/main/skills/plan-report/SKILL.md">plan-report</a> makes a timeline from a private ledger. <code>ship</code>, <code>backlog-burn</code> and <code>implement</code> use it at proposal, task completion, final handoff and on request. The final report compares actual build and review work with the original estimates.</p>
+        </div>
+        <div>
+          <h3>Evidence at delivery</h3>
+          <p>Visible changes get a captioned screenshot. The coordinator reports any owner-only steps still open and checks the allowed merge method before each merge. The optional one-round review policy lets the coordinator verify eligible repairs from that review. Later findings and new behaviour still follow the normal review rules. See <a href="https://github.com/seankoji-com/.agents/blob/main/skills/ship/references/project-settings.md">project settings</a> and the <a href="https://github.com/seankoji-com/.agents/blob/main/skills/review/references/single-round.md">one-round review rules</a>.</p>
         </div>
         <div>
           <h3>A retrospective from the logs</h3>
-          <p>The coordinator records evidence as work finishes. The retrospective reconciles the parent and delegate results, including failed attempts, and opens detailed logs for gaps and consequential events. Unresolved gaps leave it incomplete. With posting authority, proposed skill changes go to the operator's configured repository as issues. Otherwise they remain drafts.</p>
+          <p>The coordinator compares the results with the plan and checks the logs for consequential events or missing evidence. Any proposed workflow changes go to the configured repository as issues when the operator has authorised posting.</p>
         </div>
         <div>
           <h3>AI-written text is labelled</h3>
-          <p><a href="https://github.com/seankoji-com/.agents/blob/main/skills/github-writing/SKILL.md">github-writing</a> opens issues, pull requests and comments with a byline naming the model that wrote them and the person it wrote for.</p>
+          <p><a href="https://github.com/seankoji-com/.agents/blob/main/skills/github-writing/SKILL.md">github-writing</a> adds a byline to AI-written GitHub posts and replies. It names the model that wrote the prose and the operator when verified.</p>
         </div>
       </div>
     </section>
 
     <section id="t3-permissions" aria-labelledby="t3-permissions-title">
-      <h2 id="t3-permissions-title">T3 permission workarounds</h2>
-      <p class="section-intro">Before starting a helper session, skills read the <a href="https://github.com/seankoji-com/.agents/blob/main/skills/agent-tuneup/references/t3-dispatch.md">T3 dispatch preflight</a>. It records two host problems reported on 2 November 2026.</p>
-      <p>The preflight also checks LiteLLM's read-only limits snapshot before choosing a provider route. It avoids exhausted or near-exhausted subscriptions while preserving allowed models and reviewer independence. Stale or missing observations leave capacity unknown. Running helpers still consume capacity, and a snapshot does not reserve it.</p>
+      <h2 id="t3-permissions-title">T3 permissions and capacity</h2>
+      <p class="section-intro">Before starting a T3 delegate, the coordinator reads the <a href="https://github.com/seankoji-com/.agents/blob/main/skills/agent-tuneup/references/t3-dispatch.md">T3 dispatch preflight</a>. Check that reference for current workarounds.</p>
+      <p>The coordinator checks LiteLLM's subscription snapshot before choosing a route. It skips routes reported as exhausted or near exhaustion, respects the allowed models and treats stale or missing observations as unknown.</p>
       <div class="facts">
         <div>
-          <h3>OpenCode, Grok and Muse fall back to asking</h3>
-          <p>Their <code>auto</code> mode can drop to <code>ask</code> and stall unattended work (<a href="https://github.com/pingdotgg/t3code/issues/11458">T3 Code #11458</a>). Skills start them with explicit full access when the parent session allows it. A parent in <code>auto</code> cannot start a full-access child, so skills filter those routes out first.</p>
+          <h3>OpenCode, Grok and Muse may fall back to asking</h3>
+          <p>The affected T3 routes can drop from <code>auto</code> to <code>ask</code>. Use explicit full access only when the parent session and host allow it. <a href="https://github.com/pingdotgg/t3code/issues/11458">T3 Code #11458</a>.</p>
         </div>
         <div>
           <h3>Codex in full access rejects prompt rules</h3>
-          <p>T3 maps full access to Codex's <code>approvalPolicy: "never"</code>, so a command matching a Codex <code>prompt</code> rule fails before it runs (<a href="https://github.com/pingdotgg/t3code/issues/12248">T3 Code #12248</a>, <a href="https://github.com/openai/codex/issues/41068">Codex #41068</a>). The agent reports that gate. It does not change your rules or mode.</p>
+          <p>T3 maps full access to Codex's <code>approvalPolicy: "never"</code>, so a command matching a Codex <code>prompt</code> rule fails before it runs. The agent reports the block. <a href="https://github.com/pingdotgg/t3code/issues/12248">T3 Code #12248</a> and <a href="https://github.com/openai/codex/issues/41068">Codex #41068</a>.</p>
         </div>
       </div>
     </section>
   </main>
 
   <footer>
-    <p>Back to the <a href="./">skill list</a>. Source and full documentation are on <a href="https://github.com/seankoji-com/.agents">GitHub</a>. MIT licensed.</p>
+    <p>Back to the <a href="./#skills">skill catalog</a>. Source and full documentation are on <a href="https://github.com/seankoji-com/.agents">GitHub</a>. MIT licensed.</p>
   </footer>
 </div>
 
-<script type="module">
-// Diagrams stay readable as text if this import fails or scripts are off.
-import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs";
-mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "strict" });
-</script>
 </body>
 </html>

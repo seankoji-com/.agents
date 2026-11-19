@@ -1,23 +1,22 @@
 ---
 name: babysitter
-description: "Autonomously repair requested pull requests through verified merge. Use when asked to babysit, merge, watch or monitor PRs; honour explicit read-only and no-merge limits."
+description: "Repair and monitor open pull requests through verified merge when asked to babysit, merge, watch or monitor them. Honour read-only and no-merge limits."
 ---
 
 # Babysit pull requests through merge
 
-Requests to babysit, merge, watch or monitor a PR select this workflow. Implementation through
-delivery uses [ship](../ship/SKILL.md), which hands PR delivery here.
+Own the next action on an open PR until GitHub confirms the merge or an explicit
+limit stops you. Requests to babysit, merge, watch or monitor a PR select this
+workflow. [Ship](../ship/SKILL.md) uses it for PR delivery.
 
 ## Authority and endpoint
 
-Invoking this skill authorizes scoped diagnosis, repairs, required checks,
-commits, pushes, review replies, thread resolution, deferred-bug filing by the
-coordinator, necessary repair/test/review
-delegation and merging through repository gates. Carry that grant across wakes
-and into assignments. Do routine authorized work without asking again. The
-endpoint is GitHub-confirmed merged PRs. Explicit user or host read-only, report-only,
-no-edit, no-post, no-push, no-watch, no-merge, draft and release holds override these defaults;
-required human approvals remain gates.
+Invocation authorises scoped diagnosis, repairs, checks, commits, pushes, review
+replies, thread resolution, coordinator-owned deferred-bug filing, necessary repair, test
+and review delegation, and merge through repository gates. Carry authority across
+wakes and assignments. Do authorised routine work without asking again.
+Honour user and host limits such as read-only, report-only, no-edit, no-post,
+no-push, no-watch and no-merge, plus draft and release holds and human approvals.
 
 Existing automatic post-merge deployments are included: identify their effects
 and carry that authority into briefs. Separate manual deployments, infrastructure,
@@ -29,14 +28,16 @@ Apply [review](../review/SKILL.md) to finding evidence, severity and deferred bu
 
 ## Own the next action
 
-One main-thread coordinator owns each PR through merge. It may dispatch scoped workers
-and eligible reviewers through supported host orchestration; fix small issues
-directly. Children work directly, never delegate or watch, and return required review/filing work to
-their coordinator. The coordinator supplies those actors; a child's completion
-does not discharge its PR. Use [review](../review/SKILL.md) to select a
-reviewer and obtain fresh review of material repairs. Code reviewers must differ
-from code authors, not an orchestrator that only coordinates. An unattended
-bot qualifies only with verified identity, scope and current-diff evidence.
+One main-thread coordinator owns each PR through merge. Fix small issues directly.
+Use supported orchestration for scoped workers and eligible reviewers. Children
+work directly, never delegate or watch, and return review or filing work to the
+coordinator. The coordinator assigns those tasks and retains ownership. A
+child's completion does not discharge its PR.
+
+Use [review](../review/SKILL.md) to select reviewers and recheck material repairs.
+Code reviewers must differ in lineage from the code authors. Count the
+orchestrator only if it wrote code. An unattended bot qualifies only with
+verified identity, scope and current-diff evidence.
 
 In T3, read [dispatch and ownership](references/t3.md) before inventory or
 dispatch. Reuse existing owners, keep one writer per branch and isolate parallel
@@ -48,74 +49,80 @@ policy, bot handling and lifecycle acceptance scenarios.
 
 ## Repair, review and merge
 
-1. **Refresh and recover.** Inventory every requested PR, including paginated
-   organization/batch scope, owners and dependencies. Confirm repository, clean
-   or preserved checkout, remote, current head/base, applicable rules and merge
-   method under raise-pr's [preflight](../raise-pr/references/preflight.md).
-   On every start, wake or resume, refresh GitHub and reconcile the current
-   request, per-action holds and continuation owner under
-   [authority reconciliation](references/continuation.md#reconcile-authority-and-ownership);
-   discard stale-head results. Collect all unresolved feedback,
-   including older/outdated threads and review bodies, plus every current-head
-   check and acceptance gate. An item observed or dispatched is still unfinished
-   until its action is verified. Assign every unverified gate a next action and actor.
+1. **Refresh the PR and its gates.**
 
-2. **Fix actionable work now.** Inspect logs and source, reproduce consequential
-   failures, then repair verified PR-related defects in code, tests, CI or
-   configuration within scope. Handle comments and failing checks together;
-   work around parked human decisions on independent work. Update behind or
-   conflicting branches by the repository's permitted method, preserve others'
-   commits; apply [rebase checks](../raise-pr/references/review-reuse.md) when rebasing, and
-   reconcile dependencies under preflight. Run focused and
-   required checks, inspect the staged diff, commit explicit paths and push to
-   the explicit remote/branch. Bound identical retries and change the diagnostic
-   approach when they fail. A code failure, repair count or completed repair
-   pass is not itself an external blocker. Keep checks meaningful; do not disable
-   them, dismiss approvals or resolve real findings merely to get green.
+   - Inventory every requested PR, including paginated batch or organisation
+     results, owners and dependencies. Use raise-pr's
+     [preflight](../raise-pr/references/preflight.md) to confirm repository,
+     clean or preserved checkout, remote, head/base, rules and merge method.
+   - On every start, wake or resume, refresh GitHub. Reconcile the request,
+     action holds and continuation owner under
+     [authority reconciliation](references/continuation.md#reconcile-authority-and-ownership).
+     Discard stale-head results.
+   - Collect unresolved feedback, including outdated threads and review bodies,
+     plus all current-head checks and acceptance gates. Verify each action
+     before marking it complete. Give every unverified gate an actor and next action.
 
-3. **Supply fresh review.** Apply the adopted
-   [single-round exception](../review/references/single-round.md) only to that round's repairs.
-   Before pushing materially unreviewed repairs, verify
-   raise-pr's auto-merge/queue hold so stale approvals cannot merge them.
-   Obtain a reviewer or dispatch its named owner; do not wait indefinitely for
-   an unassigned reviewer. Material test, CI and config
-   changes need review too. Reuse review only for evidenced unchanged semantics
-   under [raise-pr](../raise-pr/SKILL.md#require-independent-review-and-disclose-agents),
-   with its [additional rebase checks](../raise-pr/references/review-reuse.md) when applicable.
-   After push, trigger configured bot re-review through its
-   supported mechanism when needed, verify registration, and bind review to
-   the new head. Inspect existing and newly arriving feedback and choose each
-   item's disposition under [feedback dispositions](../review/references/feedback-dispositions.md):
-   fix it, decline invalid or out-of-scope requests with reasons, or defer
-   valid SEV3 findings to a linked issue. Resolve the thread once that
-   disposition is verified, and repeat affected checks/review after fixes. An
-   approval does not dispose of threads it adds; handle each one before
-   treating an approved PR as ready. Missing reviewer access
-   is a specific gate after supported routes are exhausted, not permission to
-   claim self-review or drop monitoring.
+2. **Fix actionable work now.**
 
-4. **Merge as soon as eligible.** Re-read head/base, current-head checks,
-   required human approvals, independent review of material repairs and any
-   existing review gate, thread dispositions and release
-   acceptance immediately before the action. Pending/unknown checks or stale
-   evidence do not pass; apply explicit repository advisory-check policy.
-   A pre-existing draft is a readiness hold: establish its purpose and acceptance
-   before conversion. Reuse existing finish-and-merge authority once those
-   conditions pass; ask only for an unresolved owner decision. Handle review bots
-   that require ready status. Refresh rules and follow the
-   [pre-merge procedure](../raise-pr/references/preflight.md#immediately-before-every-merge).
-   Attempt the explicit permitted merge method
-   with the expected head SHA where supported. Read back GitHub state, merged
-   timestamp/commit and resulting head. If the head moved, refresh and reassess.
-   If rejected, inspect the exact reason, repair what is in scope and retry
-   after the relevant evidence changes. For CI-only waits after other gates
-   pass, enable and verify auto-merge/queue enrollment when permitted. Queue
-   acceptance and enabled auto-merge are intermediate; restore enrollment after
-   repaired holds and retain ownership until GitHub confirms merged. Non-blocking
-   deferred-bug filing does not delay an otherwise-ready merge; the main
-   coordinator still owns verified issue URLs under review's tracking rules.
-   Only that procedure's explicitly authorized scoped exception permits bypass.
-   Never manufacture approval or change repository settings.
+   - Inspect logs and source. Reproduce consequential failures and repair verified
+     PR defects within scope, including tests, CI and configuration. Handle
+     comments and failing checks together. Continue independent work while
+     human decisions wait.
+   - Update behind or conflicting branches by the repository's permitted method.
+     Preserve others' commits, apply [rebase checks](../raise-pr/references/review-reuse.md)
+     when rebasing and reconcile dependencies under preflight.
+   - Run focused and required checks. Inspect the staged diff, commit explicit
+     paths and push to the explicit remote and branch.
+   - Bound identical retries. Change the diagnosis when they fail. A code
+     failure, repair count or completed repair pass is not itself an external
+     blocker. Do not disable checks, dismiss approvals or resolve real findings
+     merely to get green.
+
+3. **Supply fresh review.**
+
+   - Apply the adopted [single-round exception](../review/references/single-round.md)
+     only to that round's repairs. Before pushing materially unreviewed repairs,
+     verify raise-pr's auto-merge or queue hold against stale approvals.
+   - Obtain a reviewer or dispatch its named owner. Do not wait indefinitely
+     for an unassigned reviewer. Review material test, CI and config changes.
+     Reuse review only with evidence of unchanged behaviour under
+     [raise-pr](../raise-pr/SKILL.md#require-independent-review-and-disclose-agents),
+     including [rebase checks](../raise-pr/references/review-reuse.md) when applicable.
+   - After pushing, trigger the configured bot's supported re-review when needed.
+     Verify registration and bind review to the new head.
+   - Apply [feedback dispositions](../review/references/feedback-dispositions.md)
+     to existing and new feedback. Fix findings, decline invalid or out-of-scope
+     requests with reasons, or defer valid SEV3 findings to linked issues.
+     Resolve threads after verifying the disposition. Repeat affected checks
+     and review after fixes. Handle threads added with an approval before
+     treating the PR as ready.
+   - If supported routes cannot supply a reviewer, report the access gate and
+     keep monitoring. Self-review cannot satisfy it.
+
+4. **Merge as soon as eligible.**
+
+   - Immediately before merging, re-read head/base, current-head checks,
+     human approvals, independent review of material repairs, any other review
+     gate, thread dispositions and release acceptance. Pending or unknown checks
+     and stale evidence do not pass. Follow explicit advisory-check policy.
+   - Treat a pre-existing draft as a readiness hold. Establish its purpose and
+     acceptance before conversion. Handle bots that need ready status. Reuse
+     finish-and-merge authority once gates pass. Ask only for an unresolved
+     owner decision.
+   - Refresh rules and follow the
+     [pre-merge procedure](../raise-pr/references/preflight.md#immediately-before-every-merge).
+     Attempt the explicit permitted method with the expected head SHA where
+     supported. Only that procedure's explicitly authorised scoped exception
+     permits bypass. Never manufacture approval or change repository settings.
+   - Read back GitHub state, merge timestamp and commit, and the resulting head.
+     If the head moved, refresh and reassess. If rejected, inspect the exact
+     reason, repair within scope and retry after relevant evidence changes.
+   - If only CI remains, enable and verify auto-merge or queue enrolment when
+     permitted. Enrolment is an intermediate result. Restore it after fixing
+     holds and own the PR until GitHub confirms the merge. Non-blocking
+     deferred-bug filing does not delay a ready
+     merge. The coordinator still verifies issue URLs under review's tracking rules.
 
 5. **Continue through waiting.** Do all currently actionable work first. Before
    arming a watch, audit the current head and base. Every item must be fixed,

@@ -1,9 +1,12 @@
 ---
 name: agent-tuneup
-description: "Use when the user asks to audit, troubleshoot or change agent configuration, permissions, MCP connections or native skill discovery."
+description: "Audit, troubleshoot or change agent configuration, permissions, MCP connections or native skill discovery when the user asks."
 ---
 
-# Inspect and align agent wiring
+# Diagnose agent setup
+
+Find which setting controls the behaviour, then compare it with what the agent
+does. If the user authorises a fix, edit the owning source and verify the result.
 
 ## Workflow
 

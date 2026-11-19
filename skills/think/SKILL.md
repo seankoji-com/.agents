@@ -1,6 +1,6 @@
 ---
 name: think
-description: Think a plan, decision or idea through with focused questions until it is ready to build. Use when the user says think or thinking about a plan, decision or idea, such as think this through, think about it or keep thinking, asks to interrogate or stress-test it, or wants an interview to clarify their thinking.
+description: "Turn an idea, plan or decision into a brief ready to build. Use when asked to think about it, think it through, keep thinking, interrogate or stress-test it, or clarify it through an interview."
 ---
 
 # Think through the decisions that matter

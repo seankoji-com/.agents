@@ -137,6 +137,43 @@ The main thread preserves these decision fields in the user-facing request;
 links to earlier reports may supplement them but cannot replace them. Verify
 delegated authority claims or mark them unknown rather than dropping the history.
 
+## Continue a stopped scoring loop
+
+Use this for an incomplete `review-loop` or `hillclimb` run. Preserve its
+outcome and complete the diagnosis above. Collect short retrospective notes
+from the implementer, or write them yourself if you did the implementation.
+Reconcile the attempts, useful evidence, failed assumptions and what would
+change the outcome. Ask the implementer to recommend a change to the premise,
+solution or way the loop works. Use existing handoffs and request missing notes
+from the implementer when available. If you cannot obtain them, identify the gap
+and use the evidence the run retained.
+
+Present the latest candidate, its known scores and checks, the recommendation
+and its tradeoff. Give the operator the choice to stop with the existing result
+or approve a changed approach starting from that latest candidate. If a
+blocker prevents continuation, name what would unblock it. A request for more
+rounds alone does not restart the loop. Get explicit approval for the approach
+and any changes to scope, rubric, roster, checks or limits before proceeding.
+
+For an approved continuation:
+
+1. Preserve the old run's best and latest candidates, scores, findings,
+   non-improvement counter, attempts and consumed limits. Record the approved
+   changes in the same ledger or report. Carry forward remaining authority,
+   required repairs and delivery gates.
+2. Freeze the latest candidate as the new baseline. Retain any required fixes
+   and record a new revision if they need to be reapplied. Reuse valid scores
+   and check evidence for that exact candidate and evaluation contract.
+   Obtain missing or invalidated evidence before seeding the new score and
+   setting the new non-improvement counter to zero. Keep results under old
+   scoring criteria labelled as historical.
+3. Carry forward successful judge capability and access checks when they cover
+   the same judge, route, permissions, environment and required actions.
+   A new baseline alone calls for no new pilots. Probe only capability or
+   access that was never established or whose conditions changed. Run the
+   required checks, fresh captures and evaluations for changed candidates
+   under the workflow's normal rules.
+
 ## Walkthrough cases
 
 Use these synthetic cases to check the instruction contract without live models:
@@ -150,5 +187,7 @@ Use these synthetic cases to check the instruction contract without live models:
 | A finding survives successive repairs and the next proposal repeats the same repair without new evidence | Diagnose stalled or cycling using the attempts. Hold review, omit an extension request, and give a reproduction, different repair or concrete blocker while independent work continues. |
 | Old approval says only "continue" and the amount cannot be recovered | Mark the amount and cumulative authority unknown; show known consumption. Hold dependent review if remaining authority cannot be established and request the precise missing confirmation. |
 | Uncapped scored loop stops after two non-improving rounds | Show target, best/current scores, counter and actual attempts; state no numeric cap. Diagnose stagnation before proposing a changed approach; extra rounds alone do not override the stopping rule. |
+| After two non-improving rounds, best is 8.8 and latest is 8.4. The operator approves a different repair strategy. The latest candidate's evidence, rubric, check context and judges still apply | Seed the new phase at 8.4 with counter zero. Retain the 8.8 result, stopped phase and consumed limits. Reuse the existing capability pilots. |
+| Latest candidate has a missing score, or the operator changes the rubric or a judge's required test modality | Keep the candidate as baseline, obtain the missing or invalidated evidence, and probe only capability or access the earlier checks did not prove. Seed the new score when the required evaluation is complete. |
 
 These walkthroughs specify expected decisions, not observed live-agent compliance.

@@ -1,24 +1,23 @@
 ---
 name: focus-group
-description: "Use when the user requests a synthetic focus group or persona-based product evaluation, including planning, running or reviewing the study."
+description: "Plan, run or review a synthetic focus group or product study with fictional participants."
 disable-model-invocation: true
 ---
 
-# Synthetic product study
+# Run a synthetic focus group
 
-## Triggers
-
-Use to plan, run, resume, inspect or cancel a synthetic focus group. Model-generated
-observations are not human research or population estimates.
+Plan, run, resume, inspect or cancel a study with fictional participants.
+Label the findings as model-generated. Use them to explore product questions,
+and reserve claims about people or populations for human research.
 
 ## Workflow
 
 1. Record decision, audience, target URL/evidence pack, environment, allowed
    journeys/actions, exclusions and evidence needed. Planning runs no participants.
-2. Preserve user-supplied personas; otherwise propose editable fictional individuals
-   with goals, experience and constraints. Do not invent traits from demographic
-   generalizations. Discover native models and record exact participant/analyst
-   choices and options, plus reviewers when used.
+2. Preserve supplied personas or propose editable fictional participants with
+   goals, experience and constraints. Avoid demographic generalisations. Find the
+   available models and record the choices and settings for participants, analysts
+   and any reviewers.
    Apply [T3 dispatch preflight](../agent-tuneup/references/t3-dispatch.md) for T3 participants.
 3. Inspect every stimulus image/text and record source/revision, capture time,
    limitations and recipient. Keep mandatory harness instructions separate from
@@ -37,7 +36,8 @@ observations are not human research or population estimates.
    [assigned-reviewer card](../review/references/assigned-reviewer.md);
    retain the study's limits.
    Record which reviews are planned; unavailable required review remains a gate.
-5. Pilot image/browser/isolation capabilities before dependent cells. Record gaps;
+5. Pilot image inspection, browser actions and isolation before runs that need
+   them. Record gaps;
    never silently replace live journeys with screenshot critique. Use native tasks
    within the matrix and limits. Record actual live actions/results; excluded
    transactions remain gaps. Purchases, messages, account changes or destructive
@@ -49,8 +49,9 @@ observations are not human research or population estimates.
    concrete support and limitations, not statistical confidence or population
    estimates. Model agreement is not human consensus. Retain disagreement, failed
    cells, omissions and review status; self-review is not independent review.
-7. Resume by reconciling tasks/charged attempts, not resetting ceilings. At cancel
-   or deadline stop owned work and verify cleanup. Preserve prior revisions/results.
+7. On resume, reconcile tasks and attempts against the existing limits. On
+   cancellation or at the deadline, stop owned work and verify cleanup. Preserve
+   prior revisions and results.
 
 ## Outputs
 

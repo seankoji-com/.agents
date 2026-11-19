@@ -1,13 +1,13 @@
 ---
 name: plan-report
-description: Propose a project plan or report progress and final calibration as a Gantt-style HTML report from a private JSON ledger. Use for coordinated runs, explicit timeline requests, or when ship, backlog-burn or implement calls for plan reporting.
+description: "Show a plan, progress or final calibration on an HTML timeline from a private ledger. Use for coordinated work, timeline requests or reporting in ship, backlog-burn and implement."
 ---
 
 # Show the plan and its progress
 
-The coordinator keeps one JSON ledger per project and renders it with the bundled
-Python 3.10+ standard-library helper. The ledger records estimates, observations
-and decisions; it does not dispatch work or replace the host's task panel.
+Show what was planned, what is running and which decisions need the user.
+Keep one JSON ledger per project and render it with the bundled Python 3.10+
+helper. Use the host's task list for live execution status.
 
 ## Cadence and ownership
 
@@ -83,20 +83,10 @@ asking and recording replies; the renderer only displays the ledger.
      --mode report --output /worktree/ignored/report.html
    ```
 
-   Use `--mode propose` or `--mode final` for those boundaries. `--theme light`,
-   `dark` or `auto` controls appearance. The progress chart hides finished tasks
-   and starts where the oldest open task began; `--recent-hours 4` draws the next
-   four hours at full scale and compresses later time. It comes first and stays
-   expanded; each later section has its own closed caret when it contains data.
-   Empty sections are omitted entirely.
-   Whole-run appears only in `propose` and `final`, never `report`, including
-   on-request progress updates. Dates show absolute Sydney local clocks without repeated
-   timezone labels; source offsets and DST arithmetic stay intact. The renderer
-   is a single relocatable file. Invalid ledgers
-   exit nonzero with a useful message; correct the ledger before presenting.
-   Future as-of is rejected against the renderer's clock. Only synthetic replay
-   fixtures may use `--allow-future-fixture`; their output is visibly marked and
-   cannot serve as live evidence. Past fixtures need no exception.
+   Use `--mode propose` at proposal and `--mode final` at final handback. The
+   [chart and renderer options](references/ledger.md#chart) describe the view,
+   theme flags and synthetic replay. Correct a rejected ledger before presenting.
+   Use an observed as-of time for every live report.
 5. In T3 the main thread uses `html_preview` then `html_render` on the generated
    file. Outside T3 use the host's equivalent artifact or an accessible file link.
    Reports are self-contained and make no network requests. Inspect the timelines

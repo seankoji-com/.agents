@@ -1,25 +1,29 @@
 ---
 name: ship
-description: Use when the user explicitly asks to ship a change, or backlog-burn invokes delivery, with visible progress tracking and a final workflow retrospective.
+description: "Deliver and verify a change when the user explicitly asks to ship or backlog-burn calls for delivery. Show progress and finish with a retrospective."
 ---
 
-# Ship
+# Deliver a change
 
-An explicit "ship" request authorizes completing the requested change through
-a merged PR while the user is away. It includes task-related tests, committing,
-pushing, merging through repository protections and rebasing the PR's own branch
-with `--force-with-lease`. Explicit narrower limits still apply.
+Settle decisions that could change the work, implement, verify the result and
+obtain independent review. Carry it through the authorised delivery endpoint,
+then report the evidence and review how the run went.
+
+## What a ship request authorises
+
+An explicit "ship" request authorises completing the change through a merged
+PR while the user is away. You may test, commit, push, rebase the PR's own branch
+with `--force-with-lease` and merge through repository protections. Honour any
+explicit narrower limits.
 
 It also authorises the coordinator to file confirmed deferred bugs in the task's
 repository under [review](../review/SKILL.md)'s tracking rules. Include the
 verified issue URLs in the PR and final handoff; explicit no-post limits apply.
-The final retrospective may file workflow-amendment proposals in the operator's
-configured skill repository. This owner's destination is `seankoji-com/.agents`;
-the automatic grant applies only to a destination named or configured in the
-operator's instructions. Account/repository evidence verifies ownership of that
-chosen destination; it cannot establish consent, and collaborator access is
-not ownership. Other users must name or configure their own destination before
-posting; a clone's origin alone is not consent.
+The retrospective may file workflow amendments only in a skill repository the
+operator named or configured. This owner configured `seankoji-com/.agents`.
+Verify ownership through account and repository evidence. Confirm posting
+authority from the operator's instructions. A clone's origin or collaborator
+access does not establish either.
 
 Apply [GitHub writing](../github-writing/SKILL.md) to authored GitHub prose,
 including authorised release notes and delegated drafts.

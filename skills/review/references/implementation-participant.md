@@ -22,3 +22,7 @@ files unless your brief names them.
    left unfinished. Keep each SHA you hand off reachable until the parent confirms
    it is no longer needed. Report later repairs or an authorised rebase as a new
    candidate with its own SHA and evidence.
+8. When your part of a scored loop stalls or stops incomplete, add retrospective
+   notes to your handoff. Say what you tried, what the evidence showed, and
+   which premise or part of the loop you would change. Include the latest
+   candidate and remaining gaps. The coordinator takes the options to the operator.

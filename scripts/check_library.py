@@ -108,6 +108,20 @@ def card_contract(root):
     return errors
 
 
+def heading_anchors(text):
+    """Return GitHub-style anchors for the library's Markdown headings."""
+    anchors = set()
+    for heading in re.findall(r'^#{1,6} (.+)$', text, re.M):
+        slug = re.sub(r'[^\w -]', '', heading.lower()).replace(' ', '-')
+        suffix = 0
+        anchor = slug
+        while anchor in anchors:
+            suffix += 1
+            anchor = f'{slug}-{suffix}'
+        anchors.add(anchor)
+    return anchors
+
+
 def readme_contract(root, descriptions, paths, update=False, acknowledge=False):
     """Check generated facts and require a docs review after instruction changes."""
     readme = root / 'README.md'
@@ -156,15 +170,7 @@ def readme_contract(root, descriptions, paths, update=False, acknowledge=False):
 
     errors.extend(mermaid_errors(
         'README.md', re.findall(r'```mermaid\n(.*?)\n```', text, re.S), descriptions))
-    anchors = set()
-    for heading in re.findall(r'^#{1,6} (.+)$', text, re.M):
-        slug = re.sub(r'[^\w -]', '', heading.lower()).replace(' ', '-')
-        suffix = 0
-        anchor = slug
-        while anchor in anchors:
-            suffix += 1
-            anchor = f'{slug}-{suffix}'
-        anchors.add(anchor)
+    anchors = heading_anchors(text)
     for target in LINK.findall(text):
         if target.startswith('#') and unquote(target[1:]) not in anchors:
             errors.append(f'README.md: broken heading link: {target}')
@@ -174,40 +180,47 @@ def readme_contract(root, descriptions, paths, update=False, acknowledge=False):
 
 
 def site_contract(root):
-    """Keep the Pages site's skill list and install commands in step with SKILLS."""
+    """Keep the Pages catalog, install commands and source links in step with SKILLS."""
     page = root / 'site' / 'index.html'
     if not page.is_file():
         return ['site/index.html: missing Pages site']
     text = page.read_text(encoding='utf-8')
-    listed = re.findall(r'\{ name: "([a-z0-9-]+)", group:', text)
+    rows = re.findall(r'<li class="skill" id="skill-([a-z0-9-]+)"[^>]*>(.*?)</li>',
+                      text, re.S)
+    listed = [name for name, _ in rows]
     errors = [f'site/index.html: duplicate skill: {name}'
               for name in sorted({n for n in listed if listed.count(n) > 1})]
     errors += [f'site/index.html: missing skill: {name}'
                for name in sorted(set(SKILLS) - set(listed))]
     errors += [f'site/index.html: unknown skill: {name}'
                for name in sorted(set(listed) - set(SKILLS))]
+    for name, row in rows:
+        hrefs = re.findall(r'<a\b[^>]*\bhref="([^"]+)"', row)
+        definition = f'https://github.com/seankoji-com/.agents/blob/main/skills/{name}/SKILL.md'
+        if definition not in hrefs:
+            errors.append(f'site/index.html: missing GitHub definition link: {name}')
+        if f'#install-{name}' not in hrefs or f'id="install-{name}"' not in row:
+            errors.append(f'site/index.html: missing install link or target: {name}')
+        command = re.search(r'<pre class="cmd"[^>]*>(.*?)</pre>', row, re.S)
+        expected = f'npx skills add seankoji-com/.agents --skill {name}'
+        if not command or html.unescape(re.sub(r'<[^>]+>', '', command[1])) != expected:
+            errors.append(f'site/index.html: incorrect install command: {name}')
     for name in re.findall(r'--skill ([a-z0-9-]+)', text):
         if name not in SKILLS:
             errors.append(f'site/index.html: install command names unknown skill: {name}')
-    for array in re.findall(r'uses: \[([^\]]*)\]', text):
-        for name in re.findall(r'"([^"]+)"', array):
-            if name not in SKILLS:
-                errors.append(f'site/index.html: unknown related skill: {name}')
-    for name in re.findall(r'^\s*\["[^"]+", "([^"]+)"\],$', text, re.M):
-        if name not in SKILLS:
-            errors.append(f'site/index.html: picker names unknown skill: {name}')
+    for name in sorted(set(re.findall(r'href="#skill-([a-z0-9-]+)"', text)) - set(SKILLS)):
+        errors.append(f'site/index.html: unknown related skill: {name}')
     guide = root / 'site' / 'workflows.html'
     if not guide.is_file():
         return errors + ['site/workflows.html: missing workflow guide']
     text = guide.read_text(encoding='utf-8')
-    diagrams = [html.unescape(body) for body in
-                re.findall(r'<pre class="mermaid">(.*?)</pre>', text, re.S)]
-    if not diagrams:
-        errors.append('site/workflows.html: missing Mermaid diagrams')
-    errors += mermaid_errors('site/workflows.html', diagrams, SKILLS)
-    for name in re.findall(r'/skills/([a-z0-9-]+)/', text):
-        if name not in SKILLS:
-            errors.append(f'site/workflows.html: links unknown skill: {name}')
+    for section in ('outcome', 'backlog', 'implement', 'issues'):
+        body = re.search(rf'<section id="{section}"[^>]*>(.*?)</section>', text, re.S)
+        if not body or '<figure class="workflow-map">' not in body[1]:
+            errors.append(f'site/workflows.html: missing workflow diagram: {section}')
+    linked = re.findall(r'/skills/([a-z0-9-]+)/|href="\./#skill-([a-z0-9-]+)"', text)
+    for name in sorted({path or fragment for path, fragment in linked} - set(SKILLS)):
+        errors.append(f'site/workflows.html: links unknown skill: {name}')
     return errors
 
 
@@ -275,6 +288,10 @@ def check(root, update_readme=False, acknowledge_docs=False):
                 dest = (path.parent / unquote(parsed.path)).resolve()
                 if not dest.is_relative_to(root.resolve()) or not dest.exists():
                     errors.append(f'{relative}: broken/escaping link {target}')
+                elif parsed.fragment and dest.suffix == '.md' and dest.is_file():
+                    anchors = heading_anchors(dest.read_text(encoding='utf-8'))
+                    if unquote(parsed.fragment) not in anchors:
+                        errors.append(f'{relative}: broken heading link: {target}')
         elif relative.startswith('skills/') and (
                 path.suffix == '.py' or
                 path.read_bytes().startswith(b'#!/usr/bin/env python3\n')):

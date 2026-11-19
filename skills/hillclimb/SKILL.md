@@ -1,13 +1,13 @@
 ---
 name: hillclimb
-description: Improve a candidate in scored rounds toward an agreed target, with a confirmed judging roster, a rolling report and a reviewed delivery. Use when the user asks for scored iteration on a workflow, artifact or product, including UI work judged on the real interface.
+description: "Improve a workflow, artifact or product toward an agreed score over several rounds. Confirm the judges, report each round and review delivery. Judge UI work on the real interface."
 ---
 
 # Improve a candidate through scored rounds
 
-Use `hillclimb` for an explicit scored-improvement run. Use `review-loop` for
-iterative implementation and review when that workflow is requested, or
-`choose-design` when the user wants to select mockups before building.
+Improve a workflow, artifact or product over scored rounds. Freeze the rubric
+and confirm who will judge the work before starting. Use `review-loop` for an
+implementation and repair loop, and `choose-design` to pick mockups before building.
 
 ## Establish the run
 
@@ -74,6 +74,10 @@ Accept only when all confirmed scorers reach target on the same candidate and
 all required checks and coverage pass. Keep measured results separate from
 judge scores. Follow the run's explicit limits. Stop incomplete on an unresolved
 blocker, a limit that prevents completion or stagnation.
+
+If the run stops incomplete, collect the implementer's retrospective and offer
+the operator [a changed approach from the latest candidate](../review/references/budget-exhaustion.md#continue-a-stopped-scoring-loop).
+Add the notes, choice and any approved continuation to the rolling report.
 
 ## Deliver the result
 

@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>.agents: skills that help your coding agent finish the job</title>
-<meta name="description" content="Free skills for Claude Code, Codex, T3 Code and other coding agents. Think a plan through, get a second opinion, choose a design and ship with evidence. Install any skill with one npx command.">
+<title>Skills for coding agents | .agents</title>
+<meta name="description" content="Browse and install open-source skills for T3 Code, Codex and Claude Code. Read each skill's instructions on GitHub.">
 <link rel="canonical" href="https://seankoji-com.github.io/.agents/">
-<meta property="og:title" content=".agents: skills that help your coding agent finish the job">
-<meta property="og:description" content="Pick a job, copy one command, and your agent knows how to do it.">
+<meta property="og:title" content="Skills for coding agents | .agents">
+<meta property="og:description" content="Install a skill for product decisions, implementation, review or delivery, and read its instructions on GitHub.">
 <meta property="og:url" content="https://seankoji-com.github.io/.agents/">
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23233a8f'/%3E%3Cpath d='M9 21h14' stroke='%23f5c84c' stroke-width='4' stroke-linecap='round'/%3E%3Ccircle cx='11' cy='12' r='2.6' fill='%23fff'/%3E%3C/svg%3E">
@@ -31,43 +31,369 @@
   </header>
 
   <main>
-    <div class="hero">
-      <h1>Give your coding agent a way to finish the job.</h1>
-      <p class="lede">Free, readable instructions that teach your agent how to plan, check and deliver work. Made for <a href="#t3">T3 Code</a>, and usable in other agents that support skills. Pick the jobs you care about and install them with one command.</p>
-
-      <fieldset class="picker" id="picker">
-        <legend>I want my agent to&hellip;</legend>
-        <div class="jobs" id="jobs"></div>
-        <div class="answer" id="answer" aria-live="polite"></div>
-      </fieldset>
-    </div>
+    <section class="library" id="skills" aria-labelledby="skills-title">
+      <h1 id="skills-title">Agent skills</h1>
+      <p class="lede">Plan, review and ship with skills for <a href="#t3">T3 Code</a>, Codex and Claude Code.</p>
+      <p class="catalog-help">Install from your project folder with Node.js 22.20+.</p>
+      <nav class="catalog-nav" aria-label="Skill categories">
+        <a href="#group-decide">Plan</a>
+        <a href="#group-build">Deliver</a>
+        <a href="#group-review">Review</a>
+        <a href="#group-write">Write</a>
+        <a href="#group-setup">Set up</a>
+      </nav>
+      <div id="catalogue">
+      <div class="group" id="group-decide">
+        <h2>Plan and design</h2>
+        <ul class="skills">
+          <li class="skill" id="skill-think" tabindex="-1">
+            <div class="skill-heading" id="install-think" tabindex="-1">
+              <h3>think</h3>
+            </div>
+            <p class="skill-description">Turn an idea into a brief. Answer key questions and get a second opinion before you build.</p>
+            <div class="skill-actions">
+              <a class="install-action" href="#install-think" aria-label="Install instructions for think">Install</a>
+              <a href="https://github.com/seankoji-com/.agents/blob/main/skills/think/SKILL.md" aria-label="Source for think on GitHub (SKILL.md)">Source</a>
+            </div>
+            <div class="skill-install">
+              <div class="term"><pre class="cmd" id="cmd-think">npx skills add <span class="cmd-repo">seankoji-com/.agents</span> <span class="skill-flag">--skill</span> <span class="skill-arg">think</span></pre></div>
+              <p>Choose your agents when prompted.</p>
+              <p>Try asking <q>Use think on adding replays to the game before we build anything.</q></p>
+              <p class="helpers">Supporting skills include <a href="#skill-review">review</a>, <a href="#skill-choose-design">choose-design</a>, and <a href="#skill-raise-issue">raise-issue</a>.</p>
+              <p class="t3-preflight">On T3 Code, also install <a href="#skill-agent-tuneup">agent-tuneup</a> for the permission check.</p>
+              <a href="#skill-think">Close install instructions</a>
+            </div>
+          </li>
+          <li class="skill" id="skill-challenge" tabindex="-1">
+            <div class="skill-heading" id="install-challenge" tabindex="-1">
+              <h3>challenge</h3>
+            </div>
+            <p class="skill-description">Get a second opinion on a proposal you already have. Find weak assumptions, a simpler option and evidence that would help you decide.</p>
+            <div class="skill-actions">
+              <a class="install-action" href="#install-challenge" aria-label="Install instructions for challenge">Install</a>
+              <a href="https://github.com/seankoji-com/.agents/blob/main/skills/challenge/SKILL.md" aria-label="Source for challenge on GitHub (SKILL.md)">Source</a>
+            </div>
+            <div class="skill-install">
+              <div class="term"><pre class="cmd" id="cmd-challenge">npx skills add <span class="cmd-repo">seankoji-com/.agents</span> <span class="skill-flag">--skill</span> <span class="skill-arg">challenge</span></pre></div>
+              <p>Choose your agents when prompted.</p>
+              <p>Try asking <q>Challenge this plan to split checkout into its own service.</q></p>
+              <p class="helpers">Supporting skills include <a href="#skill-review">review</a>.</p>
+              <a href="#skill-challenge">Close install instructions</a>
+            </div>
+          </li>
+          <li class="skill" id="skill-choose-design" tabindex="-1">
+            <div class="skill-heading" id="install-choose-design" tabindex="-1">
+              <h3>choose-design</h3>
+            </div>
+            <p class="skill-description">Pick a design before building. Compare independent mockups for a new screen, redesign or unresolved UI choice.</p>
+            <div class="skill-actions">
+              <a class="install-action" href="#install-choose-design" aria-label="Install instructions for choose-design">Install</a>
+              <a href="https://github.com/seankoji-com/.agents/blob/main/skills/choose-design/SKILL.md" aria-label="Source for choose-design on GitHub (SKILL.md)">Source</a>
+            </div>
+            <div class="skill-install">
+              <div class="term"><pre class="cmd" id="cmd-choose-design">npx skills add <span class="cmd-repo">seankoji-com/.agents</span> <span class="skill-flag">--skill</span> <span class="skill-arg">choose-design</span></pre></div>
+              <p>Choose your agents when prompted.</p>
+              <p>Try asking <q>Show me design options for the new settings page.</q></p>
+              <p class="t3-preflight">On T3 Code, also install <a href="#skill-agent-tuneup">agent-tuneup</a> for the permission check.</p>
+              <a href="#skill-choose-design">Close install instructions</a>
+            </div>
+          </li>
+          <li class="skill" id="skill-focus-group" tabindex="-1">
+            <div class="skill-heading" id="install-focus-group" tabindex="-1">
+              <h3>focus-group</h3>
+            </div>
+            <p class="skill-description">Explore how fictional participants might respond to your product. Get a clearly labelled synthetic report and ideas to test with real users.</p>
+            <div class="skill-actions">
+              <a class="install-action" href="#install-focus-group" aria-label="Install instructions for focus-group">Install</a>
+              <a href="https://github.com/seankoji-com/.agents/blob/main/skills/focus-group/SKILL.md" aria-label="Source for focus-group on GitHub (SKILL.md)">Source</a>
+            </div>
+            <div class="skill-install">
+              <div class="term"><pre class="cmd" id="cmd-focus-group">npx skills add <span class="cmd-repo">seankoji-com/.agents</span> <span class="skill-flag">--skill</span> <span class="skill-arg">focus-group</span></pre></div>
+              <p>Choose your agents when prompted.</p>
+              <p>Try asking <q>/focus-group on our pricing page with five first-time visitors.</q></p>
+              <p>Invoke this skill explicitly, for example with <code>/focus-group</code>.</p>
+              <p class="helpers">Supporting skills include <a href="#skill-review">review</a>.</p>
+              <p class="t3-preflight">On T3 Code, also install <a href="#skill-agent-tuneup">agent-tuneup</a> for the permission check.</p>
+              <a href="#skill-focus-group">Close install instructions</a>
+            </div>
+          </li>
+        </ul>
+      </div>
+      <div class="group" id="group-build">
+        <h2>Build and deliver</h2>
+        <ul class="skills">
+          <li class="skill" id="skill-ship" tabindex="-1">
+            <div class="skill-heading" id="install-ship" tabindex="-1">
+              <h3>ship</h3>
+            </div>
+            <p class="skill-description">Hand off a change through implementation, tests, independent review and authorised delivery. Get the result, evidence and a short retrospective.</p>
+            <div class="skill-actions">
+              <a class="install-action" href="#install-ship" aria-label="Install instructions for ship">Install</a>
+              <a href="https://github.com/seankoji-com/.agents/blob/main/skills/ship/SKILL.md" aria-label="Source for ship on GitHub (SKILL.md)">Source</a>
+            </div>
+            <div class="skill-install">
+              <div class="term"><pre class="cmd" id="cmd-ship">npx skills add <span class="cmd-repo">seankoji-com/.agents</span> <span class="skill-flag">--skill</span> <span class="skill-arg">ship</span></pre></div>
+              <p>Choose your agents when prompted.</p>
+              <p>Try asking <q>Ship the agreed replay feature. Verify it in the browser first.</q></p>
+              <p class="helpers">Supporting skills include <a href="#skill-think">think</a>, <a href="#skill-choose-design">choose-design</a>, <a href="#skill-plan-report">plan-report</a>, <a href="#skill-implement">implement</a>, <a href="#skill-review-loop">review-loop</a>, <a href="#skill-review">review</a>, <a href="#skill-raise-pr">raise-pr</a>, <a href="#skill-babysitter">babysitter</a>, <a href="#skill-raise-issue">raise-issue</a>, and <a href="#skill-github-writing">github-writing</a>.</p>
+              <p class="t3-preflight">On T3 Code, also install <a href="#skill-agent-tuneup">agent-tuneup</a> for the permission check.</p>
+              <a href="#skill-ship">Close install instructions</a>
+            </div>
+          </li>
+          <li class="skill" id="skill-plan-report" tabindex="-1">
+            <div class="skill-heading" id="install-plan-report" tabindex="-1">
+              <h3>plan-report</h3>
+            </div>
+            <p class="skill-description">Get a timeline of the plan, work underway and decisions waiting on you. Compare actual build and review work with the original estimates.</p>
+            <div class="skill-actions">
+              <a class="install-action" href="#install-plan-report" aria-label="Install instructions for plan-report">Install</a>
+              <a href="https://github.com/seankoji-com/.agents/blob/main/skills/plan-report/SKILL.md" aria-label="Source for plan-report on GitHub (SKILL.md)">Source</a>
+            </div>
+            <div class="skill-install">
+              <div class="term"><pre class="cmd" id="cmd-plan-report">npx skills add <span class="cmd-repo">seankoji-com/.agents</span> <span class="skill-flag">--skill</span> <span class="skill-arg">plan-report</span></pre></div>
+              <p>Choose your agents when prompted.</p>
+              <p>Try asking <q>Use plan-report to show this coordinated run and the decisions waiting on me.</q></p>
+              <a href="#skill-plan-report">Close install instructions</a>
+            </div>
+          </li>
+          <li class="skill" id="skill-implement" tabindex="-1">
+            <div class="skill-heading" id="install-implement" tabindex="-1">
+              <h3>implement</h3>
+              <span class="tag">Requires T3 Code</span>
+            </div>
+            <p class="skill-description">Give a coding job to a lead in a separate T3 worktree. Get reviewed commits back in the main thread for integration.</p>
+            <div class="skill-actions">
+              <a class="install-action" href="#install-implement" aria-label="Install instructions for implement">Install</a>
+              <a href="https://github.com/seankoji-com/.agents/blob/main/skills/implement/SKILL.md" aria-label="Source for implement on GitHub (SKILL.md)">Source</a>
+            </div>
+            <div class="skill-install">
+              <div class="term"><pre class="cmd" id="cmd-implement">npx skills add <span class="cmd-repo">seankoji-com/.agents</span> <span class="skill-flag">--skill</span> <span class="skill-arg">implement</span></pre></div>
+              <p>Choose your agents when prompted.</p>
+              <p>Try asking <q>Implement the export feature from this brief.</q></p>
+              <p class="helpers">Supporting skills include <a href="#skill-plan-report">plan-report</a>, <a href="#skill-review-loop">review-loop</a>, <a href="#skill-review">review</a>, and <a href="#skill-raise-issue">raise-issue</a>.</p>
+              <p class="t3-preflight">On T3 Code, also install <a href="#skill-agent-tuneup">agent-tuneup</a> for the permission check.</p>
+              <a href="#skill-implement">Close install instructions</a>
+            </div>
+          </li>
+          <li class="skill" id="skill-raise-pr" tabindex="-1">
+            <div class="skill-heading" id="install-raise-pr" tabindex="-1">
+              <h3>raise-pr</h3>
+            </div>
+            <p class="skill-description">Open or update a pull request with its required checks, review details and screenshots where relevant.</p>
+            <div class="skill-actions">
+              <a class="install-action" href="#install-raise-pr" aria-label="Install instructions for raise-pr">Install</a>
+              <a href="https://github.com/seankoji-com/.agents/blob/main/skills/raise-pr/SKILL.md" aria-label="Source for raise-pr on GitHub (SKILL.md)">Source</a>
+            </div>
+            <div class="skill-install">
+              <div class="term"><pre class="cmd" id="cmd-raise-pr">npx skills add <span class="cmd-repo">seankoji-com/.agents</span> <span class="skill-flag">--skill</span> <span class="skill-arg">raise-pr</span></pre></div>
+              <p>Choose your agents when prompted.</p>
+              <p>Try asking <q>Open a PR for this branch.</q></p>
+              <p class="helpers">Supporting skills include <a href="#skill-review">review</a> and <a href="#skill-github-writing">github-writing</a>.</p>
+              <a href="#skill-raise-pr">Close install instructions</a>
+            </div>
+          </li>
+          <li class="skill" id="skill-babysitter" tabindex="-1">
+            <div class="skill-heading" id="install-babysitter" tabindex="-1">
+              <h3>babysitter</h3>
+            </div>
+            <p class="skill-description">Have the agent repair, watch and merge an open pull request through its checks and reviews. Say “don’t merge” or “read-only” to limit the work.</p>
+            <div class="skill-actions">
+              <a class="install-action" href="#install-babysitter" aria-label="Install instructions for babysitter">Install</a>
+              <a href="https://github.com/seankoji-com/.agents/blob/main/skills/babysitter/SKILL.md" aria-label="Source for babysitter on GitHub (SKILL.md)">Source</a>
+            </div>
+            <div class="skill-install">
+              <div class="term"><pre class="cmd" id="cmd-babysitter">npx skills add <span class="cmd-repo">seankoji-com/.agents</span> <span class="skill-flag">--skill</span> <span class="skill-arg">babysitter</span></pre></div>
+              <p>Choose your agents when prompted.</p>
+              <p>Try asking <q>Babysit PR 42 through to merge.</q></p>
+              <p class="helpers">Supporting skills include <a href="#skill-review">review</a>, <a href="#skill-raise-pr">raise-pr</a>, and <a href="#skill-github-writing">github-writing</a>.</p>
+              <p class="t3-preflight">On T3 Code, also install <a href="#skill-agent-tuneup">agent-tuneup</a> for the permission check.</p>
+              <a href="#skill-babysitter">Close install instructions</a>
+            </div>
+          </li>
+          <li class="skill" id="skill-backlog-burn" tabindex="-1">
+            <div class="skill-heading" id="install-backlog-burn" tabindex="-1">
+              <h3>backlog-burn</h3>
+              <span class="tag">Requires T3 Code</span>
+            </div>
+            <p class="skill-description">Clear a repository’s issues and pull requests. Close obsolete work with evidence and get ready fixes merged. Name an organisation to run it per repository.</p>
+            <div class="skill-actions">
+              <a class="install-action" href="#install-backlog-burn" aria-label="Install instructions for backlog-burn">Install</a>
+              <a href="https://github.com/seankoji-com/.agents/blob/main/skills/backlog-burn/SKILL.md" aria-label="Source for backlog-burn on GitHub (SKILL.md)">Source</a>
+            </div>
+            <div class="skill-install">
+              <div class="term"><pre class="cmd" id="cmd-backlog-burn">npx skills add <span class="cmd-repo">seankoji-com/.agents</span> <span class="skill-flag">--skill</span> <span class="skill-arg">backlog-burn</span></pre></div>
+              <p>Choose your agents when prompted.</p>
+              <p>Try asking <q>Clear the backlog and the open PRs. Ask me what you need to unblock, then implement and merge the ready work.</q></p>
+              <p class="helpers">Supporting skills include <a href="#skill-ship">ship</a>, <a href="#skill-plan-report">plan-report</a>, <a href="#skill-babysitter">babysitter</a>, and <a href="#skill-implement">implement</a>.</p>
+              <p class="t3-preflight">On T3 Code, also install <a href="#skill-agent-tuneup">agent-tuneup</a> for the permission check.</p>
+              <a href="#skill-backlog-burn">Close install instructions</a>
+            </div>
+          </li>
+          <li class="skill" id="skill-raise-issue" tabindex="-1">
+            <div class="skill-heading" id="install-raise-issue" tabindex="-1">
+              <h3>raise-issue</h3>
+              <span class="tag">Requires T3 Code</span>
+            </div>
+            <p class="skill-description">Draft or file a GitHub issue in a background T3 task. Check for duplicates, attach evidence and verify the link after posting.</p>
+            <div class="skill-actions">
+              <a class="install-action" href="#install-raise-issue" aria-label="Install instructions for raise-issue">Install</a>
+              <a href="https://github.com/seankoji-com/.agents/blob/main/skills/raise-issue/SKILL.md" aria-label="Source for raise-issue on GitHub (SKILL.md)">Source</a>
+            </div>
+            <div class="skill-install">
+              <div class="term"><pre class="cmd" id="cmd-raise-issue">npx skills add <span class="cmd-repo">seankoji-com/.agents</span> <span class="skill-flag">--skill</span> <span class="skill-arg">raise-issue</span></pre></div>
+              <p>Choose your agents when prompted.</p>
+              <p>Try asking <q>Raise an issue for the flaky login test with the failing logs.</q></p>
+              <p class="helpers">Supporting skills include <a href="#skill-github-writing">github-writing</a>.</p>
+              <p class="t3-preflight">On T3 Code, also install <a href="#skill-agent-tuneup">agent-tuneup</a> for the permission check.</p>
+              <a href="#skill-raise-issue">Close install instructions</a>
+            </div>
+          </li>
+        </ul>
+      </div>
+      <div class="group" id="group-review">
+        <h2>Review and improve</h2>
+        <ul class="skills">
+          <li class="skill" id="skill-review" tabindex="-1">
+            <div class="skill-heading" id="install-review" tabindex="-1">
+              <h3>review</h3>
+            </div>
+            <p class="skill-description">Get an independent review of a plan, change or release. The reviewer reports ranked findings with evidence and leaves the work untouched.</p>
+            <div class="skill-actions">
+              <a class="install-action" href="#install-review" aria-label="Install instructions for review">Install</a>
+              <a href="https://github.com/seankoji-com/.agents/blob/main/skills/review/SKILL.md" aria-label="Source for review on GitHub (SKILL.md)">Source</a>
+            </div>
+            <div class="skill-install">
+              <div class="term"><pre class="cmd" id="cmd-review">npx skills add <span class="cmd-repo">seankoji-com/.agents</span> <span class="skill-flag">--skill</span> <span class="skill-arg">review</span></pre></div>
+              <p>Choose your agents when prompted.</p>
+              <p>Try asking <q>Use review to check this branch against the brief. Do not edit files.</q></p>
+              <p class="helpers">Supporting skills include <a href="#skill-implement">implement</a>, <a href="#skill-raise-issue">raise-issue</a>, and <a href="#skill-github-writing">github-writing</a>.</p>
+              <p class="t3-preflight">On T3 Code, also install <a href="#skill-agent-tuneup">agent-tuneup</a> for the permission check.</p>
+              <a href="#skill-review">Close install instructions</a>
+            </div>
+          </li>
+          <li class="skill" id="skill-review-loop" tabindex="-1">
+            <div class="skill-heading" id="install-review-loop" tabindex="-1">
+              <h3>review-loop</h3>
+            </div>
+            <p class="skill-description">Build or fix a change in rounds. Independent reviews guide repairs until the score and checks pass or the work stops improving.</p>
+            <div class="skill-actions">
+              <a class="install-action" href="#install-review-loop" aria-label="Install instructions for review-loop">Install</a>
+              <a href="https://github.com/seankoji-com/.agents/blob/main/skills/review-loop/SKILL.md" aria-label="Source for review-loop on GitHub (SKILL.md)">Source</a>
+            </div>
+            <div class="skill-install">
+              <div class="term"><pre class="cmd" id="cmd-review-loop">npx skills add <span class="cmd-repo">seankoji-com/.agents</span> <span class="skill-flag">--skill</span> <span class="skill-arg">review-loop</span></pre></div>
+              <p>Choose your agents when prompted.</p>
+              <p>Try asking <q>Use review-loop on the search fix until review scores it 9 or higher.</q></p>
+              <p class="helpers">Supporting skills include <a href="#skill-review">review</a>, <a href="#skill-implement">implement</a>, and <a href="#skill-raise-pr">raise-pr</a>.</p>
+              <a href="#skill-review-loop">Close install instructions</a>
+            </div>
+          </li>
+          <li class="skill" id="skill-hillclimb" tabindex="-1">
+            <div class="skill-heading" id="install-hillclimb" tabindex="-1">
+              <h3>hillclimb</h3>
+            </div>
+            <p class="skill-description">Improve a product, workflow or draft using scored feedback from judges you approve. See each round’s evidence. UI judges use the running interface.</p>
+            <div class="skill-actions">
+              <a class="install-action" href="#install-hillclimb" aria-label="Install instructions for hillclimb">Install</a>
+              <a href="https://github.com/seankoji-com/.agents/blob/main/skills/hillclimb/SKILL.md" aria-label="Source for hillclimb on GitHub (SKILL.md)">Source</a>
+            </div>
+            <div class="skill-install">
+              <div class="term"><pre class="cmd" id="cmd-hillclimb">npx skills add <span class="cmd-repo">seankoji-com/.agents</span> <span class="skill-flag">--skill</span> <span class="skill-arg">hillclimb</span></pre></div>
+              <p>Choose your agents when prompted.</p>
+              <p>Try asking <q>Run hillclimb on the onboarding flow until it scores 8 out of 10.</q></p>
+              <p class="helpers">Supporting skills include <a href="#skill-review">review</a>, <a href="#skill-raise-pr">raise-pr</a>, and <a href="#skill-raise-issue">raise-issue</a>.</p>
+              <p class="t3-preflight">On T3 Code, also install <a href="#skill-agent-tuneup">agent-tuneup</a> for the permission check.</p>
+              <a href="#skill-hillclimb">Close install instructions</a>
+            </div>
+          </li>
+          <li class="skill" id="skill-test-writer" tabindex="-1">
+            <div class="skill-heading" id="install-test-writer" tabindex="-1">
+              <h3>test-writer</h3>
+            </div>
+            <p class="skill-description">Write or review regression tests for failures that matter. Weigh coverage against flakiness, maintenance and CI time.</p>
+            <div class="skill-actions">
+              <a class="install-action" href="#install-test-writer" aria-label="Install instructions for test-writer">Install</a>
+              <a href="https://github.com/seankoji-com/.agents/blob/main/skills/test-writer/SKILL.md" aria-label="Source for test-writer on GitHub (SKILL.md)">Source</a>
+            </div>
+            <div class="skill-install">
+              <div class="term"><pre class="cmd" id="cmd-test-writer">npx skills add <span class="cmd-repo">seankoji-com/.agents</span> <span class="skill-flag">--skill</span> <span class="skill-arg">test-writer</span></pre></div>
+              <p>Choose your agents when prompted.</p>
+              <p>Try asking <q>Use test-writer to add regression tests for the date parsing bug.</q></p>
+              <a href="#skill-test-writer">Close install instructions</a>
+            </div>
+          </li>
+        </ul>
+      </div>
+      <div class="group" id="group-write">
+        <h2>Write on GitHub</h2>
+        <ul class="skills">
+          <li class="skill" id="skill-github-writing" tabindex="-1">
+            <div class="skill-heading" id="install-github-writing" tabindex="-1">
+              <h3>github-writing</h3>
+            </div>
+            <p class="skill-description">Add a byline to AI-written GitHub prose. Credit the writing model and the verified operator in issues, PRs, replies and release notes.</p>
+            <div class="skill-actions">
+              <a class="install-action" href="#install-github-writing" aria-label="Install instructions for github-writing">Install</a>
+              <a href="https://github.com/seankoji-com/.agents/blob/main/skills/github-writing/SKILL.md" aria-label="Source for github-writing on GitHub (SKILL.md)">Source</a>
+            </div>
+            <div class="skill-install">
+              <div class="term"><pre class="cmd" id="cmd-github-writing">npx skills add <span class="cmd-repo">seankoji-com/.agents</span> <span class="skill-flag">--skill</span> <span class="skill-arg">github-writing</span></pre></div>
+              <p>Choose your agents when prompted.</p>
+              <p>Try asking <q>Use github-writing to draft the release notes.</q></p>
+              <a href="#skill-github-writing">Close install instructions</a>
+            </div>
+          </li>
+        </ul>
+      </div>
+      <div class="group" id="group-setup">
+        <h2>Fix agent setup</h2>
+        <ul class="skills">
+          <li class="skill" id="skill-agent-tuneup" tabindex="-1">
+            <div class="skill-heading" id="install-agent-tuneup" tabindex="-1">
+              <h3>agent-tuneup</h3>
+            </div>
+            <p class="skill-description">Diagnose missing skills, permissions and connections. Trace what the agent does back to the setting that controls it.</p>
+            <div class="skill-actions">
+              <a class="install-action" href="#install-agent-tuneup" aria-label="Install instructions for agent-tuneup">Install</a>
+              <a href="https://github.com/seankoji-com/.agents/blob/main/skills/agent-tuneup/SKILL.md" aria-label="Source for agent-tuneup on GitHub (SKILL.md)">Source</a>
+            </div>
+            <div class="skill-install">
+              <div class="term"><pre class="cmd" id="cmd-agent-tuneup">npx skills add <span class="cmd-repo">seankoji-com/.agents</span> <span class="skill-flag">--skill</span> <span class="skill-arg">agent-tuneup</span></pre></div>
+              <p>Choose your agents when prompted.</p>
+              <p>Try asking <q>Use agent-tuneup: why doesn't my agent see the review skill?</q></p>
+              <a href="#skill-agent-tuneup">Close install instructions</a>
+            </div>
+          </li>
+        </ul>
+      </div>
+      </div>
+    </section>
 
     <section id="how" aria-labelledby="how-title">
-      <h2 id="how-title">From install to first run in a minute</h2>
-      <p class="section-intro">A skill is a short guide your agent reads when it does a particular kind of work. Nothing runs in the background and there is no account to make.</p>
+      <h2 id="how-title">Install and use a skill</h2>
       <ol class="steps">
         <li>
-          <h3>Install a skill</h3>
-          <p>From your project folder, run <code>npx skills add seankoji-com/.agents --skill think</code>. The installer asks which agents to add it to. It needs Node.js 22.20 or later.</p>
+          <h3>Run the install command</h3>
+          <p>Open Install next to a skill. Run the command in your project terminal and choose agents when prompted. <span id="multi-install-hint" hidden>Tick several skills to install them together.</span></p>
         </li>
         <li>
-          <h3>Ask for the job</h3>
-          <p>Name the skill in a normal request, such as <code>Use think on this plan before we build it</code>, or use a slash command like <code>/think</code> where your agent supports them.</p>
+          <h3>Ask for the work</h3>
+          <p>For example, ask <q>Use think on this plan before we build it</q> or run <code>/think</code> if your agent supports slash commands.</p>
         </li>
         <li>
-          <h3>Get the result and its evidence</h3>
-          <p>Your agent follows the skill's steps and tells you what it decided, what it checked and what still needs you.</p>
+          <h3>Check the result</h3>
+          <p>Your agent follows the skill's instructions and reports the outcome, with any decisions or checks still open.</p>
         </li>
       </ol>
     </section>
 
     <section id="t3" aria-labelledby="t3-title">
       <h2 id="t3-title">Made for T3 Code</h2>
-      <p class="section-intro">The skills are written and tested in <a href="https://github.com/pingdotgg/t3code">T3 Code</a>, which runs agents from several providers, such as Codex, Claude and OpenCode, in one app. That lets the skills do things a single agent can't do on its own.</p>
+      <p class="section-intro">Use <a href="https://github.com/pingdotgg/t3code">T3 Code</a> to run agents from several providers in one app. Skills use T3 for separate worktrees, background tasks and pull request watches.</p>
       <div class="facts">
         <div>
           <h3>A second opinion from another model</h3>
-          <p><code>review</code>, <code>think</code> and <code>challenge</code> obtain a separate opinion. For written code, the reviewer comes from a different family than the code authors. The orchestrator's family does not matter unless it wrote code. <a href="#why-review">Why this matters</a>.</p>
+          <p><code>review</code>, <code>think</code> and <code>challenge</code> get a separate opinion. Written-code reviews use a different model family from the code authors. <a href="#why-review">Read the rationale</a>.</p>
         </div>
         <div>
           <h3>Big jobs in their own workspace</h3>
@@ -78,36 +404,30 @@
           <p><code>raise-issue</code> files issues in a background task while your change keeps moving.</p>
         </div>
         <div>
-          <h3>PRs watched for you</h3>
-          <p><code>babysitter</code> uses T3's pull request watch, so your agent wakes when checks finish or a reviewer comments.</p>
+          <h3>Pull request watches</h3>
+          <p><code>babysitter</code> uses T3's pull request watch to resume work when checks or reviews change.</p>
         </div>
         <div>
           <h3>Progress and designs you can see</h3>
-          <p><code>ship</code>, <code>implement</code> and <code>review-loop</code> show their phases in T3's Tasks row when the host exposes a todo tool; the list is best-effort and can vanish when the turn settles. <code>plan-report</code> shows the plan, progress and overruns on a timeline. <code>choose-design</code> shows mockups side by side in T3's preview frames.</p>
+          <p><code>ship</code>, <code>implement</code> and <code>review-loop</code> use T3's Tasks row when the host exposes it. <code>plan-report</code> draws a timeline, and <code>choose-design</code> shows mockups side by side.</p>
         </div>
         <div>
-          <h3>Other agents still work</h3>
-          <p>Most skills run in Claude Code, Codex and other agents, using what each one offers. Skills marked "Needs T3 Code" don't.</p>
+          <h3>Using another agent</h3>
+          <p>Codex, Claude Code and other agents can use skills whose required tools they provide. Look for the T3 Code requirement in the catalog.</p>
         </div>
       </div>
     </section>
 
     <section id="why-review" aria-labelledby="why-review-title">
       <h2 id="why-review-title">Why another model family checks the work</h2>
-      <p class="section-intro">A model reviewing its own work, or a close relative's, tends to rate it too kindly and to repeat its mistakes. Research on AI judges points the same way.</p>
+      <p class="section-intro">Models can favour their own writing and repeat mistakes made by related models. Using another family for code review gives the change an independent check.</p>
       <ul class="research">
-        <li><p><strong>Models favour their own writing.</strong> GPT-4 and Llama 2 can recognise their own text, and the better they recognise it, the more they prefer it (<a href="https://arxiv.org/abs/2404.13076">Panickssery, Bowman and Feng, 2024</a>). GPT-4 shows significant self-preference, linked to how familiar the text looks to it (<a href="https://arxiv.org/abs/2410.21819">Wataoka, Takahashi and Ri, 2024</a>).</p></li>
-        <li><p><strong>Related models make the same mistakes.</strong> When two models are both wrong, they pick the same wrong answer 60% of the time on one leaderboard dataset. A shared provider or architecture makes this more likely (<a href="https://arxiv.org/abs/2506.07962">Kim et al., ICML 2025</a>).</p></li>
-        <li><p><strong>Checking yourself doesn't fix much.</strong> Without outside feedback, models struggle to correct their own reasoning and sometimes make it worse (<a href="https://arxiv.org/abs/2310.01798">Huang et al., ICLR 2024</a>).</p></li>
-        <li><p><strong>Mixed panels judge better.</strong> A panel of smaller models from different families beat a single GPT-4 judge on six datasets, with less bias, at over seven times less cost (<a href="https://arxiv.org/abs/2404.18796">Verga et al., 2024</a>).</p></li>
+        <li><p>GPT-4 and Llama 2 tended to prefer text they could recognise as their own. Another study linked GPT-4's preference to how familiar the text was. <a href="https://arxiv.org/abs/2404.13076">Panickssery, Bowman and Feng, 2024</a> and <a href="https://arxiv.org/abs/2410.21819">Wataoka, Takahashi and Ri, 2024</a>.</p></li>
+        <li><p>When two models answered incorrectly, they chose the same wrong answer 60% of the time on one benchmark. A shared provider or architecture made that more likely. <a href="https://arxiv.org/abs/2506.07962">Kim et al., ICML 2025</a>.</p></li>
+        <li><p>Models sometimes made their reasoning worse when asked to correct it without outside feedback. <a href="https://arxiv.org/abs/2310.01798">Huang et al., ICLR 2024</a>.</p></li>
+        <li><p>A panel drawn from several model families judged more accurately and with less bias than a single GPT-4 judge across six datasets in one study. <a href="https://arxiv.org/abs/2404.18796">Verga et al., 2024</a>.</p></li>
       </ul>
-      <p class="section-intro">For written code, reviewers come from a different family than the code authors and provide evidence for their findings. Plans, prose and visual judgments have no family restriction. These studies cover AI judges and reasoning tests, not these skills directly. <a href="https://github.com/seankoji-com/.agents#why-a-different-model-family-reviews-the-work">Read the full rationale</a>.</p>
-    </section>
-
-    <section id="skills" aria-labelledby="skills-title">
-      <h2 id="skills-title">Every skill in the library</h2>
-      <p class="section-intro">Copy a command to install one skill, or tick the ones you like and copy a single command for all of them. Each name opens the exact instructions your agent will follow. <a href="workflows.html">See how the skills hand work to each other</a>.</p>
-      <div id="catalogue"></div>
+      <p class="section-intro">The studies tested AI judges and reasoning benchmarks. Read how the library applies those findings to code review in the <a href="https://github.com/seankoji-com/.agents#why-a-different-model-family-reviews-the-work">repository README</a>.</p>
     </section>
 
     <section id="needs" aria-labelledby="needs-title">
@@ -115,169 +435,66 @@
       <div class="facts">
         <div>
           <h3>T3 Code, or another coding agent</h3>
-          <p><a href="#t3">T3 Code</a> gets the most out of these skills. Claude Code, Codex and other agents that support skills can use any skill whose tools they provide. A skill marked "Needs T3 Code" relies on T3's background workers. On T3, also install agent-tuneup. Several skills read its T3 permission check before they start helper sessions.</p>
-          <p>Before routing helpers, the preflight also checks LiteLLM's limits snapshot when available. It avoids exhausted or near-exhausted subscriptions within the allowed model choices and reports unknown capacity.</p>
-          <p>In T3's Full access mode, Codex rejects any command that one of your Codex rules says to ask about, because Full access turns asking off (<a href="https://github.com/pingdotgg/t3code/issues/12248">T3 Code #12248</a>, tracked upstream in <a href="https://github.com/openai/codex/issues/41068">Codex #41068</a>).</p>
+          <p>On T3, install <a href="#skill-agent-tuneup">agent-tuneup</a> when a skill calls for its permission check. For how skills choose delegate routes and check subscription capacity, see the <a href="workflows.html#t3-permissions">workflow guide</a>.</p>
         </div>
         <div>
-          <h3>Node.js for the installer</h3>
-          <p>The <a href="https://github.com/vercel-labs/skills#install-a-skill">Skills CLI</a> needs Node.js 22.20 or later. The skills themselves are Markdown, plus a few small Python 3.10 helpers.</p>
+          <h3>Python for skill helpers</h3>
+          <p>Some skills run helpers that need Python 3.10 or later. See the <a href="https://github.com/vercel-labs/skills#install-a-skill">Skills CLI setup guide</a> for installation options.</p>
         </div>
         <div>
-          <h3>Your say on what happens</h3>
-          <p>Skills that commit, push or merge stay inside what you asked for. "Review it but don't merge" is a limit the agent keeps.</p>
+          <h3>Tools for the job</h3>
+          <p>Installation adds the instructions. Review, browser checks and delivery use the models, tools and permissions available to your agent.</p>
         </div>
       </div>
     </section>
   </main>
 
   <footer>
-    <p>Install everything and choose in the terminal: <code>npx skills add seankoji-com/.agents</code></p>
+    <p>To choose skills in the terminal, run <code>npx skills add seankoji-com/.agents</code>.</p>
     <p>Source, issues and the full documentation are on <a href="https://github.com/seankoji-com/.agents">GitHub</a>. MIT licensed.</p>
   </footer>
 </div>
 
 <div class="tray" id="tray" hidden>
-  <div class="wrap tray-inner">
-    <div class="tray-row">
-      <strong id="tray-count">0 skills picked</strong>
+  <details class="wrap" id="tray-details">
+    <summary><strong id="tray-count">0 selected</strong><span>Install</span></summary>
+    <div class="tray-inner">
+      <div class="term"><pre class="cmd" id="tray-cmd" tabindex="0" aria-label="Selected skills install command"></pre><button type="button" class="copy" data-copy-target="tray-cmd" aria-label="Copy install command for selected skills">Copy</button></div>
+      <p class="tray-t3" id="tray-t3" hidden><button type="button" class="linkish" id="add-tuneup">Add agent-tuneup</button> to check T3 access.</p>
       <div class="tray-controls">
-        <label class="pick"><input type="checkbox" id="with-helpers" checked> Include the skills they call directly</label>
-        <button type="button" class="linkish" id="clear">Clear</button>
+        <label class="pick"><input type="checkbox" id="with-helpers" aria-label="Include helpers called directly by the selected skills" checked> Include helpers</label>
+        <button type="button" class="linkish" id="clear">Clear selection</button>
       </div>
     </div>
-    <p class="tray-t3" id="tray-t3" hidden>Using T3 Code? <button type="button" class="linkish" id="add-tuneup">Add agent-tuneup</button> too. Some of these skills read its T3 permission check before starting helper sessions.</p>
-    <div class="term"><pre class="cmd" id="tray-cmd"></pre><button type="button" class="copy" data-copy-target="tray-cmd">Copy</button></div>
-  </div>
+  </details>
 </div>
 
 <p class="visually-hidden" id="status" role="status" aria-live="polite"></p>
 
-<noscript>
-  <div class="wrap" style="padding:1rem 0">The interactive list needs JavaScript. Every skill is also listed on <a href="https://github.com/seankoji-com/.agents#skill-catalog">GitHub</a>, and <code>npx skills add seankoji-com/.agents</code> lets you choose in the terminal.</div>
-</noscript>
-
 <script>
 const REPO = "seankoji-com/.agents";
-const SOURCE = "https://github.com/seankoji-com/.agents/blob/main/skills/";
 
-// One entry per skill in skills/. scripts/check_library.py checks that this list
-// matches the registered skills. "uses" lists the workflow skills each one calls;
-// t3prep marks skills that read agent-tuneup's T3 permission check.
-const SKILLS = [
-  { name: "think", group: "decide", t3prep: true,
-    text: "Talk an idea through before anyone writes code. Your agent looks up what it can, then asks only the questions whose answers would change what gets built, with its recommended answer for each. A separate reviewer checks that nothing important is still open. You finish with a brief, an issue or the work itself.",
-    try: "Use think on adding replays to the game before we build anything.",
-    uses: ["review", "choose-design", "raise-issue"] },
-  { name: "challenge", group: "decide",
-    text: "Get an honest second opinion. A separate reviewer pushes back on your proposal, suggests a simpler option and names the evidence that would settle the question. It changes no code.",
-    try: "Challenge this plan to split checkout into its own service.",
-    uses: ["review"] },
-  { name: "choose-design", group: "decide", t3prep: true,
-    text: "See real design options side by side before UI work starts, then pick one. Different model families draw the mockups: two by default, three for a new screen or a redesign. Small edits keep your existing design.",
-    try: "Show me design options for the new settings page.",
-    uses: [] },
-  { name: "focus-group", group: "decide", t3prep: true, explicit: true,
-    text: "Explore a product idea with a panel of fictional participants. The study is clearly labelled as synthetic, because model answers are not research with real people.",
-    try: "/focus-group on our pricing page with five first-time visitors.",
-    uses: ["review"] },
-
-  { name: "ship", group: "build", t3prep: true,
-    text: "Hand over a change and have it delivered. Your agent batches foreseeable decisions before dispatch, builds it, runs the checks, gets an independent review and takes it through merge. Required gates stay in force; agreed manual follow-ups remain tracked and unverified. Completed visible work gets a captioned screenshot. Fresh merge rules determine the explicit method, and any authorized check exception is recorded. It ends with a short look back at what went well and what to change.",
-    try: "Ship the agreed replay feature. Verify it in the browser first.",
-    uses: ["think", "choose-design", "plan-report", "implement", "review-loop", "review", "raise-pr", "babysitter", "raise-issue", "github-writing"] },
-  { name: "plan-report", group: "build",
-    text: "See the plan at proposal, task completion, final handback and on request. Review and fix rounds get short chat updates. Each task is one compact row: solid build, hatched review and a dashed forecast split between build and review, coloured by provider. An overall bar shows estimated work done and an mtoks column totals reported tokens; Running now shows model, task ID and value. Progress reports hide finished tasks, cut idle gaps and compress time more than four hours ahead. The observed time cannot be in the future. Whole-run timelines appear only at proposal and final handback. Empty sections and progress completion-history tables are omitted. A private ignored ledger preserves estimates and replans. Final calibration keeps costs and unknown coverage explicit; changed models are not comparable.",
-    try: "Use plan-report to show this coordinated run and the decisions waiting on me.",
-    uses: [] },
-  { name: "review", group: "build", t3prep: true,
-    text: "Have work checked against the goal. Code reviewers must differ in family from the code authors; the orchestrator's family is irrelevant unless it wrote code. Plans, prose and visual judgments have no family restriction. Review defaults to Sol high, or Opus high for Sol-authored code, with credit fallbacks. OCR runs alongside the primary for nonvisual changes only where the repository has no PR path; a repository that accepts PRs uses the primary alone. The primary also reviews UI/visual behavior, with Hydrogen high adding a second visual review. Formal review uses DeepSeek only through OCR. The reviewers return findings tied to evidence and ranked by severity.",
-    try: "Use review to check this branch against the brief. Do not edit files.",
-    uses: ["implement", "raise-issue", "github-writing"] },
-  { name: "review-loop", group: "build",
-    text: "Fix, review and repeat until the work hits the score you set and the required checks pass. It stops if two rounds in a row fail to improve on the best score so far, and tells you why.",
-    try: "Use review-loop on the search fix until review scores it 9 or higher.",
-    uses: ["review", "implement", "raise-pr"] },
-  { name: "hillclimb", group: "build", t3prep: true,
-    text: "Improve a workflow, artifact or product toward a score you set. Confirm who builds and judges, and choose whether to upgrade the primary when the full panel joins. UI judges use the real interface. One rolling report shows each round, and repository work ends with a reviewed pull request or an incomplete draft when authorised.",
-    try: "Run hillclimb on the onboarding flow until it scores 8 out of 10.",
-    uses: ["review", "raise-pr", "raise-issue"] },
-  { name: "implement", group: "build", t3prep: true, t3: true,
-    text: "Move a large coding job into a separate workspace so your main conversation stays clear. You get back reviewed commits to accept and merge. Adopted project settings choose routes and capacity limits; useful ready work starts within those limits. Routing changes preserve the owning checkout and record a new model segment. An optional one-round policy permits coordinator verification of that round's repairs, disclosed as not independently re-reviewed. The original score stays reported; coordinator verification replaces that score gate for eligible repairs. Formal review keeps its lineage and companion rules and uses DeepSeek only through OCR.",
-    try: "Implement the export feature from this brief.",
-    uses: ["plan-report", "review-loop", "review", "raise-issue"] },
-  { name: "test-writer", group: "build",
-    text: "Choose tests that catch the failures that matter, without flaky runs or slow CI. Check that test data reflects the real system and that results came from the run being reported. Also useful for reviewing whether existing tests earn their keep.",
-    try: "Use test-writer to add regression tests for the date parsing bug.",
-    uses: [] },
-  { name: "raise-pr", group: "build",
-    text: "Check delivery rules and missing validation before opening a pull request, make dependencies visible, and write the description with the evidence your repository asks for, such as desktop and mobile screenshots and check results.",
-    try: "Open a PR for this branch.",
-    uses: ["review", "github-writing"] },
-  { name: "babysitter", group: "build", t3prep: true,
-    text: "Look after an open pull request. Your agent fixes failing checks, pushes back on wrong or out-of-scope review requests, files minor findings as issues and recovers unfinished work after interruptions. It follows CI retries through their results and verifies who owns monitoring before handing off. It verifies watch registration when the host permits and reports monitoring gaps. It merges when it is allowed to. Limits such as “don’t merge” still apply.",
-    try: "Babysit PR 42 through to merge.",
-    uses: ["review", "raise-pr", "github-writing"] },
-  { name: "backlog-burn", group: "build", t3prep: true, t3: true,
-    text: "Drive a repository's open issues and pull requests to zero. Close obsolete, already-done or low-value issues and superseded PRs with evidence; keep material defects actionable and protected closures under owner review. Babysit every PR without a live owner through merge, including dependency bumps, and ask before a real migration. Use the maximum allowed concurrency up to 20 delegates, including nested workers and reviewers. Ship handles worthwhile fixes through isolated leads, using the main thread's model and effort by default and independent reviewers. Refill on every wake and pick up PRs opened mid-run. Name an organisation to launch one run per repository. Explicit owner holds keep items open.",
-    try: "Clear the backlog and the open PRs. Ask me what you need to unblock, then implement and merge the ready work.",
-    uses: ["ship", "plan-report", "babysitter", "implement"] },
-  { name: "raise-issue", group: "build", t3prep: true, t3: true,
-    text: "File a bug, feature request or task in the background, with the evidence attached. You get back a link to the issue once it exists.",
-    try: "Raise an issue for the flaky login test with the failing logs.",
-    uses: ["github-writing"] },
-
-  { name: "github-writing", group: "write",
-    text: "Put a visible byline on AI-written issues, pull requests and comments that names the model that wrote them, so readers know who they are talking to.",
-    try: "Use github-writing to draft the release notes.",
-    uses: [] },
-
-  { name: "agent-tuneup", group: "setup",
-    text: "Find out why a skill, permission or connection is not working. It separates what your settings say from what your agent actually does.",
-    try: "Use agent-tuneup: why doesn't my agent see the review skill?",
-    uses: [] },
-];
-
-const GROUPS = [
-  { id: "decide", title: "Decide what to build", text: "Settle the product and design questions before code exists." },
-  { id: "build", title: "Build, check and ship", text: "Get changes reviewed, tested and delivered, with proof of what works." },
-  { id: "write", title: "Write in public", text: "Keep AI-written text on GitHub honest about who wrote it." },
-  { id: "setup", title: "Set up your agent", text: "Fix the configuration your agent depends on." },
-];
-
-const JOBS = [
-  ["think a plan through before building", "think"],
-  ["argue with my idea", "challenge"],
-  ["are you sure about this", "challenge"],
-  ["show me design options", "choose-design"],
-  ["improve an artifact toward a score", "hillclimb"],
-  ["polish a UI toward a score", "hillclimb"],
-  ["review my work with another model", "review"],
-  ["ship this change", "ship"],
-  ["babysit my pull request", "babysitter"],
-  ["merge my pull request", "babysitter"],
-  ["clear my open issues and PRs", "backlog-burn"],
-  ["write better tests", "test-writer"],
-];
-
-const byName = Object.fromEntries(SKILLS.map(s => [s.name, s]));
-const command = names => `npx skills add ${REPO} --skill ${names.join(" ")}`;
+const catalogue = document.getElementById("catalogue");
+const skills = Array.from(catalogue.querySelectorAll(".skill"), row => ({
+  name: row.querySelector("h3").textContent,
+  row,
+  install: row.querySelector(".skill-install"),
+  t3prep: Boolean(row.querySelector(".t3-preflight")),
+  uses: Array.from(row.querySelectorAll(".helpers a"), link => link.hash.slice("#skill-".length)),
+}));
+const byName = Object.fromEntries(skills.map(skill => [skill.name, skill]));
 const el = (tag, props = {}, ...kids) => {
   const node = Object.assign(document.createElement(tag), props);
   node.append(...kids.filter(k => k !== null && k !== undefined));
   return node;
 };
 
-function termFor(names, id) {
-  const pre = el("pre", { className: "cmd", id });
-  pre.append(`npx skills add ${REPO} --skill `, el("span", { className: "skill-arg", textContent: names.join(" ") }));
+function copyButton(id, label) {
   const button = el("button", { type: "button", className: "copy", textContent: "Copy" });
   button.dataset.copyTarget = id;
-  button.setAttribute("aria-label", `Copy install command for ${names.join(", ")}`);
-  return el("div", { className: "term" }, pre, button);
+  button.setAttribute("aria-label", label);
+  return button;
 }
-
-function quote(text) { return el("q", { textContent: text }); }
 
 // Anchor links: clicking jumps to the heading and copies its full URL.
 const LINK_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"/></svg>';
@@ -291,92 +508,71 @@ function anchorFor(id, label) {
 document.querySelectorAll("main section[id] > h2").forEach(h => {
   h.append(anchorFor(h.parentElement.id, h.textContent));
 });
-
-// Hero picker
-const jobs = document.getElementById("jobs");
-const answer = document.getElementById("answer");
-JOBS.forEach(([phrase, name], i) => {
-  const input = el("input", { type: "radio", name: "job", value: name, checked: i === 0 });
-  jobs.append(el("label", {}, input, el("span", { textContent: phrase })));
+catalogue.querySelectorAll(".group > h2").forEach(h => {
+  h.append(anchorFor(h.parentElement.id, h.textContent));
 });
-function showAnswer(name, animate) {
-  const s = byName[name];
-  answer.replaceChildren(
-    el("div", { className: "answer-head" },
-      el("span", { className: "answer-name", textContent: s.name }),
-      s.t3 ? el("span", { className: "tag", textContent: "Needs T3 Code" }) : null),
-    el("p", { className: "answer-text", textContent: s.text }),
-    el("p", { className: "answer-try" }, "Try: ", quote(s.try)),
-    termFor([s.name], "hero-cmd"),
-    el("a", { className: "answer-more", href: `#skill-${s.name}`, textContent: `More about ${s.name}, and what it works with` }),
-  );
-  if (animate) { answer.classList.remove("swap"); void answer.offsetWidth; answer.classList.add("swap"); }
-}
-jobs.addEventListener("change", e => showAnswer(e.target.value, true));
-showAnswer(JOBS[0][1], false);
 
-// Catalogue
+// Add copy and multi-skill selection over the HTML catalog.
 const picked = new Set();
-const catalogue = document.getElementById("catalogue");
-for (const g of GROUPS) {
-  const list = el("ul", { className: "skills" });
-  for (const s of SKILLS.filter(s => s.group === g.id)) {
-    const box = el("input", { type: "checkbox", value: s.name });
-    box.addEventListener("change", () => { box.checked ? picked.add(s.name) : picked.delete(s.name); renderTray(); });
-    const notes = [];
-    if (s.explicit) notes.push(`Runs only when you ask for it by name, for example /${s.name}.`);
-    if (s.uses.length) notes.push(`Calls on ${s.uses.join(", ")}. Install those too for the full workflow.`);
-    if (s.t3prep) notes.push("On T3 Code, also install agent-tuneup. This skill reads its T3 permission check before it starts helper sessions.");
-    list.append(el("li", { className: "skill", id: `skill-${s.name}` },
-      el("h4", { className: "skill-name" },
-        el("a", { href: `${SOURCE}${s.name}/SKILL.md`, textContent: s.name }),
-        anchorFor(`skill-${s.name}`, s.name),
-        s.t3 ? el("span", { className: "tag", textContent: "Needs T3 Code" }) : null),
-      el("div", { className: "skill-body" },
-        el("p", { textContent: s.text }),
-        el("p", { className: "try" }, "Try: ", quote(s.try)),
-        notes.length ? el("p", { className: "note", textContent: notes.join(" ") }) : null,
-        el("div", { className: "skill-actions" },
-          termFor([s.name], `cmd-${s.name}`),
-          el("label", { className: "pick" }, box, `Pick ${s.name}`)))));
-  }
-  catalogue.append(el("div", { className: "group", id: `group-${g.id}` },
-    el("div", { className: "group-head" },
-      el("h3", {}, g.title, anchorFor(`group-${g.id}`, g.title)),
-      el("p", { textContent: g.text })),
-    list));
+for (const { name, row, install } of skills) {
+  const box = el("input", { type: "checkbox", value: name });
+  box.setAttribute("aria-label", `Select ${name}`);
+  box.setAttribute("aria-controls", "tray");
+  box.addEventListener("change", () => {
+    if (box.checked) picked.add(name);
+    else picked.delete(name);
+    renderTray();
+  });
+  row.querySelector(".skill-heading").prepend(box);
+  row.querySelector("h3").append(anchorFor(row.id, name));
+  install.querySelector(".term").append(copyButton(`cmd-${name}`, `Copy install command for ${name}`));
 }
+document.getElementById("multi-install-hint").hidden = false;
 
 // Tray
 const tray = document.getElementById("tray");
+const trayDetails = document.getElementById("tray-details");
 const withHelpers = document.getElementById("with-helpers");
+const trayCommand = document.getElementById("tray-cmd");
+new ResizeObserver(() => {
+  document.documentElement.style.setProperty("--tray-height", `${tray.offsetHeight}px`);
+}).observe(tray);
 // Direct helpers only: following links transitively pulls in most of the library.
 function withDirectHelpers(names) {
   const out = new Set(names);
   names.forEach(n => byName[n].uses.forEach(u => out.add(u)));
-  return SKILLS.map(s => s.name).filter(n => out.has(n));
+  return skills.map(s => s.name).filter(n => out.has(n));
 }
 function renderTray() {
   tray.hidden = picked.size === 0;
-  if (!picked.size) return;
-  const chosen = SKILLS.map(s => s.name).filter(n => picked.has(n));
+  if (!picked.size) {
+    trayDetails.open = false;
+    return;
+  }
+  const chosen = skills.map(s => s.name).filter(n => picked.has(n));
   const names = withHelpers.checked ? withDirectHelpers(chosen) : chosen;
   const extra = names.length - chosen.length;
   document.getElementById("tray-count").textContent =
-    `${chosen.length} ${chosen.length === 1 ? "skill" : "skills"} picked` + (extra ? `, plus ${extra} they call` : "");
+    `${chosen.length} selected` + (extra ? ` + ${extra} helpers` : "");
   document.getElementById("tray-t3").hidden =
     names.includes("agent-tuneup") || !names.some(n => byName[n].t3prep);
-  const pre = document.getElementById("tray-cmd");
-  pre.replaceChildren(`npx skills add ${REPO} --skill `, el("span", { className: "skill-arg", textContent: names.join(" ") }));
+  const skillArgs = names.flatMap(name => [" ", el("span", { className: "skill-arg", textContent: name })]);
+  trayCommand.replaceChildren(
+    "npx skills add ", el("span", { className: "cmd-repo", textContent: REPO }), " ",
+    el("span", { className: "skill-flag", textContent: "--skill" }), ...skillArgs,
+  );
 }
 withHelpers.addEventListener("change", renderTray);
 document.getElementById("add-tuneup").addEventListener("click", () => {
   catalogue.querySelector('input[type=checkbox][value="agent-tuneup"]').click();
+  tray.querySelector("[data-copy-target]").focus();
 });
 document.getElementById("clear").addEventListener("click", () => {
+  const boxes = catalogue.querySelectorAll("input:checked");
   picked.clear();
-  catalogue.querySelectorAll("input[type=checkbox]").forEach(b => { b.checked = false; });
+  boxes.forEach(box => { box.checked = false; });
   renderTray();
+  boxes[0]?.focus();
 });
 
 // Anchor copy: let the link navigate, and put the full URL on the clipboard.
@@ -397,29 +593,33 @@ document.addEventListener("click", async e => {
   }
 });
 
-// The catalogue is built after load, so scroll to a deep link once it exists.
-if (location.hash) {
-  const target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
-  if (target) requestAnimationFrame(() => target.scrollIntoView());
-}
-
 // Copy buttons
 document.addEventListener("click", async e => {
   const button = e.target.closest("[data-copy-target]");
   if (!button) return;
-  const text = document.getElementById(button.dataset.copyTarget).textContent;
+  const command = document.getElementById(button.dataset.copyTarget);
+  let copied = false;
   try {
-    await navigator.clipboard.writeText(text);
+    await navigator.clipboard.writeText(command.textContent);
+    copied = true;
   } catch {
     const range = document.createRange();
-    range.selectNodeContents(document.getElementById(button.dataset.copyTarget));
-    const sel = getSelection(); sel.removeAllRanges(); sel.addRange(range);
-    document.execCommand("copy");
+    range.selectNodeContents(command);
+    const selection = getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    copied = document.execCommand("copy");
+    if (copied) selection.removeAllRanges();
   }
-  button.textContent = "Copied";
-  button.dataset.done = "";
+  status.textContent = copied ? "Install command copied." : "Copy the selected command manually.";
+  button.textContent = copied ? "Copied" : "Copy";
+  button.toggleAttribute("data-done", copied);
   clearTimeout(button._t);
-  button._t = setTimeout(() => { button.textContent = "Copy"; delete button.dataset.done; }, 1600);
+  button._t = setTimeout(() => {
+    button.textContent = "Copy";
+    delete button.dataset.done;
+    status.textContent = "";
+  }, 1600);
 });
 </script>
 </body>

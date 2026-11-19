@@ -1,14 +1,15 @@
 ---
 name: raise-pr
-description: Use whenever creating or updating a pull request, including during implementation, review-loop, ship and PR maintenance.
+description: "Prepare, create or update a pull request during implementation, review-loop, ship or PR maintenance. Include the repository's required evidence and checks."
 ---
 
 # Raise a pull request
 
-Apply these requirements to new PRs and updates to existing PRs. Follow the
-repository's delivery policy; a repository that requires direct publication
-does not get a PR. This skill adds no authority to commit, push, upload private
-artifacts, create PRs, merge or deploy.
+Prepare the pull request with evidence for the exact change and its delivery
+gates. Apply the same checks when updating a PR. Follow the repository's
+delivery policy. If it requires direct publication, skip PR creation. This
+skill grants no authority to commit, push, upload private artifacts, create a
+PR, merge or deploy.
 
 Apply [GitHub writing](../github-writing/SKILL.md) to descriptions and comments,
 including drafts and later edits.

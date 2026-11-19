@@ -17,7 +17,7 @@ still needs your attention.
 > [!TIP]
 > **New here?** The [skills site](https://seankoji-com.github.io/.agents/)
 > describes every skill in plain language, with a copy-ready install command
-> for each one. This README is the full reference.
+> and a link to its definition on GitHub. This README is the full reference.
 
 ## Why these skills exist
 
@@ -302,6 +302,10 @@ a job, especially one that can publish or merge changes.
   when the route and settings can be verified.
 - **Evidence.** The agent reports checks against the revision it actually tested.
   Missing access, unavailable reviewers, and unverified behavior remain visible gaps.
+- **Stopped scoring loops.** The implementer reports what stalled and proposes
+  a changed approach. You can approve continuing `review-loop` or `hillclimb`
+  from the latest candidate, carrying forward valid judge access checks and the
+  time or budget already used.
 - **Follow-through.** Confirmed bugs deliberately left unfixed need tracking.
   The workflow records what remains rather than treating a passing check as the end.
 
@@ -493,23 +497,23 @@ for a human introduction, or open a skill here to read its exact instructions.
 
 | Skill | When to use it |
 | --- | --- |
-| [agent-tuneup](skills/agent-tuneup/SKILL.md) | Use when the user asks to audit, troubleshoot or change agent configuration, permissions, MCP connections or native skill discovery. |
-| [babysitter](skills/babysitter/SKILL.md) | Autonomously repair requested pull requests through verified merge. Use when asked to babysit, merge, watch or monitor PRs; honour explicit read-only and no-merge limits. |
-| [backlog-burn](skills/backlog-burn/SKILL.md) | Burn a repository's open issues and pull requests down to zero, or launch one run per repository for a named organisation. Use for backlog reduction, clearing open PRs, unblocking owner decisions or dispatching issue fixes. Prefer evidence-based closure and useful delegation up to 20. |
-| [challenge](skills/challenge/SKILL.md) | Pressure-test an idea, design or proposal with an independent reviewer. Use when the user asks for an adversarial second opinion, asks "are you sure", or wants to challenge assumptions; return findings without implementation. |
-| [choose-design](skills/choose-design/SKILL.md) | Use after product decisions are settled for new UI, requested redesigns or material unresolved visual or interaction choices. For existing UI, preserve its design and limit choices to the requested change; routine edits need no chooser. |
-| [focus-group](skills/focus-group/SKILL.md) | Use when the user requests a synthetic focus group or persona-based product evaluation, including planning, running or reviewing the study. |
-| [github-writing](skills/github-writing/SKILL.md) | Use whenever drafting or editing LLM-written GitHub issues, pull requests, comments, reviews, discussions or release notes on the user's behalf. |
-| [hillclimb](skills/hillclimb/SKILL.md) | Improve a candidate in scored rounds toward an agreed target, with a confirmed judging roster, a rolling report and a reviewed delivery. Use when the user asks for scored iteration on a workflow, artifact or product, including UI work judged on the real interface. |
-| [implement](skills/implement/SKILL.md) | Use when the user invokes implement or requests implementation through T3 delegates, returning reviewed commits for the main thread to integrate and ship. |
-| [plan-report](skills/plan-report/SKILL.md) | Propose a project plan or report progress and final calibration as a Gantt-style HTML report from a private JSON ledger. Use for coordinated runs, explicit timeline requests, or when ship, backlog-burn or implement calls for plan reporting. |
-| [raise-issue](skills/raise-issue/SKILL.md) | Use when the user or an authorised workflow asks to investigate, prepare, file or follow up on a bug, feature or task issue in an owned, organisation or external repository, using an asynchronous T3 delegate. |
-| [raise-pr](skills/raise-pr/SKILL.md) | Use whenever creating or updating a pull request, including during implementation, review-loop, ship and PR maintenance. |
-| [review](skills/review/SKILL.md) | Use for independent reviews of plans, code, UI, backend and releases, including review-loop participants and think's stop-condition check. Code review must differ in lineage from the code authors. |
-| [review-loop](skills/review-loop/SKILL.md) | Use when the user requests an iterative implementation, independent review and repair loop, or invokes review-loop to carry a goal to an agreed endpoint. |
-| [ship](skills/ship/SKILL.md) | Use when the user explicitly asks to ship a change, or backlog-burn invokes delivery, with visible progress tracking and a final workflow retrospective. |
-| [test-writer](skills/test-writer/SKILL.md) | Use when writing or reviewing tests, choosing regression coverage, or assessing test value, reliability and CI runtime. |
-| [think](skills/think/SKILL.md) | Think a plan, decision or idea through with focused questions until it is ready to build. Use when the user says think or thinking about a plan, decision or idea, such as think this through, think about it or keep thinking, asks to interrogate or stress-test it, or wants an interview to clarify their thinking. |
+| [agent-tuneup](skills/agent-tuneup/SKILL.md) | Audit, troubleshoot or change agent configuration, permissions, MCP connections or native skill discovery when the user asks. |
+| [babysitter](skills/babysitter/SKILL.md) | Repair and monitor open pull requests through verified merge when asked to babysit, merge, watch or monitor them. Honour read-only and no-merge limits. |
+| [backlog-burn](skills/backlog-burn/SKILL.md) | Clear open issues and pull requests or launch one backlog run per repository in a named organisation. Close obsolete work with evidence, resolve owner decisions and delegate worthwhile fixes within a cap of 20. |
+| [challenge](skills/challenge/SKILL.md) | Pressure-test an idea, design or proposal with an independent reviewer when asked to challenge assumptions, give a second opinion or answer 'are you sure?'. Return findings without edits. |
+| [choose-design](skills/choose-design/SKILL.md) | Compare design options after product decisions are settled for new UI, a requested redesign or an unresolved visual or interaction choice. Preserve the existing design for routine edits. |
+| [focus-group](skills/focus-group/SKILL.md) | Plan, run or review a synthetic focus group or product study with fictional participants. |
+| [github-writing](skills/github-writing/SKILL.md) | Add a byline when drafting or editing AI-written GitHub issues, pull requests, comments, reviews, discussions or release notes on the user's behalf. |
+| [hillclimb](skills/hillclimb/SKILL.md) | Improve a workflow, artifact or product toward an agreed score over several rounds. Confirm the judges, report each round and review delivery. Judge UI work on the real interface. |
+| [implement](skills/implement/SKILL.md) | Implement through T3 delegation when the user requests it or invokes implement. Return reviewed commits to the main thread for integration and delivery. |
+| [plan-report](skills/plan-report/SKILL.md) | Show a plan, progress or final calibration on an HTML timeline from a private ledger. Use for coordinated work, timeline requests or reporting in ship, backlog-burn and implement. |
+| [raise-issue](skills/raise-issue/SKILL.md) | Investigate, draft, file or follow up on a bug, feature or task issue when the user or an authorised workflow asks. Use an asynchronous T3 delegate. |
+| [raise-pr](skills/raise-pr/SKILL.md) | Prepare, create or update a pull request during implementation, review-loop, ship or PR maintenance. Include the repository's required evidence and checks. |
+| [review](skills/review/SKILL.md) | Review plans, code, UI, backend or releases independently, including review-loop and think's readiness check. Code reviewers must come from a different model family than the code authors. |
+| [review-loop](skills/review-loop/SKILL.md) | Implement, review and repair in rounds when asked to iterate with independent review or when the user invokes review-loop. Work toward the agreed score and acceptance criteria. |
+| [ship](skills/ship/SKILL.md) | Deliver and verify a change when the user explicitly asks to ship or backlog-burn calls for delivery. Show progress and finish with a retrospective. |
+| [test-writer](skills/test-writer/SKILL.md) | Write or review tests, choose regression coverage, or assess test value, reliability and CI runtime. |
+| [think](skills/think/SKILL.md) | Turn an idea, plan or decision into a brief ready to build. Use when asked to think about it, think it through, keep thinking, interrogate or stress-test it, or clarify it through an interview. |
 
 <!-- skill-catalog:end -->
 
@@ -565,12 +569,12 @@ python3 -B scripts/check_library.py --update-readme --acknowledge-docs
 The command regenerates the catalog and records the current instruction digest.
 It preserves the hand-written prose and diagrams. A review receipt records an
 acknowledgement; it cannot prove that a human or model checked every claim.
-Tests do not establish Mermaid rendering, live model behaviour, installed skill
-discovery or deployment success. Those need separate evidence.
+Browser checks are needed to verify the rendered site. Live model behaviour,
+installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: a1f59ab36f8370f4de2b80b852a9020e6ff08446c3686684c0003c736bc159e5 -->
+<!-- skills-review: 4bc2b8fdf4ae71c5575817dabe5fdc9d0cbf68e55a20ef3e936ce6867b8e31e1 -->
 
 ### Owner maintenance
 

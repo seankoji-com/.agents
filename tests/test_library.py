@@ -577,19 +577,23 @@ class Documentation(unittest.TestCase):
     def test_site_skill_list_tracks_registered_skills(self):
         page = self.root / 'site/index.html'
         original = page.read_text()
-        renamed = original.replace('{ name: "think", group:', '{ name: "ponder", group:')
+        renamed = original.replace('id="skill-think"', 'id="skill-ponder"')
         cases = {
             'missing skill: think': renamed,
             'unknown skill: ponder': renamed,
             'duplicate skill: think':
-                original.replace('{ name: "challenge", group:', '{ name: "think", group:'),
+                original.replace('id="skill-challenge"', 'id="skill-think"'),
             'install command names unknown skill: interrogate':
                 original + '<!-- npx skills add seankoji-com/.agents --skill interrogate -->\n',
+            'missing GitHub definition link: think':
+                original.replace('/skills/think/SKILL.md', '/skills/review/SKILL.md', 1),
+            'missing install link or target: think':
+                original.replace('href="#install-think"', 'href="#install-review"', 1),
+            'incorrect install command: think':
+                original.replace('<span class="skill-arg">think</span>',
+                                 '<span class="skill-arg">review</span>', 1),
             'unknown related skill: interrogate':
-                original.replace('uses: ["review"] }', 'uses: ["interrogate"] }', 1),
-            'picker names unknown skill: interrogate':
-                original.replace('["argue with my idea", "challenge"],',
-                                 '["argue with my idea", "interrogate"],'),
+                original.replace('href="#skill-review"', 'href="#skill-interrogate"', 1),
         }
         for expected, text in cases.items():
             with self.subTest(expected=expected):
@@ -633,6 +637,17 @@ class Documentation(unittest.TestCase):
                 self.assertNotIn('stale skill catalog', errors)
                 source.write_text(original)
 
+    def test_continuation_heading_remains_reachable_from_both_loop_skills(self):
+        reference = self.root / 'skills/review/references/budget-exhaustion.md'
+        reference.write_text(reference.read_text().replace(
+            '## Continue a stopped scoring loop', '## Renamed fixture heading'))
+        errors = self.errors()
+        for name in ('hillclimb', 'review-loop'):
+            with self.subTest(name=name):
+                self.assertIn(f'skills/{name}/SKILL.md: broken heading link: '
+                              '../review/references/budget-exhaustion.md'
+                              '#continue-a-stopped-scoring-loop', errors)
+
     def test_new_skill_reference_requires_docs_review_before_it_is_staged(self):
         reference = self.root / 'skills/ship/references/fixture-new-rule.md'
         reference.parent.mkdir(exist_ok=True)
@@ -652,16 +667,16 @@ class Documentation(unittest.TestCase):
         self.assertIn('missing skill: think', self.errors())
         self.assertIn('unregistered skill: renamed-think', self.errors())
 
-    def test_mermaid_skill_nodes_reject_retired_names_and_invalid_annotations(self):
+    def test_workflow_diagrams_link_registered_skills(self):
         guide = self.root / 'site/workflows.html'
         original = guide.read_text()
         cases = {
-            'unknown Mermaid skill: retired-review':
-                original.replace('"review&lt;br/&gt;', '"retired-review&lt;br/&gt;'),
-            'malformed Mermaid skill node': original.replace(':::skill', ':::skill-extra', 1),
+            'links unknown skill: retired-review':
+                original.replace('href="./#skill-review-loop"', 'href="./#skill-retired-review"', 1),
             'links unknown skill: interrogate':
                 original.replace('/skills/think/SKILL.md', '/skills/interrogate/SKILL.md', 1),
-            'missing Mermaid diagrams': original.replace('<pre class="mermaid">', '<pre>'),
+            'missing workflow diagram: outcome':
+                original.replace('<figure class="workflow-map">', '<figure>', 1),
         }
         for expected, text in cases.items():
             with self.subTest(expected=expected):
@@ -670,7 +685,8 @@ class Documentation(unittest.TestCase):
                 self.assertIn(f'site/workflows.html: {expected}', self.errors())
         guide.unlink()
         self.assertIn('site/workflows.html: missing workflow guide', self.errors())
-        # README diagrams, if any return, are held to the same rule.
+
+    def test_readme_mermaid_rejects_retired_skill_names(self):
         self.readme.write_text(self.readme.read_text() +
                                '\n```mermaid\nflowchart TD\n    a["retired-review<br/>x"]:::skill\n```\n')
         self.assertIn('README.md: unknown Mermaid skill: retired-review', self.errors())

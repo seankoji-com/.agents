@@ -1,9 +1,13 @@
 ---
 name: raise-issue
-description: Use when the user or an authorised workflow asks to investigate, prepare, file or follow up on a bug, feature or task issue in an owned, organisation or external repository, using an asynchronous T3 delegate.
+description: "Investigate, draft, file or follow up on a bug, feature or task issue when the user or an authorised workflow asks. Use an asynchronous T3 delegate."
 ---
 
 # Raise an issue
+
+Check what needs tracking and whether an issue already covers it. Prepare the
+evidence, then file or update the issue in a background T3 task when authorised.
+Return the verified link after posting.
 
 Apply [GitHub writing](../github-writing/SKILL.md) to issue bodies, updates and
 follow-up comments, including its path in writer assignments.
@@ -44,20 +48,21 @@ merge is not permission to cancel or forget a pending filing job.
 
 ## Workflow
 
-1. Establish the requested outcome: investigation, a draft, submission, an update
-   or follow-up. Reuse supplied filing authority; investigation alone does not
+1. **Confirm the outcome and authority.** Identify whether the user wants an
+   investigation, draft, submission, update or follow-up.
+   Reuse supplied filing authority. Investigation alone does not
    authorise publication. Infer the issue type and owning repository from the
    request, source and verified remotes. Ask only when a material destination or
    scope choice remains unresolved. Repository ownership does not itself grant
    authority to post, assign work or change repository settings.
-2. Read the repository's issue templates, contribution and security policies,
-   including applicable organisation defaults. For owned or organisation repos,
+2. **Find the reporting route.** Read issue templates, contribution and security
+   policies, including applicable organisation defaults. For owned or organisation repos,
    use their internal conventions and preserve accepted decisions and criteria.
    For external/upstream repos, verify the canonical project and its accepted
    reporting channel, and make the issue understandable without private context.
    Use the documented private route for security reports. An uncertain destination
    or unavailable required policy leaves a draft and a specific gap.
-3. Establish the evidence and choose the content below. Reuse sufficient evidence
+3. **Gather evidence.** Reuse sufficient evidence
    from the caller instead of repeating investigation. For bugs needing diagnosis,
    use a default ten-minute active diagnostic budget with at most two
    transient-read retries; retain partial evidence and budgets on resume.
@@ -65,20 +70,20 @@ merge is not permission to cancel or forget a pending filing job.
    deferred bug, prepare a useful issue from existing evidence; leave an unknown
    root cause explicit instead of requiring fresh diagnosis before filing.
    Features and tasks do not need a bug reproduction.
-4. Search open and closed issues, including relevant bodies, comments, partial
-   fixes and redirects. Compare the actual defect or desired outcome, not just
+4. **Check for duplicates.** Search open and closed issues, including relevant
+   bodies, comments, partial fixes and redirects. Compare the actual defect or desired outcome, not just
    titles or shared triggers. Inspect the relevant results before claiming a
    duplicate or a complete search. Choose the disposition below; an incomplete
    search leaves a draft with the search gap.
-5. Prepare a focused, self-contained issue using the applicable template. Include
+5. **Write the issue.** Use the applicable template. Include
    relevant constraints, non-goals, evidence, acceptance criteria, related issues
    or PRs and unresolved questions. Preserve reviewer finding IDs, severity and
    deferral reasons when supplied. Verify existing labels, assignees and milestones
    before applying them, and use only authorised assignments or metadata changes.
    Review outgoing text and attachments for secrets, private code/transcripts,
    hostnames and machine paths; share private material only with authority.
-6. When authorised, use supported API tools or an authenticated CLI to create the
-   issue or update a matching existing one. After a timeout or lost response,
+6. **Post and verify when authorised.** Use supported API tools or an authenticated
+   CLI to create the issue or update a matching one. After a timeout or lost response,
    reconcile the destination before retrying to avoid duplicates. Read back the
    actual result and verify its repository, content and URL. Record the verified
    URL and write timestamp; a draft or submission attempt is not a filed issue.

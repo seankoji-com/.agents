@@ -1,11 +1,12 @@
 ---
 name: backlog-burn
-description: Burn a repository's open issues and pull requests down to zero, or launch one run per repository for a named organisation. Use for backlog reduction, clearing open PRs, unblocking owner decisions or dispatching issue fixes. Prefer evidence-based closure and useful delegation up to 20.
+description: "Clear open issues and pull requests or launch one backlog run per repository in a named organisation. Close obsolete work with evidence, resolve owner decisions and delegate worthwhile fixes within a cap of 20."
 ---
 
 # Burn the backlog to zero
 
-Close delivered or obsolete issues and PRs with evidence; run fixes while triaging.
+Bring open issues and pull requests to zero. Close delivered or obsolete work
+with evidence and start ready fixes while you triage the rest.
 
 Apply [plan-report](../plan-report/SKILL.md) at proposal, task completion, final
 handback and on request. Review/fix rounds get short chat updates.

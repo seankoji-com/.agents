@@ -1,9 +1,9 @@
 ---
 name: test-writer
-description: "Use when writing or reviewing tests, choosing regression coverage, or assessing test value, reliability and CI runtime."
+description: "Write or review tests, choose regression coverage, or assess test value, reliability and CI runtime."
 ---
 
-# Write tests worth running
+# Test the failures that matter
 
 ## Philosophy
 

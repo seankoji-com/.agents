@@ -1,150 +1,155 @@
 ---
 name: review-loop
-description: "Use when the user requests an iterative implementation, independent review and repair loop, or invokes review-loop to carry a goal to an agreed endpoint."
+description: "Implement, review and repair in rounds when asked to iterate with independent review or when the user invokes review-loop. Work toward the agreed score and acceptance criteria."
 ---
 
 # Implement, review, repair
 
-## Triggers
-
-Infer the goal and endpoint from the request; ordinary engineering work does not
-automatically need this loop.
+Agree on what success looks like, then alternate repairs and independent
+evaluation. Stop when the score and required checks pass, or report the best
+result if two consecutive rounds fail to improve it. Ordinary engineering work
+does not automatically need this loop.
 
 ## Workflow
 
-1. Inspect the request, repository rules, working tree and existing progress.
-   Establish scope, observable acceptance criteria and the authorized endpoint,
-   which may be a verified local change. Ask only about material unresolved choices.
-   Preserve explicit user limits. Fix the scoring rubric, precision and target
-   before implementation; reuse supplied criteria and ask only if the target
-   cannot be inferred. Seed the best score with a baseline evaluation. Hill-climb
-   from the best candidate: only a strict increase replaces the best and resets
-   the consecutive non-improvement counter. A tie or regression increments it.
-   Stop successfully when the target and required acceptance gates are met, or
-   stop incomplete after two consecutive rounds without improving the best score.
-   No round cap, deadline or spend ceiling is required. Honour explicit user
-   limits. Preserve scores and counters across repairs, reviewers and resumes.
-   Test target and required gates before stagnation. Baseline seeds the best with
-   counter zero; later completed evaluations count once each. Retain the earlier
-   best on ties. Preserve required bug fixes when selecting the repair base or
-   final candidate; a higher historical score cannot justify dropping them.
-   When additional judges score a round, use the lowest score on the same frozen
-   candidate. Record any metric change explicitly; retain prior progress history.
-2. Apply [review](../review/SKILL.md) for scope-appropriate eligibility, reviewer
-   selection and dispatch. Only the coordinator reads that skill. It obtains
-   review and owns [feedback dispositions](../review/references/feedback-dispositions.md).
-   Evaluators read review's
-   [assigned-reviewer card](../review/references/assigned-reviewer.md) and
-   return evidence without further delegation. Implementers read its
-   [implementation-participant card](../review/references/implementation-participant.md)
-   and repair selected findings. Follow review's rule for named reviewers and
-   conflicts.
-3. For UI work likely to end in a PR, apply [raise-pr](../raise-pr/SKILL.md) early
-   to capture practical mobile and desktop before screenshots.
-   Implement directly unless substantial independent work warrants delegation;
-   make small review repairs directly when authorized. Keep concise notes in a
-   verified ignored task directory: goal, authority, scope, milestones, base/head,
-   exact models and
-   options, scores, best candidate, non-improvement counter, explicit limits,
-   task handles, stable finding IDs, dispositions,
-   checks and next action. Mirror the baseline, review rounds, repairs and final
-   verification on the
-   [native task list](../ship/references/native-task-list.md) when the host
-   exposes one; scores and counters stay in the notes.
-   Use one primary evaluator plus review's required parallel
-   companions per round. Further opinions need a concrete unresolved risk or disagreement.
-   Only code review has code-author lineage restrictions. Apply review's
-   selection policy across all rounds and additional opinions, including inside
-   implement; report unavailable choices. Routine rechecks
-   can use the original reviewer's lineage
-   while it remains eligible under review, including after repairs by new authors.
-   Keep the rubric and target fixed; agreement alone is not acceptance.
-   Follow review's dispatch rules for every round. Every loop brief gives the
-   absolute path of the participant's role card and requires reading it.
-   Schedule independent preparation and covering checks concurrently where their
-   resources do not interfere. Dispatch multiple selected evaluators together
-   once their prerequisites are met. While review runs, organize evidence,
-   prepare the handoff and investigate existing failures read-only; draft repair
-   options as notes. Keep source, build, runtime and test data frozen for all
-   evaluators. Use isolation for conflicting checks or defer them. Wait only
-   when remaining work depends on results, following host continuation rules.
-4. Run covering checks before review and report missing or pre-failing checks.
-   Establish the merge-base and owned paths, including untracked source, for the
-   review phase. Round one uses a fresh read-only evaluator on the full scoped
-   diff, surrounding callers and every acceptance criterion. Supply intent,
-   exclusions, version, checks, rubric and target; require a score with evidence.
-   Ask for consequential
-   bugs, broken callers and unnecessary code, tests, guards or procedure.
-   Name the assigned-reviewer card in the review brief. Require key-state screenshots for visible behavior and every
-   visible finding; the reviewer reports bugs and SEV1–SEV3 severity to the parent,
-   which owns repair, deferral and issue-filing decisions within its authority.
-   Require a complete plain-text final report with stable finding IDs, severity,
-   file:line, evidence and impact. Delegates must not use `html_render`; findings
-   must reach the coordinator, not only a child-thread presentation.
-   Do not edit scoped files while evaluation runs. A timeout, error, missing reply
-   or task completion status is not approval. Cancel failed work and verify it
-   stopped before one diagnosed retry. Missing evaluations have no score and do
-   not advance the score counter; stop incomplete if recovery fails.
-5. Verify each finding using severity, location, reproduction or supporting evidence,
-   and impact, and apply review's release treatment for its SEV level.
-   When two consecutive completed code review rounds produce distinct, verified
-   material findings that expose the same design assumption, reconsider it before
-   the next permitted repair. Record the assumption, both finding IDs and one
-   option that removes the assumption while meeting the existing criteria. If
-   no such option is viable, record why.
-   Repair findings selected by the
-   parent and unmet criteria within scope. Capture fresh evidence for visible
-   fixes and preserve original findings. Prefer deleting or narrowing when it fixes the
-   cause. Challenge incorrect or unnecessary requests with evidence rather than
-   appeasing the reviewer. Preserve original finding IDs and append fixed,
-   rejected or deferred evidence. Track diff growth as a prompt to examine scope,
-   not a line-count target.
-6. For adopted `review_rounds: 1`, apply bounded
-   [coordinator verification](../review/references/single-round.md); read it before using that exception.
-   Otherwise later rounds use fresh read-only evaluation tasks focused on changed
-   behavior and unresolved findings. Supply the full scoped diff, the delta since the last
-   review, checks and finding ledger. If step 5 identified a shared assumption,
-   name it in the next reviewer brief and ask whether the revised design still
-   depends on it. Broaden review when a change affects shared
-   assumptions, interfaces or previously reviewed behavior. Keep the phase's base
-   and scope explicit; if either changes, record why and reassess affected evidence.
-   Keep handed-off candidates reachable. Name the revised SHA and its own checks
-   when a repair or authorised rebase supersedes one.
-   Re-review material behavior changes, unresolved consequential findings or gaps
-   in acceptance coverage. Editorial corrections and declined nits need no new
-   round. Never transfer approval across unreviewed behavior or shop for reviewers.
-7. Accept when evidence covers current behavior, criteria are met
-   and remaining findings have explicit dispositions consistent with
-   review's release treatment. Require the score target unless the adopted
-   [single-round exception](../review/references/single-round.md) replaces that score gate.
-   An approved exception does not mean the bug is fixed. Incomplete
-   visual review remains an evidence gap in the release recommendation.
-   Reviewer verdicts inform that decision; agreement alone does not prove it.
-   The parent decides deferrals and retains severity and supporting evidence.
-   Apply review's deferred-bug tracking rule: hand off verified issue URLs or
-   owned asynchronous filing requests for already non-blocking bugs. Filing
-   remains within authority and tracking stays incomplete until URLs are verified.
-   On stagnation, explicit limits or extension requests, apply
-   [progress diagnosis](../review/references/budget-exhaustion.md)
-   and report the unmet target and remaining gates. Stagnation is not approval.
-   Escalate only material decisions the user must make. Continue independent
-   authorized work while dependent work is blocked.
-8. Complete the agreed endpoint with its required evidence. For PR creation or
-   updates, apply [raise-pr](../raise-pr/SKILL.md) for templates, screenshots,
-   agent attribution and independent review. A source fix does not
-   complete a requested merge or deployment. Bundle local review repairs before
-   pushing when practical; an authorized branch push or existing-PR update may
-   happen earlier when hosted checks or previews are needed for proof. New PR
-   creation still requires completed independent review under raise-pr. If proof
-   requires creating a PR before review, report that dependency and seek an
-   explicit user waiver rather than infer one. Refresh current-head
-   checks/reviews before merging.
-   Verify the deployed revision and actual behavior on each requested target.
-   At a blocker, stagnation stop or explicit limit, report what remains incomplete.
+1. **Set the scope and score.** Read the request, repository rules, working tree
+   and existing progress. Identify observable acceptance criteria and the
+   authorised endpoint, which may be a verified local change. Ask only about
+   material unresolved choices.
 
-On resume, reconcile existing tasks and preserve decisions, findings and remaining
-scores, best candidate, counters and explicit limits. On cancellation, stop only
-owned work and confirm it stopped.
+   - Fix the rubric, precision and target before editing. Reuse supplied criteria
+     and ask about the target only if you cannot infer it.
+   - Score a baseline and start the non-improvement counter at zero. Count each
+     completed evaluation once. A higher score becomes the best and resets the
+     counter. A tie or lower score increments it and keeps the earlier best.
+   - Check the target and required gates first. If they pass, finish. Otherwise
+     stop incomplete after two consecutive rounds without a higher score.
+   - Preserve required bug fixes when choosing the repair base or final candidate,
+     even if an older candidate scored higher. Keep scores, counters and prior
+     progress across repairs, reviewers and resumes. Record any metric change.
+   - If multiple judges score a round, use the lowest score on the same frozen
+     candidate. Honour explicit round, deadline and spending limits.
+     The workflow needs no default ceiling.
+
+2. **Choose reviewers and assign roles.**
+
+   - The coordinator reads [review](../review/SKILL.md) for eligibility, named
+     models, conflicts and dispatch. It obtains review and owns
+     [feedback dispositions](../review/references/feedback-dispositions.md).
+   - Evaluators read the [assigned-reviewer card](../review/references/assigned-reviewer.md)
+     and return evidence without delegating.
+   - Implementers read the
+     [implementation-participant card](../review/references/implementation-participant.md)
+     and repair selected findings.
+
+3. **Prepare the run.**
+
+   - For UI work likely to end in a PR, use [raise-pr](../raise-pr/SKILL.md)
+     before editing to capture practical mobile and desktop baselines.
+   - Implement directly by default. Delegate substantial independent work when
+     it warrants a worker. Make small authorised review repairs directly.
+   - In a verified ignored directory, record goal, authority, scope, milestones,
+     base and head, models and options, scores, best candidate, non-improvement
+     counter, limits, task handles, finding IDs, dispositions, checks and next
+     action. If the host exposes a [native task list](../ship/references/native-task-list.md),
+     show the baseline, rounds, repairs and final verification there. Keep scores
+     and counters in the notes.
+   - Use one primary evaluator and review's required companions. Add opinions only
+     for an unresolved material risk or disagreement. Apply review's model
+     selection to every round, including inside implement. Code-author lineage
+     restricts code review only. Reuse the reviewer's lineage for a routine recheck
+     if it still qualifies after any repairs. Report unavailable choices.
+   - Follow review's dispatch rules. Give every participant the absolute path
+     to their role card and require them to read it. Run independent preparation
+     and checks in parallel when safe, and start the selected evaluators together
+     once ready.
+   - Freeze source, build, runtime and test data during evaluation. While it runs,
+     organise evidence, prepare the handoff, investigate failures read-only and
+     record repair options. Isolate checks that could disturb the candidate, or
+     defer them. Follow host continuation rules while results are pending.
+
+4. **Evaluate the frozen candidate.**
+
+   - Run covering checks and report missing or pre-failing ones. Record the
+     merge base and owned paths, including untracked source.
+   - For round one, give a fresh read-only evaluator the full scoped diff,
+     callers and acceptance criteria. Include intent, exclusions, revision,
+     check results, rubric and target. Ask for a score with evidence, material
+     bugs, broken callers and unnecessary code, guards, tests or procedure.
+   - Require screenshots of key visible states and findings. Require a
+     plain-text report to the parent with stable IDs, SEV1–SEV3 severity,
+     location, evidence and impact. Delegates may not use `html_render`.
+     Task completion alone does not establish approval.
+   - Keep scoped files frozen. If evaluation fails or returns no report, cancel
+     any active failed task and verify it has stopped. Diagnose the failure before one
+     retry. Missing evaluations have no score and leave the counter unchanged.
+     Stop incomplete if recovery fails.
+
+5. **Verify findings and repair within scope.**
+
+   - Confirm each finding's location, evidence, severity and impact. The parent
+     decides repairs, deferrals and issue filing under review's release rules.
+   - If consecutive completed code reviews find different verified material
+     defects from the same design assumption, reconsider it before the next
+     repair. Record the assumption, both finding IDs and an option that removes
+     the assumption while meeting the criteria, or explain why none is viable.
+   - Address selected findings and unmet criteria. Delete or narrow code when
+     that fixes the cause. Decline unsupported requests with evidence.
+   - Preserve original findings and IDs. Append each fix, rejection or deferral
+     with its evidence. Take fresh captures of visible fixes. Use diff growth to
+     check scope, without setting a line-count target.
+
+6. **Recheck material changes.**
+
+   - Re-review changed behaviour, unresolved consequential findings and gaps
+     in acceptance evidence. Editorial corrections and declined nits need no
+     new round. Never transfer approval across unreviewed behaviour or shop
+     for reviewers.
+   - If the project adopted `review_rounds: 1`, read and apply the
+     [one-round exception](../review/references/single-round.md) before verifying
+     eligible repairs. Otherwise dispatch a fresh read-only evaluator.
+   - Supply the full scoped diff, changes since the last review, checks and findings.
+     If a design assumption recurred, name it and ask whether the repair still
+     relies on it. Broaden review when shared assumptions, interfaces or earlier
+     behaviour change.
+   - Keep the base and scope explicit. Record why either changed and reassess
+     the evidence. Preserve handed-off candidates and name each superseding SHA
+     with the checks run on it.
+
+7. **Accept the evidence or explain the stop.**
+
+   - Confirm current evidence covers the criteria, required checks and score.
+     Apply the adopted one-round exception only where it replaces the score gate.
+     Report incomplete visual coverage in the release recommendation.
+   - Apply review's release rules to each remaining finding. The parent owns
+     deferrals and retains severity and evidence. Agreement or a release exception
+     alone does not prove the work is fixed.
+   - Track confirmed non-blocking bugs left unfixed. Use verified issue URLs or
+     owned asynchronous filing requests within authority. Tracking finishes when
+     the URLs are verified.
+   - If the loop stops incomplete, collect the implementer's retrospective and
+     offer [a changed approach from the latest candidate](../review/references/budget-exhaustion.md#continue-a-stopped-scoring-loop).
+     Use [progress diagnosis](../review/references/budget-exhaustion.md) for limits
+     and extensions. Report the unmet target and remaining gates. Escalate only
+     decisions that need the user, and continue independent authorised work.
+
+8. **Verify the agreed endpoint.**
+
+   A source fix does not complete a requested merge or deployment.
+
+   - For PR creation or updates use [raise-pr](../raise-pr/SKILL.md) for
+     evidence, templates, screenshots, attribution and independent review.
+     New PRs need completed independent review. If proof needs a PR before
+     review, state the dependency and obtain an explicit waiver from the user.
+   - Bundle local repairs before pushing when practical. An authorised branch
+     push or existing PR update can happen earlier for hosted checks or previews.
+     Refresh checks and reviews for the current head before merging.
+   - For a requested deployment, verify the deployed revision and actual
+     behaviour on each target. Report the actual endpoint and any incomplete gate.
+
+On an ordinary resume, reconcile tasks and preserve decisions, findings, scores,
+best candidate, counters and limits. Use the continuation procedure for an
+operator-approved new baseline. On cancellation, stop only owned work and confirm it stopped.
 
 ## Outputs
 

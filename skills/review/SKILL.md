@@ -1,61 +1,68 @@
 ---
 name: review
-description: Use for independent reviews of plans, code, UI, backend and releases, including review-loop participants and think's stop-condition check. Code review must differ in lineage from the code authors.
+description: "Review plans, code, UI, backend or releases independently, including review-loop and think's readiness check. Code reviewers must come from a different model family than the code authors."
 ---
 
 # Review against the goal
 
-Review the requested scope against its requirements. Cross-lineage restrictions
-apply only to written code and its material model authors. The orchestrator's
-lineage is irrelevant unless it also wrote that code. Plans, prose and visual
-judgments have no lineage exclusion.
-Read [project settings](../ship/references/project-settings.md) at start.
-This skill owns review evidence and severity; it grants no repair, filing or release authority.
+Check the requested work against its requirements. Return findings with evidence
+and severity. Read [project settings](../ship/references/project-settings.md)
+before choosing reviewers.
+
+Code reviewers must come from a different model family than each material
+code author. Count the orchestrator only if it wrote code. Reviewers of plans,
+prose and visual behaviour have no family restriction. The caller owns repairs,
+filing and release authority.
 
 ## Obtain an independent review
 
 The coordinator obtains review; assigned reviewers never delegate.
 Apply [T3 dispatch preflight](../agent-tuneup/references/t3-dispatch.md) before T3 dispatch.
 
-1. Identify the scope, exact revision or decision brief, acceptance criteria,
-   every model that materially authored the reviewed code, including repairs.
+1. **Set the review scope.** Record the exact revision or decision brief,
+   acceptance criteria and every model that materially wrote the code or repairs.
    Distinguish human authors from unknown model identities.
-2. Discover supported host tasks and exact model identities. Code reviewers, including OCR backends,
-   must differ in lineage from every material code author. Versions, effort settings and
-   provider aliases do not change lineage. Record identities and lineage evidence.
-   Apply [reviewer model selection](references/model-selection.md) to every
-   review, recheck and additional opinion, including inside implement. Preserve
-   named choices and apply its authorised credit/lineage fallbacks and holds.
-   Run the required [parallel companions](references/parallel-review.md) on the
-   same frozen revision; OCR runs only where the repository has no PR path.
-   The primary reviews the whole scope, visuals included; other judges may share
-   any lineage but cannot replace it.
-3. Reuse completed reviews only when eligible against all current code authors,
-   including repairers, and covering the current head or decision brief with all
-   required companion reports. Obtain missing companion coverage before reuse.
-   Otherwise obtain a fresh read-only review through authorized host orchestration.
-   Supply the request, scope, source/version, evidence, criteria and model identities.
-   Apply the [reviewer brief](references/reviewer-brief.md) for fixed source,
-   permitted checks, scratch ownership and cleanup. Give the reviewer the
-   absolute path of the [assigned-reviewer card](references/assigned-reviewer.md)
-   and require reading it; a reviewer does not need this skill.
-   In T3 Code, discover models with
-   `orchestrator_capabilities`, use a new `delegate_task` for every review or
-   recheck that the coordinator dispatches, record its `taskId` and follow its
-   returned `next`. Use native orchestration elsewhere. Respect caller delegation
-   limits. OCR runs through its library CLI, not host-agent model dispatch.
-   External reviews must meet these identity, scope and reporting rules;
-   otherwise report the specific review gate.
-4. For adopted `review_rounds: 1`, apply the
-   [single-round procedure](references/single-round.md) before repairs.
-   Otherwise follow the caller's stopping rule. `review-loop` and `hillclimb`
-   use score targets and two-round stagnation. Hillclimb's scoring roster
-   follows its own skill. Standalone review allows three rounds, including failures.
-   On stalling or exhaustion, apply the [budget diagnosis](references/budget-exhaustion.md).
-   Recheck material changes or unresolved findings; do not seek unanimity or
-   restart budgets by changing reviewer. Receive the complete report before
-   treating the review as completed. A timeout, missing reply or task status
-   alone is not a review.
+2. **Choose the reviewers.**
+
+   - Identify available host tasks and exact models. Record the lineage of each
+     code reviewer, including OCR backends. Lineage means model family. Model
+     versions, effort and provider aliases do not change it.
+   - Apply [model selection](references/model-selection.md) to each review,
+     recheck and additional opinion, including inside implement. Honour named
+     choices and the applicable credit, lineage and permission rules.
+   - The primary covers the whole change, including visuals. Run required
+     [companions](references/parallel-review.md) on the same frozen revision.
+     Run OCR only where the repository has no PR path or the user asks for it.
+     Other judges may share a lineage and cannot replace the primary.
+3. **Reuse or dispatch.** Reuse completed reviews only if they cover the current
+   head or brief and qualify against every current code author, including
+   repairers. If the primary qualifies, obtain any missing companion reports
+   before relying on it. If no primary qualifies, dispatch a fresh read-only
+   review within the caller's limits.
+
+   - Supply the request, scope, revision, evidence, criteria and model
+     identities. Follow the [reviewer brief](references/reviewer-brief.md) for
+     frozen source, allowed checks, scratch ownership and cleanup. Require
+     reading the [assigned-reviewer card](references/assigned-reviewer.md) at
+     its absolute path.
+   - In T3 Code, discover models with `orchestrator_capabilities` and use a new
+     `delegate_task` for each review or recheck you dispatch. Record its
+     `taskId` and follow `next`. Use native orchestration elsewhere and the OCR
+     library CLI for OCR.
+   - Apply these identity, scope and reporting rules to external reviews.
+     Report any qualifying evidence still missing.
+4. **Stop when review is complete or the caller's limit is reached.**
+
+   - Read the [single-round procedure](references/single-round.md) before
+     repairing under an adopted `review_rounds: 1`. Otherwise follow the caller's
+     stop rule. Standalone review allows three rounds, including failures.
+     `review-loop` and `hillclimb` use score targets and stop after two rounds
+     without improvement. Hillclimb's own skill governs its scoring roster.
+   - Recheck material changes or unresolved findings. Use the
+     [budget diagnosis](references/budget-exhaustion.md) when review stalls or
+     runs out of attempts. Preserve budgets across reviewers. Do not seek unanimity.
+   - Require the complete report. A timeout, missing reply or task status alone
+     is not a review.
 
 If required code-author identities cannot be verified, no eligible reviewer is available, or
 required dispatch is prohibited, report the specific review gate and hold work
@@ -65,26 +72,23 @@ Required human approval remains a separate gate.
 
 ## Reviewer and parent responsibilities
 
-Children read a role card, not this skill. Each card restates these rules for
-one role and links to nothing else:
+Give each delegate its self-contained role card as its only review instructions.
 
-- An assigned reviewer follows the [assigned-reviewer card](references/assigned-reviewer.md).
-  For code review it checks code-author identities against its own lineage, reports a missing
-  or conflicting identity instead of claiming eligible review, reviews directly
-  and never dispatches agents. It returns findings with severity and evidence;
-  it does not fix code, decide deferrals, file issues or change labels.
-- An implementation participant follows the
-  [implementation-participant card](references/implementation-participant.md).
-  It applies the parent's selected dispositions and never claims independent
-  review or dispatches reviewers.
+- The [assigned reviewer](references/assigned-reviewer.md) checks code-author
+  lineage and reports missing or conflicting identities. It reviews directly
+  and returns evidence and severity. It cannot delegate, repair, decide
+  deferrals, file issues or change labels.
+- The [implementation participant](references/implementation-participant.md)
+  applies the parent's dispositions without dispatching reviewers or claiming
+  independent review.
 
 A later explicit repair assignment is separate work.
 For separately authorised GitHub reviews, apply [GitHub writing](../github-writing/SKILL.md).
 
-The parent validates findings and decides whether to fix, defer, reject or raise
-issues within its existing authorization, under [feedback dispositions](references/feedback-dispositions.md). Validating findings and repairing code
-does not make the parent an independent reviewer. For a direct user request,
-the coordinator obtains the independent review and reports it to the user.
+The parent validates findings, then decides what to fix, defer, reject or file
+within its authority. Apply [feedback dispositions](references/feedback-dispositions.md).
+Validating or repairing does not count as independent review. For a direct user
+request, the coordinator obtains the review and reports it to the user.
 
 ## Capture what was evaluated
 

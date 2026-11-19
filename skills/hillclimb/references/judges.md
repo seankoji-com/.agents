@@ -58,6 +58,11 @@ Confirm all UI routes before editing or entering panel scoring. For a judge
 added at panel entry, verify the replacement's access before it scores.
 Record access failures as incomplete evaluations with unavailable scores
 and apply [bounded recovery](rounds.md#failures-and-explicit-limits).
+Record which route, environment and required actions each access pilot proved.
+On a [continued run](../../review/references/budget-exhaustion.md#continue-a-stopped-scoring-loop),
+reuse successful pilots that still cover the same judge and conditions.
+Run only a missing or invalidated capability probe. Each scored UI candidate
+still needs direct interaction and fresh captures in the required states.
 
 ## Offer a primary upgrade at panel entry
 

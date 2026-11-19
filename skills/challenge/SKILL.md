@@ -1,17 +1,20 @@
 ---
 name: challenge
-description: Pressure-test an idea, design or proposal with an independent reviewer. Use when the user asks for an adversarial second opinion, asks "are you sure", or wants to challenge assumptions; return findings without implementation.
+description: "Pressure-test an idea, design or proposal with an independent reviewer when asked to challenge assumptions, give a second opinion or answer 'are you sure?'. Return findings without edits."
 ---
 
 # Challenge a proposal
 
-Frame the problem, proposal, constraints and decision to be made from the user's
-request and available evidence. Ask only about material missing intent. Keep this
-workflow read-only apart from task-owned probes and presentation; no source edits,
-publication or external mutations. Observe host permissions and sharing limits.
+Get an independent critique of the idea, a simpler option and evidence that
+would help the user choose. Use this workflow for "are you sure?", "challenge
+this" or requests for an adversarial second opinion. Use the implementation
+workflow for requests to build or repair.
 
-Triggers such as "are you sure?", "challenge this" or a request for an adversarial
-second opinion select this workflow; implementation and repair requests do not.
+Frame the problem, proposal, constraints and decision from the request and
+available evidence. Ask only about material missing intent. Keep the work
+read-only apart from task-owned probes and presentation. Do not edit source,
+publish or change external state during the challenge. Observe host permissions
+and sharing limits.
 
 ## Independent challenge
 

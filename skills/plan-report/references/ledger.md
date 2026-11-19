@@ -121,8 +121,15 @@ the others. Whole-run appears only in `propose` and `final`; `report` omits it e
 including its task links. Rendered section IDs remain stable.
 Refresh active forecasts at every coordinator update.
 Report mode omits Recently completed; final mode retains completion detail and
-calibration. Future-fixture replay requires an explicit flag and visible warning;
-it is never live evidence.
+calibration. Dates show absolute Sydney local clocks and preserve source offsets
+and daylight-saving arithmetic.
+
+The single-file renderer can run from any working directory with absolute
+input and output paths. Use `--theme light`, `dark` or `auto` to choose the
+appearance. Invalid ledgers exit nonzero with a diagnostic.
+The renderer rejects an as-of time ahead of its clock. Use
+`--allow-future-fixture` only for synthetic replay. It marks the output as a
+fixture, which cannot serve as live evidence. Past fixtures need no exception.
 
 The synthetic example under `examples/long-run.json` exercises multi-stream
 work, model changes, unknown costs, rebaselines, outages and owner gates. Copy it

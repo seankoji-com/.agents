@@ -95,10 +95,9 @@ blocked endpoint with preserved evidence. Limits bound existing authority.
 
 At stagnation, an explicit limit or before proposing an extension, apply
 review's [budget diagnosis](../../review/references/budget-exhaustion.md).
-Preserve the scoring and stagnation rules above. Any extension request carries the
-approval history, progress diagnosis, changed approach and finishing assessment
-to the operator under that procedure; additional rounds alone cannot restart
-the stopped run or reset its counters.
+Record the stop and use the shared [retrospective and continuation procedure](../../review/references/budget-exhaustion.md#continue-a-stopped-scoring-loop).
+Only an operator-approved continuation with a changed approach can seed a new
+baseline after the stop. Keep all prior counters, results and limits in the record.
 
 ## Final candidate and PR
 

@@ -1,14 +1,14 @@
 ---
 name: choose-design
-description: Use after product decisions are settled for new UI, requested redesigns or material unresolved visual or interaction choices. For existing UI, preserve its design and limit choices to the requested change; routine edits need no chooser.
+description: "Compare design options after product decisions are settled for new UI, a requested redesign or an unresolved visual or interaction choice. Preserve the existing design for routine edits."
 ---
 
 # Choose a visual design
 
-Mockups come from independent designers in different model lineages. Invoking
-this skill requests that delegation when a material choice remains.
-The user chooses before anything is built. The coordinator writes the brief,
-checks the mockups and presents them. It does not design.
+Use independent mockups to resolve a material UI choice before building. The
+coordinator briefs designers in different model families, checks their work and
+presents it for the user to choose. The designers own the mockups. Invoking this
+skill requests that delegation when a material choice remains.
 
 ## Size the run
 

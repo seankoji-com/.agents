@@ -1,9 +1,12 @@
 ---
 name: github-writing
-description: Use whenever drafting or editing LLM-written GitHub issues, pull requests, comments, reviews, discussions or release notes on the user's behalf.
+description: "Add a byline when drafting or editing AI-written GitHub issues, pull requests, comments, reviews, discussions or release notes on the user's behalf."
 ---
 
 # Disclose AI-written GitHub prose
+
+Put a byline at the top of the prose you write. Credit the models that wrote
+the text and name the operator when you can verify who they are.
 
 ## Identify the writer
 
@@ -40,7 +43,7 @@ Preserve its Markdown and substitute the verified writer and operator:
 
 ```markdown
 > [!NOTE]
-> _Written by **GPT-6.1 Sol** on behalf of @seankoji_
+> _Written by **WRITING MODEL** on behalf of @<verified-handle>_
 ```
 
 For multiple writing models, name each in bold in first-contribution order,
@@ -48,7 +51,7 @@ using commas and a final "and". For example:
 
 ```markdown
 > [!NOTE]
-> _Written by **Claude Opus 5.5** and **GPT-6.1 Sol** on behalf of @seankoji_
+> _Written by **FIRST MODEL** and **SECOND MODEL** on behalf of @<verified-handle>_
 ```
 
 The chosen format authorises mentioning the verified operator, including when

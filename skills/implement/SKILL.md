@@ -1,6 +1,6 @@
 ---
 name: implement
-description: Use when the user invokes implement or requests implementation through T3 delegates, returning reviewed commits for the main thread to integrate and ship.
+description: "Implement through T3 delegation when the user requests it or invokes implement. Return reviewed commits to the main thread for integration and delivery."
 ---
 
 # Implement off the main thread
@@ -21,23 +21,23 @@ the host exposes one; the lead's own list stays separate.
 
 ## Main-thread responsibilities
 
-1. Read the repository rules and working tree. Give the lead a compact brief:
+1. **Brief the lead.** Read the repository rules and working tree. Include the
    request and authority, scope and exclusions, settled product/design decisions,
    acceptance criteria, verification, repository identity, exact source HEAD and
    the main thread's model identity/lineage.
    Include the paths to this skill, review-loop and [review](../review/SKILL.md).
-2. Isolated delegates start from the parent's committed HEAD, without its dirty
-   changes. Identify required uncommitted prerequisites before dispatch. Commit
+2. **Check the starting revision.** Isolated delegates start from the parent's
+   committed HEAD. Identify required uncommitted prerequisites before dispatch. Commit
    them only with existing or newly obtained authority; otherwise report the
    blocker. Preserve unrelated work. Verify the prepared worktree's base before editing.
-3. Select the working lead using the model-selection rules below. Discover exact
-   T3 capabilities and use `delegate_task` with `isolation: 'worktree'`. Explicitly
+3. **Dispatch a working lead.** Follow the model-selection rules below. Discover
+   exact T3 capabilities and use `delegate_task` with `isolation: 'worktree'`. Explicitly
    authorise the lead in its task to act as the implementation coordinator and
    dispatch scoped worker and reviewer children. Follow the returned `next`.
    If the required T3 route is unavailable, report it without substituting a
    shell launcher, native agent or top-level thread.
-4. On return, verify the worktree, exact HEAD, checks, review and remaining gates
-   against the brief before acceptance or integration. Record every deferred-bug
+4. **Verify the handoff.** Check the worktree, exact HEAD, checks, review and
+   remaining gates against the brief before accepting or integrating. Record every deferred-bug
    packet under [tracking](../review/references/deferred-bugs.md), dispatch it
    through raise-issue and retain ownership until its issue URL is verified.
    Code readiness and tracking completion are separate states. Continue
