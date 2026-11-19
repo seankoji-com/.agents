@@ -23,7 +23,7 @@
     <a class="mark" href="./">.agents</a>
     <nav aria-label="Site">
       <a href="#skills">Skills</a>
-      <a class="optional" href="#how">How it works</a>
+      <a class="optional" href="#how">Installing</a>
       <a class="optional" href="#t3">T3 Code</a>
       <a href="workflows.html">Workflows</a>
       <a href="https://github.com/seankoji-com/.agents">GitHub</a>
@@ -33,15 +33,6 @@
   <main>
     <section class="library" id="skills" aria-labelledby="skills-title">
       <h1 id="skills-title">Agent skills</h1>
-      <p class="lede">Plan, review and ship with skills for <a href="#t3">T3 Code</a>, Codex and Claude Code.</p>
-      <p class="catalog-help">Install from your project folder with Node.js 22.20+.</p>
-      <nav class="catalog-nav" aria-label="Skill categories">
-        <a href="#group-decide">Plan</a>
-        <a href="#group-build">Deliver</a>
-        <a href="#group-review">Review</a>
-        <a href="#group-write">Write</a>
-        <a href="#group-setup">Set up</a>
-      </nav>
       <div id="catalogue">
       <div class="group" id="group-decide">
         <h2>Plan and design</h2>
@@ -53,6 +44,7 @@
             <p class="skill-description">Turn an idea into a brief. Answer key questions and get a second opinion before you build.</p>
             <div class="skill-actions">
               <a class="install-action" href="#install-think" aria-label="Install instructions for think">Install</a>
+              <a class="demo-action" data-kind="flow" href="workflows.html#outcome" data-lightbox="lb-think" aria-label="Workflow diagram for think" aria-haspopup="dialog">Diagram</a>
               <a href="https://github.com/seankoji-com/.agents/blob/main/skills/think/SKILL.md" aria-label="Source for think on GitHub (SKILL.md)">Source</a>
             </div>
             <div class="skill-install">
@@ -88,6 +80,7 @@
             <p class="skill-description">Pick a design before building. Compare independent mockups for a new screen, redesign or unresolved UI choice.</p>
             <div class="skill-actions">
               <a class="install-action" href="#install-choose-design" aria-label="Install instructions for choose-design">Install</a>
+              <a class="demo-action" data-kind="shot" href="media/choose-design.png" data-lightbox="lb-choose-design" aria-label="Screenshot of a choose-design comparison" aria-haspopup="dialog">Screenshot</a>
               <a href="https://github.com/seankoji-com/.agents/blob/main/skills/choose-design/SKILL.md" aria-label="Source for choose-design on GitHub (SKILL.md)">Source</a>
             </div>
             <div class="skill-install">
@@ -129,6 +122,7 @@
             <p class="skill-description">Hand off a change through implementation, tests, independent review and authorised delivery. Get the result, evidence and a short retrospective.</p>
             <div class="skill-actions">
               <a class="install-action" href="#install-ship" aria-label="Install instructions for ship">Install</a>
+              <a class="demo-action" data-kind="flow" href="workflows.html#outcome" data-lightbox="lb-ship" aria-label="Workflow diagram for ship" aria-haspopup="dialog">Diagram</a>
               <a href="https://github.com/seankoji-com/.agents/blob/main/skills/ship/SKILL.md" aria-label="Source for ship on GitHub (SKILL.md)">Source</a>
             </div>
             <div class="skill-install">
@@ -147,6 +141,7 @@
             <p class="skill-description">Get a timeline of the plan, work underway and decisions waiting on you. Compare actual build and review work with the original estimates.</p>
             <div class="skill-actions">
               <a class="install-action" href="#install-plan-report" aria-label="Install instructions for plan-report">Install</a>
+              <a class="demo-action" data-kind="shot" href="media/plan-report.png" data-lightbox="lb-plan-report" aria-label="Screenshot of a plan-report timeline" aria-haspopup="dialog">Screenshot</a>
               <a href="https://github.com/seankoji-com/.agents/blob/main/skills/plan-report/SKILL.md" aria-label="Source for plan-report on GitHub (SKILL.md)">Source</a>
             </div>
             <div class="skill-install">
@@ -164,6 +159,7 @@
             <p class="skill-description">Give a coding job to a lead in a separate T3 worktree. Get reviewed commits back in the main thread for integration.</p>
             <div class="skill-actions">
               <a class="install-action" href="#install-implement" aria-label="Install instructions for implement">Install</a>
+              <a class="demo-action" data-kind="flow" href="workflows.html#implement" data-lightbox="lb-implement" aria-label="Workflow diagram for implement" aria-haspopup="dialog">Diagram</a>
               <a href="https://github.com/seankoji-com/.agents/blob/main/skills/implement/SKILL.md" aria-label="Source for implement on GitHub (SKILL.md)">Source</a>
             </div>
             <div class="skill-install">
@@ -216,6 +212,7 @@
             <p class="skill-description">Have the agent repair, watch and merge an open pull request through its checks and reviews. Say “don’t merge” or “read-only” to limit the work.</p>
             <div class="skill-actions">
               <a class="install-action" href="#install-babysitter" aria-label="Install instructions for babysitter">Install</a>
+              <a class="demo-action" data-kind="flow" href="workflows.html#outcome" data-lightbox="lb-babysitter" aria-label="Workflow diagram for babysitter" aria-haspopup="dialog">Diagram</a>
               <a href="https://github.com/seankoji-com/.agents/blob/main/skills/babysitter/SKILL.md" aria-label="Source for babysitter on GitHub (SKILL.md)">Source</a>
             </div>
             <div class="skill-install">
@@ -235,6 +232,7 @@
             <p class="skill-description">Clear a repository’s issues and pull requests. Close obsolete work with evidence and get ready fixes merged. Name an organisation to run it per repository.</p>
             <div class="skill-actions">
               <a class="install-action" href="#install-backlog-burn" aria-label="Install instructions for backlog-burn">Install</a>
+              <a class="demo-action" data-kind="flow" href="workflows.html#backlog" data-lightbox="lb-backlog-burn" aria-label="Workflow diagram for backlog-burn" aria-haspopup="dialog">Diagram</a>
               <a href="https://github.com/seankoji-com/.agents/blob/main/skills/backlog-burn/SKILL.md" aria-label="Source for backlog-burn on GitHub (SKILL.md)">Source</a>
             </div>
             <div class="skill-install">
@@ -295,6 +293,7 @@
             <p class="skill-description">Build or fix a change in rounds. Independent reviews guide repairs until the score and checks pass or the work stops improving.</p>
             <div class="skill-actions">
               <a class="install-action" href="#install-review-loop" aria-label="Install instructions for review-loop">Install</a>
+              <a class="demo-action" data-kind="flow" href="workflows.html#outcome" data-lightbox="lb-review-loop" aria-label="Workflow diagram for review-loop" aria-haspopup="dialog">Diagram</a>
               <a href="https://github.com/seankoji-com/.agents/blob/main/skills/review-loop/SKILL.md" aria-label="Source for review-loop on GitHub (SKILL.md)">Source</a>
             </div>
             <div class="skill-install">
@@ -312,6 +311,7 @@
             <p class="skill-description">Improve a product, workflow or draft using scored feedback from judges you approve. See each round’s evidence. UI judges use the running interface.</p>
             <div class="skill-actions">
               <a class="install-action" href="#install-hillclimb" aria-label="Install instructions for hillclimb">Install</a>
+              <a class="demo-action" data-kind="flow" href="workflows.html#outcome" data-lightbox="lb-hillclimb" aria-label="Workflow diagram for hillclimb" aria-haspopup="dialog">Diagram</a>
               <a href="https://github.com/seankoji-com/.agents/blob/main/skills/hillclimb/SKILL.md" aria-label="Source for hillclimb on GitHub (SKILL.md)">Source</a>
             </div>
             <div class="skill-install">
@@ -387,80 +387,142 @@
     </section>
 
     <section id="how" aria-labelledby="how-title">
-      <h2 id="how-title">Install and use a skill</h2>
+      <h2 id="how-title">What <code>npx skills</code> does</h2>
+      <p class="section-intro">Every Install command runs the <a href="https://github.com/vercel-labs/skills">Skills CLI</a>, an open-source installer from Vercel Labs for the open Agent Skills format. <code>npx</code> downloads and runs it on the spot, so the only prerequisite is Node.js 22.20 or later.</p>
       <ol class="steps">
         <li>
-          <h3>Run the install command</h3>
-          <p>Open Install next to a skill. Run the command in your project terminal and choose agents when prompted. <span id="multi-install-hint" hidden>Tick several skills to install them together.</span></p>
+          <h3>Fetches the skill</h3>
+          <p>It downloads the named folder from this GitHub repository: the <code>SKILL.md</code> instructions plus any scripts and references beside them.</p>
         </li>
         <li>
-          <h3>Ask for the work</h3>
-          <p>For example, ask <q>Use think on this plan before we build it</q> or run <code>/think</code> if your agent supports slash commands.</p>
+          <h3>Asks which agents you use</h3>
+          <p>It detects the coding agents on your machine and asks which of them should get the skill.</p>
         </li>
         <li>
-          <h3>Check the result</h3>
-          <p>Your agent follows the skill's instructions and reports the outcome, with any decisions or checks still open.</p>
+          <h3>Puts it where each agent looks</h3>
+          <p>It keeps one copy and links it into each agent's skills folder, such as <code>.agents/skills/</code> for Codex and <code>.claude/skills/</code> for Claude Code. Add <code>-g</code> to install for your user account instead of this project.</p>
         </li>
       </ol>
+      <div class="cli-panel">
+        <h3>Commands you will use</h3>
+        <dl class="cli">
+          <div><dt><code>npx skills add seankoji-com/.agents</code></dt><dd>Pick skills from this library in the terminal.</dd></div>
+          <div><dt><code>npx skills add seankoji-com/.agents --skill think -g</code></dt><dd>Install one skill for every project.</dd></div>
+          <div><dt><code>npx skills list</code></dt><dd>Show what is installed.</dd></div>
+          <div><dt><code>npx skills check</code> then <code>npx skills update</code></dt><dd>Look for newer versions, then install them.</dd></div>
+          <div><dt><code>npx skills remove think</code></dt><dd>Uninstall a skill.</dd></div>
+        </dl>
+        <p>Find skills from other authors at <a href="https://skills.sh/">skills.sh</a>, or see <a href="https://skills.sh/seankoji-com/.agents">this library's page</a> there. The CLI's <a href="https://github.com/vercel-labs/skills/blob/main/docs/commands.md">command reference</a> lists every flag.</p>
+      </div>
+      <p class="after-install">Once a skill is installed, ask for the work by name, such as <q>Use think on this plan before we build it</q>, or type <code>/think</code> where your agent supports slash commands. <code>focus-group</code> and <code>binaric</code> never start on their own. You invoke them by name, and other skills can point an agent to <code>binaric</code> when it writes a brief for another agent. <span id="multi-install-hint" hidden>To install several skills in one command, tick them in the list above.</span></p>
     </section>
 
-    <section id="t3" aria-labelledby="t3-title">
-      <h2 id="t3-title">Made for T3 Code</h2>
-      <p class="section-intro">Use <a href="https://github.com/pingdotgg/t3code">T3 Code</a> to run agents from several providers in one app. Skills use T3 for separate worktrees, background tasks and pull request watches.</p>
-      <div class="facts">
-        <div>
-          <h3>A second opinion from another model</h3>
-          <p><code>review</code>, <code>think</code> and <code>challenge</code> get a separate opinion. Written-code reviews use a different model family from the code authors. <a href="#why-review">Read the rationale</a>.</p>
+    <section id="agents-folder" aria-labelledby="agents-folder-title">
+      <h2 id="agents-folder-title">What is <code>~/.agents/skills</code>?</h2>
+      <div class="split">
+        <div class="split-text">
+          <p><code>.agents/skills</code> is a folder name that many coding agents share. Codex, OpenCode, Cursor, Gemini CLI, GitHub Copilot and others look for a project's skills in <code>.agents/skills/</code>. Codex also reads <code>~/.agents/skills/</code> in your home folder, for personal skills that follow you into every repository. Claude Code reads <code>.claude/skills/</code> instead, so the Skills CLI links skills there as well.</p>
+          <p>This library is called <code>.agents</code> for the same reason. Clone it into your home folder and its skills land at <code>~/.agents/skills</code>, where Codex finds them with no install step. That is how the library's owner runs it. Run <code>git -C ~/.agents pull</code> to update.</p>
+          <p class="note">If <code>~/.agents</code> already exists, for example from global Codex installs, clone somewhere else and point your agent's skill discovery at the clone's <code>skills</code> folder.</p>
+          <p class="more">More detail: <a href="https://learn.chatgpt.com/docs/build-skills">where Codex looks for skills</a>, the Skills CLI's <a href="https://github.com/vercel-labs/skills/blob/main/docs/agents.md">folder for each agent</a>, and <a href="https://github.com/seankoji-com/.agents#work-from-a-clone">working from a clone</a> in the README.</p>
         </div>
-        <div>
-          <h3>Big jobs in their own workspace</h3>
-          <p><code>implement</code> does the coding in a separate T3 worktree, so your main conversation stays free for decisions.</p>
-        </div>
-        <div>
-          <h3>Work that carries on in the background</h3>
-          <p><code>raise-issue</code> files issues in a background task while your change keeps moving.</p>
-        </div>
-        <div>
-          <h3>Pull request watches</h3>
-          <p><code>babysitter</code> uses T3's pull request watch to resume work when checks or reviews change.</p>
-        </div>
-        <div>
-          <h3>Progress and designs you can see</h3>
-          <p><code>ship</code>, <code>implement</code> and <code>review-loop</code> use T3's Tasks row when the host exposes it. <code>plan-report</code> draws a timeline, and <code>choose-design</code> shows mockups side by side.</p>
-        </div>
-        <div>
-          <h3>Using another agent</h3>
-          <p>Codex, Claude Code and other agents can use skills whose required tools they provide. Look for the T3 Code requirement in the catalog.</p>
+        <div class="split-side">
+          <div class="term" data-copy><pre class="cmd" id="cmd-clone">git clone https://github.com/seankoji-com/.agents.git ~/.agents</pre></div>
+          <pre class="tree" aria-label="Folder layout after cloning"><span class="tree-root">~/.agents/</span>            <span class="tree-note">this repository</span>
+└── skills/
+    ├── think/
+    │   └── SKILL.md      <span class="tree-note">the instructions</span>
+    ├── plan-report/
+    │   ├── SKILL.md
+    │   └── scripts/      <span class="tree-note">helpers it runs</span>
+    └── review/
+        ├── SKILL.md
+        └── references/   <span class="tree-note">read when needed</span></pre>
         </div>
       </div>
     </section>
 
-    <section id="why-review" aria-labelledby="why-review-title">
-      <h2 id="why-review-title">Why another model family checks the work</h2>
-      <p class="section-intro">Models can favour their own writing and repeat mistakes made by related models. Using another family for code review gives the change an independent check.</p>
-      <ul class="research">
-        <li><p>GPT-4 and Llama 2 tended to prefer text they could recognise as their own. Another study linked GPT-4's preference to how familiar the text was. <a href="https://arxiv.org/abs/2404.13076">Panickssery, Bowman and Feng, 2024</a> and <a href="https://arxiv.org/abs/2410.21819">Wataoka, Takahashi and Ri, 2024</a>.</p></li>
-        <li><p>When two models answered incorrectly, they chose the same wrong answer 60% of the time on one benchmark. A shared provider or architecture made that more likely. <a href="https://arxiv.org/abs/2506.07962">Kim et al., ICML 2025</a>.</p></li>
-        <li><p>Models sometimes made their reasoning worse when asked to correct it without outside feedback. <a href="https://arxiv.org/abs/2310.01798">Huang et al., ICLR 2024</a>.</p></li>
-        <li><p>A panel drawn from several model families judged more accurately and with less bias than a single GPT-4 judge across six datasets in one study. <a href="https://arxiv.org/abs/2404.18796">Verga et al., 2024</a>.</p></li>
-      </ul>
-      <p class="section-intro">The studies tested AI judges and reasoning benchmarks. Read how the library applies those findings to code review in the <a href="https://github.com/seankoji-com/.agents#why-a-different-model-family-reviews-the-work">repository README</a>.</p>
+    <section id="t3" aria-labelledby="t3-title">
+      <h2 id="t3-title">Built for T3 Code</h2>
+      <p class="section-intro"><a href="https://t3.codes/">T3 Code</a> is an open-source desktop app for coding agents. It runs Codex, Claude Code and OpenCode sessions side by side, and gives agents tools to start other agents, work in separate Git worktrees and watch pull requests. Install it with <code>brew install --cask t3-code</code> or from <a href="https://github.com/pingdotgg/t3code">GitHub</a>.</p>
+      <p class="section-intro">The skills are written and tested in T3 Code. Each one falls into one of three groups.</p>
+      <div class="tiers">
+        <div class="tier tier-needs">
+          <p class="tier-label">Needs T3 Code</p>
+          <p class="chips"><a href="#skill-implement">implement</a> <a href="#skill-backlog-burn">backlog-burn</a> <a href="#skill-raise-issue">raise-issue</a></p>
+          <p>These hand work to T3 delegates that run in their own threads or worktrees, so your conversation stays free. <code>raise-issue</code> can still file inline if you ask for that explicitly.</p>
+        </div>
+        <div class="tier tier-better">
+          <p class="tier-label">Better in T3 Code</p>
+          <p class="chips"><a href="#skill-review">review</a> <a href="#skill-think">think</a> <a href="#skill-challenge">challenge</a> <a href="#skill-review-loop">review-loop</a> <a href="#skill-hillclimb">hillclimb</a> <a href="#skill-choose-design">choose-design</a> <a href="#skill-focus-group">focus-group</a> <a href="#skill-ship">ship</a> <a href="#skill-babysitter">babysitter</a></p>
+          <ul>
+            <li>Reviewers, judges and designers start on another provider from the same conversation. Code review needs a second model family; without one, the agent reports the review as unavailable.</li>
+            <li><code>babysitter</code> uses T3's pull request watch to wake when checks or reviews change. Elsewhere it waits with its bundled <code>pr-wait</code> helper.</li>
+            <li><code>ship</code>, <code>implement</code> and <code>review-loop</code> show their phases in T3's Tasks row. <code>choose-design</code> shows mockups side by side in preview frames.</li>
+          </ul>
+        </div>
+        <div class="tier tier-any">
+          <p class="tier-label">Works anywhere</p>
+          <p class="chips"><a href="#skill-raise-pr">raise-pr</a> <a href="#skill-plan-report">plan-report</a> <a href="#skill-test-writer">test-writer</a> <a href="#skill-github-writing">github-writing</a> <a href="#skill-binaric">binaric</a> <a href="#skill-agent-tuneup">agent-tuneup</a></p>
+          <p>These need only the files and tools your agent already has. On T3, <code>agent-tuneup</code> holds the dispatch preflight that other skills read before starting a delegate, so install it alongside them.</p>
+        </div>
+      </div>
+      <p class="more">How skills choose delegate routes and check subscription capacity is in the <a href="workflows.html#t3-permissions">workflow guide</a>.</p>
     </section>
+
+    <aside class="aside" id="why-review" aria-labelledby="why-review-title">
+      <p class="eyebrow">Aside · the research</p>
+      <h2 id="why-review-title">Why another model family checks the work</h2>
+      <p class="aside-intro">Models can favour their own writing and repeat mistakes made by related models. So when <code>review</code> checks code, the reviewer comes from a different model family from the code's authors.</p>
+      <ul class="findings">
+        <li>
+          <p class="finding-head">Self-preference</p>
+          <p>GPT-4 and Llama 2 tended to prefer text they could recognise as their own. Another study linked GPT-4's preference to how familiar the text was.</p>
+          <p class="cite"><a href="https://arxiv.org/abs/2404.13076">Panickssery, Bowman and Feng, 2024</a> · <a href="https://arxiv.org/abs/2410.21819">Wataoka, Takahashi and Ri, 2024</a></p>
+        </li>
+        <li>
+          <p class="finding-head finding-stat">60%</p>
+          <p>When two models answered incorrectly, they chose the same wrong answer 60% of the time on one benchmark. A shared provider or architecture made that more likely.</p>
+          <p class="cite"><a href="https://arxiv.org/abs/2506.07962">Kim et al., ICML 2025</a></p>
+        </li>
+        <li>
+          <p class="finding-head">Worse alone</p>
+          <p>Models sometimes made their reasoning worse when asked to correct it without outside feedback.</p>
+          <p class="cite"><a href="https://arxiv.org/abs/2310.01798">Huang et al., ICLR 2024</a></p>
+        </li>
+        <li>
+          <p class="finding-head">Panels win</p>
+          <p>In one study across six datasets, a panel drawn from several model families judged more accurately and with less bias than a single GPT-4 judge.</p>
+          <p class="cite"><a href="https://arxiv.org/abs/2404.18796">Verga et al., 2024</a></p>
+        </li>
+      </ul>
+      <p class="aside-note">These studies tested AI judges and reasoning benchmarks, not code review. The <a href="https://github.com/seankoji-com/.agents#why-a-different-model-family-reviews-the-work">README</a> explains how the library applies them.</p>
+    </aside>
 
     <section id="needs" aria-labelledby="needs-title">
       <h2 id="needs-title">What you need</h2>
-      <div class="facts">
-        <div>
-          <h3>T3 Code, or another coding agent</h3>
-          <p>On T3, install <a href="#skill-agent-tuneup">agent-tuneup</a> when a skill calls for its permission check. For how skills choose delegate routes and check subscription capacity, see the <a href="workflows.html#t3-permissions">workflow guide</a>.</p>
+      <p class="section-intro">On macOS, <a href="https://brew.sh/">Homebrew</a> installs everything below. Casks (<code>--cask</code>) are macOS apps. On Linux, use your distribution's packages or each project's installer.</p>
+      <div class="needs">
+        <div class="need">
+          <h3>Command-line tools</h3>
+          <div class="term" data-copy><pre class="cmd" id="cmd-brew-tools">brew install node python gh</pre></div>
+          <ul>
+            <li><strong>Node.js 22.20+</strong> runs <code>npx skills</code>.</li>
+            <li><strong>Python 3.10+</strong> runs bundled helpers, such as the plan-report renderer and babysitter's <code>pr-wait</code>.</li>
+            <li><strong>GitHub CLI</strong> lets the pull request skills read checks and post. Sign in once with <code>gh auth login</code>.</li>
+          </ul>
         </div>
-        <div>
-          <h3>Python for skill helpers</h3>
-          <p>Some skills run helpers that need Python 3.10 or later. See the <a href="https://github.com/vercel-labs/skills#install-a-skill">Skills CLI setup guide</a> for installation options.</p>
+        <div class="need">
+          <h3>A coding agent</h3>
+          <div class="term" data-copy><pre class="cmd" id="cmd-brew-t3">brew install --cask t3-code</pre></div>
+          <div class="term" data-copy><pre class="cmd" id="cmd-brew-codex">brew install --cask codex</pre></div>
+          <div class="term" data-copy><pre class="cmd" id="cmd-brew-claude">brew install --cask claude-code</pre></div>
+          <p>Install any of them. T3 Code gets the most from the library; Codex and Claude Code run every skill that doesn't need T3.</p>
         </div>
-        <div>
-          <h3>Tools for the job</h3>
-          <p>Installation adds the instructions. Review, browser checks and delivery use the models, tools and permissions available to your agent.</p>
+        <div class="need">
+          <h3>What the agent brings</h3>
+          <p>Installing a skill adds instructions, not access. Reviews, browser checks and delivery use the models, tools and permissions your agent already has. UI review needs browser or device access in the host.</p>
+          <p>Diff reviews that use OCR also need the <a href="https://github.com/alibaba/open-code-review">OpenCodeReview CLI</a> with a configured provider.</p>
         </div>
       </div>
     </section>
@@ -485,6 +547,174 @@
     </div>
   </details>
 </div>
+
+<dialog class="lightbox" id="lb-plan-report" aria-labelledby="lb-plan-report-title">
+  <div class="lb-inner">
+    <header class="lb-head">
+      <div><p class="eyebrow">plan-report · screenshot</p><h2 id="lb-plan-report-title">A progress report mid-run</h2></div>
+      <form method="dialog"><button class="lb-close" aria-label="Close">✕</button></form>
+    </header>
+    <a class="lb-shot" href="media/plan-report.png"><img src="media/plan-report.png" width="2560" height="2000" loading="lazy" alt="A plan-report page: a decision awaiting the owner, 67% of estimated work done, and a timeline of the remaining tasks with build, review and forecast bars against a now line."></a>
+    <p class="lb-caption">Rendered by the skill's own helper from its synthetic example ledger. The report shows decisions waiting on you, progress against the approved estimate, the critical path and each remaining task's build and review time. The final report compares actual work with the original estimates.</p>
+    <p class="lb-links"><a href="https://github.com/seankoji-com/.agents/blob/main/skills/plan-report/SKILL.md">Read plan-report's SKILL.md</a> · <a href="media/plan-report.png">Open full size</a></p>
+  </div>
+</dialog>
+
+<dialog class="lightbox" id="lb-choose-design" aria-labelledby="lb-choose-design-title">
+  <div class="lb-inner">
+    <header class="lb-head">
+      <div><p class="eyebrow">choose-design · screenshot</p><h2 id="lb-choose-design-title">Two options, side by side</h2></div>
+      <form method="dialog"><button class="lb-close" aria-label="Close">✕</button></form>
+    </header>
+    <a class="lb-shot" href="media/choose-design.png"><img src="media/choose-design.png" width="2480" height="1490" loading="lazy" alt="Two settings-page mockups in separate frames. Option A uses a sidebar and toggles, option B uses pill tabs, cards and a sticky save bar. Numbered markers such as A-F1 point to decisions explained in a legend under each mockup."></a>
+    <p class="lb-caption">A synthetic example laid out to the skill's report rules. Designers from different model families get the same brief and never see each other's work. Each option sits in its own frame, with numbered decisions and a legend underneath, so you can choose one or combine parts, such as “A with B-F3”.</p>
+    <p class="lb-links"><a href="https://github.com/seankoji-com/.agents/blob/main/skills/choose-design/SKILL.md">Read choose-design's SKILL.md</a> · <a href="media/choose-design.png">Open full size</a></p>
+  </div>
+</dialog>
+
+<dialog class="lightbox" id="lb-ship" aria-labelledby="lb-ship-title">
+  <div class="lb-inner">
+    <header class="lb-head">
+      <div><p class="eyebrow">ship · workflow</p><h2 id="lb-ship-title">From agreed change to verified merge</h2></div>
+      <form method="dialog"><button class="lb-close" aria-label="Close">✕</button></form>
+    </header>
+    <figure class="diagram" style="--n:6">
+      <ol class="flow">
+        <li><span class="who">think · choose-design</span><strong>Settle decisions</strong><p>Only when a product or UI choice is still open.</p></li>
+        <li><span class="who">ship · implement</span><strong>Build and prove</strong><p>Reproduce, fix and run covering checks. implement can code in a worktree.</p></li>
+        <li><span class="who">review-loop</span><strong>Review and repair</strong><p>Independent findings guide repairs.</p></li>
+        <li><span class="who">raise-pr</span><strong>Open the PR</strong><p>Required checks, evidence and screenshots.</p></li>
+        <li><span class="who">babysitter</span><strong>Merge</strong><p>Fixes CI and review threads, then merges when eligible.</p></li>
+        <li><span class="who">ship · raise-issue</span><strong>Verify and look back</strong><p>Confirms the endpoint, files deferred bugs, writes a retrospective.</p></li>
+      </ol>
+      <p class="flow-band"><span class="who">plan-report</span> A timeline at the proposal, as each task finishes and at handoff.</p>
+    </figure>
+    <p class="lb-links"><a href="workflows.html#outcome">Read the full workflow</a> · <a href="https://github.com/seankoji-com/.agents/blob/main/skills/ship/SKILL.md">Read ship's SKILL.md</a></p>
+  </div>
+</dialog>
+
+<dialog class="lightbox" id="lb-review-loop" aria-labelledby="lb-review-loop-title">
+  <div class="lb-inner">
+    <header class="lb-head">
+      <div><p class="eyebrow">review-loop · workflow</p><h2 id="lb-review-loop-title">Review, repair, repeat</h2></div>
+      <form method="dialog"><button class="lb-close" aria-label="Close">✕</button></form>
+    </header>
+    <figure class="diagram" style="--n:6">
+      <ol class="flow">
+        <li><strong>Set scope and score</strong><p>Agree the target, such as 9 out of 10, and the checks that must pass.</p></li>
+        <li><strong>Choose reviewers</strong><p>Code reviewers come from a different model family from the authors.</p></li>
+        <li><strong>Review a frozen candidate</strong><p>Reviewers score the same revision, read-only.</p></li>
+        <li><strong>Verify and repair</strong><p>Fix supported findings within scope.</p></li>
+        <li><strong>Recheck changes</strong><p>Material repairs get a fresh review.</p></li>
+        <li><strong>Accept or explain</strong><p>Report the evidence, or why the loop stopped.</p></li>
+      </ol>
+      <div class="flow-loop" style="--from:3;--to:5"><span>Repeat until the score and checks pass, or two rounds fail to beat the best score</span></div>
+    </figure>
+    <p class="lb-links"><a href="workflows.html#outcome">Read the full workflow</a> · <a href="https://github.com/seankoji-com/.agents/blob/main/skills/review-loop/SKILL.md">Read review-loop's SKILL.md</a></p>
+  </div>
+</dialog>
+
+<dialog class="lightbox" id="lb-hillclimb" aria-labelledby="lb-hillclimb-title">
+  <div class="lb-inner">
+    <header class="lb-head">
+      <div><p class="eyebrow">hillclimb · workflow</p><h2 id="lb-hillclimb-title">Climb toward a score you agreed</h2></div>
+      <form method="dialog"><button class="lb-close" aria-label="Close">✕</button></form>
+    </header>
+    <figure class="diagram" style="--n:6">
+      <ol class="flow">
+        <li><strong>Agree rubric and judges</strong><p>You confirm the score, target and judges first.</p></li>
+        <li><strong>Score the baseline</strong><p>The primary judge sets the starting best.</p></li>
+        <li><strong>Repair the best candidate</strong><p>Scoped changes, with covering checks.</p></li>
+        <li><strong>Score again</strong><p>Judges work read-only. UI judges use the running interface.</p></li>
+        <li><strong>Full panel confirms</strong><p>Every judge must reach the target on the same version.</p></li>
+        <li><strong>Deliver</strong><p>raise-pr takes the final candidate to review and a PR.</p></li>
+      </ol>
+      <div class="flow-loop" style="--from:3;--to:4"><span>Each round lands in one rolling report. Two rounds without a gain stop the run</span></div>
+    </figure>
+    <p class="lb-links"><a href="workflows.html#outcome">Read the full workflow</a> · <a href="https://github.com/seankoji-com/.agents/blob/main/skills/hillclimb/SKILL.md">Read hillclimb's SKILL.md</a></p>
+  </div>
+</dialog>
+
+<dialog class="lightbox" id="lb-think" aria-labelledby="lb-think-title">
+  <div class="lb-inner">
+    <header class="lb-head">
+      <div><p class="eyebrow">think · workflow</p><h2 id="lb-think-title">From idea to a brief you can build</h2></div>
+      <form method="dialog"><button class="lb-close" aria-label="Close">✕</button></form>
+    </header>
+    <figure class="diagram" style="--n:5">
+      <ol class="flow">
+        <li><strong>Find the decisions that matter</strong><p>Ones whose answers change the goal, design, risk or next step.</p></li>
+        <li><strong>Ask together</strong><p>One decision per question, with a recommendation first. Facts get looked up, not asked.</p></li>
+        <li><strong>Write the brief</strong><p>Goal, scope, choices, acceptance criteria and open gates.</p></li>
+        <li><strong>Readiness review</strong><p>A separate reviewer checks that nothing material is still open.</p></li>
+        <li><strong>Choose the output</strong><p>An issue, a brief file, or build it now.</p></li>
+      </ol>
+      <div class="flow-loop" style="--from:2;--to:4"><span>A gap sends back only the affected questions, with up to three readiness reviews</span></div>
+    </figure>
+    <p class="lb-links"><a href="workflows.html#outcome">See where think fits</a> · <a href="https://github.com/seankoji-com/.agents/blob/main/skills/think/SKILL.md">Read think's SKILL.md</a></p>
+  </div>
+</dialog>
+
+<dialog class="lightbox" id="lb-implement" aria-labelledby="lb-implement-title">
+  <div class="lb-inner">
+    <header class="lb-head">
+      <div><p class="eyebrow">implement · workflow</p><h2 id="lb-implement-title">Code in a worktree, decide in the main thread</h2></div>
+      <form method="dialog"><button class="lb-close" aria-label="Close">✕</button></form>
+    </header>
+    <figure class="diagram" style="--n:5">
+      <ol class="flow">
+        <li class="lane-main"><span class="who">main thread</span><strong>Brief the lead</strong><p>Goal, limits and the evidence you expect back.</p></li>
+        <li class="lane-side"><span class="who">T3 worktree</span><strong>Build in isolation</strong><p>The lead codes, adding workers only for large independent parts.</p></li>
+        <li class="lane-side"><span class="who">T3 worktree · review-loop</span><strong>Review and repair</strong><p>Checks the actual diff and fixes supported findings.</p></li>
+        <li class="lane-side"><span class="who">T3 worktree</span><strong>Hand back commits</strong><p>Reviewed commits, with the evidence.</p></li>
+        <li class="lane-main"><span class="who">main thread</span><strong>Integrate and ship</strong><p>Check the exact revision, then deliver.</p></li>
+      </ol>
+      <p class="flow-band">Product or design decisions that come up go back to the main thread. The lead continues only work that does not depend on them.</p>
+    </figure>
+    <p class="lb-links"><a href="workflows.html#implement">Read the full workflow</a> · <a href="https://github.com/seankoji-com/.agents/blob/main/skills/implement/SKILL.md">Read implement's SKILL.md</a></p>
+  </div>
+</dialog>
+
+<dialog class="lightbox" id="lb-babysitter" aria-labelledby="lb-babysitter-title">
+  <div class="lb-inner">
+    <header class="lb-head">
+      <div><p class="eyebrow">babysitter · workflow</p><h2 id="lb-babysitter-title">Watch a pull request through to merge</h2></div>
+      <form method="dialog"><button class="lb-close" aria-label="Close">✕</button></form>
+    </header>
+    <figure class="diagram" style="--n:6">
+      <ol class="flow">
+        <li><strong>Refresh the gates</strong><p>Checks, reviews, threads and merge state on the current head.</p></li>
+        <li><strong>Fix what's actionable</strong><p>CI failures and review threads, right away.</p></li>
+        <li><strong>Get fresh review</strong><p>When the gates need one.</p></li>
+        <li><strong>Merge when eligible</strong><p>Unless you said “read-only” or “don't merge”.</p></li>
+        <li><strong>Wait for a change</strong><p>T3's pull request watch, or the <code>pr-wait</code> helper elsewhere.</p></li>
+        <li><strong>Verify the merge</strong><p>Confirms the PR actually merged.</p></li>
+      </ol>
+      <div class="flow-loop" style="--from:1;--to:5"><span>Each wake starts again from fresh gates</span></div>
+    </figure>
+    <p class="lb-links"><a href="workflows.html#outcome">Read the full workflow</a> · <a href="https://github.com/seankoji-com/.agents/blob/main/skills/babysitter/SKILL.md">Read babysitter's SKILL.md</a></p>
+  </div>
+</dialog>
+
+<dialog class="lightbox" id="lb-backlog-burn" aria-labelledby="lb-backlog-burn-title">
+  <div class="lb-inner">
+    <header class="lb-head">
+      <div><p class="eyebrow">backlog-burn · workflow</p><h2 id="lb-backlog-burn-title">Drive open issues and PRs to zero</h2></div>
+      <form method="dialog"><button class="lb-close" aria-label="Close">✕</button></form>
+    </header>
+    <figure class="diagram" style="--n:4">
+      <ol class="flow">
+        <li><strong>Sort open work</strong><p>Check owners. Close obsolete, completed or superseded items with evidence.</p></li>
+        <li><span class="who">babysitter · ship</span><strong>Run two queues</strong><p>Unowned PRs go to babysitter; worthwhile fixes go to ship.</p></li>
+        <li><strong>Keep ready work moving</strong><p>Up to 20 delegates. Decisions go to the owner while other work continues.</p></li>
+        <li><strong>Verify zero</strong><p>A fresh count, held items on record, one retrospective.</p></li>
+      </ol>
+      <div class="flow-loop" style="--from:2;--to:3"><span>Refresh the issue and PR lists on every wake</span></div>
+      <p class="flow-band">Name an organisation and it starts one run per repository with open work.</p>
+    </figure>
+    <p class="lb-links"><a href="workflows.html#backlog">Read the full workflow</a> · <a href="https://github.com/seankoji-com/.agents/blob/main/skills/backlog-burn/SKILL.md">Read backlog-burn's SKILL.md</a></p>
+  </div>
+</dialog>
 
 <p class="visually-hidden" id="status" role="status" aria-live="polite"></p>
 
@@ -522,7 +752,7 @@ function anchorFor(id, label) {
   link.title = "Copy link";
   return link;
 }
-document.querySelectorAll("main section[id] > h2").forEach(h => {
+document.querySelectorAll("main section[id] > h2, main aside[id] > h2").forEach(h => {
   h.append(anchorFor(h.parentElement.id, h.textContent));
 });
 catalogue.querySelectorAll(".group > h2").forEach(h => {
@@ -545,6 +775,23 @@ for (const { name, row, install } of skills) {
   install.querySelector(".term").append(copyButton(`cmd-${name}`, `Copy install command for ${name}`));
 }
 document.getElementById("multi-install-hint").hidden = false;
+document.querySelectorAll(".term[data-copy]").forEach(term => {
+  const command = term.querySelector(".cmd");
+  term.append(copyButton(command.id, `Copy command: ${command.textContent}`));
+});
+
+// Lightboxes: without script, the links open the screenshot or the workflow guide.
+document.addEventListener("click", e => {
+  const link = e.target.closest("[data-lightbox]");
+  const dialog = link && document.getElementById(link.dataset.lightbox);
+  if (!dialog?.showModal) return;
+  e.preventDefault();
+  dialog.showModal();
+});
+document.querySelectorAll("dialog.lightbox").forEach(dialog => {
+  // A click on the dialog element itself lands on the backdrop; content sits in .lb-inner.
+  dialog.addEventListener("click", e => { if (e.target === dialog) dialog.close(); });
+});
 
 // Tray
 const tray = document.getElementById("tray");
@@ -628,7 +875,7 @@ document.addEventListener("click", async e => {
     copied = document.execCommand("copy");
     if (copied) selection.removeAllRanges();
   }
-  status.textContent = copied ? "Install command copied." : "Copy the selected command manually.";
+  status.textContent = copied ? "Command copied." : "Copy the selected command manually.";
   button.textContent = copied ? "Copied" : "Copy";
   button.toggleAttribute("data-done", copied);
   clearTimeout(button._t);
