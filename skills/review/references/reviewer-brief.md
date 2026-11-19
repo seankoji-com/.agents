@@ -3,6 +3,8 @@
 Use this before dispatching a reviewer. Include these constraints in its brief,
 alongside scope, acceptance criteria, expected reviewer model/effort and verified
 author identities. Include any explicit user reassignment of reviewer settings.
+If [binaric](../../binaric/SKILL.md) is installed, apply its audience rule to
+the brief and the requested report. A recheck brief stays self-contained.
 
 ## Freeze the source
 

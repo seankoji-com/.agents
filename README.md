@@ -186,6 +186,7 @@ Build, check, and deliver changes with evidence of what works and what remains.
 Understand the work and communicate it clearly.
 
 - [github-writing](skills/github-writing/SKILL.md): Credit AI-written GitHub prose with a visible byline naming the actual writer and represented operator.
+- [binaric](skills/binaric/SKILL.md): Keep messages between AI agents (delegate briefs, follow-ups and child reports) short without dropping the facts the reader acts on. Only for model-to-model text, never for anything a person reads. Dispatching skills point to it.
 
 ### Agent setup
 
@@ -347,9 +348,10 @@ request or a slash command. Start with a bounded job:
 Use review to evaluate this implementation against the brief. Do not edit files.
 ```
 
-`focus-group` disables automatic model invocation.
-Use your host's explicit skill invocation, such as `/focus-group`
-where slash commands are supported.
+`focus-group` and `binaric` disable automatic model invocation.
+Use your host's explicit skill invocation, such as `/focus-group` or `/binaric`
+where slash commands are supported. The T3 dispatch preflight and reviewer
+brief link to `binaric`, so coordinators read it when they write a brief.
 
 ### Work from a clone
 
@@ -500,6 +502,7 @@ for a human introduction, or open a skill here to read its exact instructions.
 | [agent-tuneup](skills/agent-tuneup/SKILL.md) | Audit, troubleshoot or change agent configuration, permissions, MCP connections or native skill discovery when the user asks. |
 | [babysitter](skills/babysitter/SKILL.md) | Repair and monitor open pull requests through verified merge when asked to babysit, merge, watch or monitor them. Honour read-only and no-merge limits. |
 | [backlog-burn](skills/backlog-burn/SKILL.md) | Clear open issues and pull requests or launch one backlog run per repository in a named organisation. Close obsolete work with evidence, resolve owner decisions and delegate worthwhile fixes within a cap of 20. |
+| [binaric](skills/binaric/SKILL.md) | ONLY for LLM-to-LLM messages: delegate briefs, follow-ups and child reports, kept short with every fact the reader acts on. Never for anything a human is meant to read. |
 | [challenge](skills/challenge/SKILL.md) | Pressure-test an idea, design or proposal with an independent reviewer when asked to challenge assumptions, give a second opinion or answer 'are you sure?'. Return findings without edits. |
 | [choose-design](skills/choose-design/SKILL.md) | Compare design options after product decisions are settled for new UI, a requested redesign or an unresolved visual or interaction choice. Preserve the existing design for routine edits. |
 | [focus-group](skills/focus-group/SKILL.md) | Plan, run or review a synthetic focus group or product study with fictional participants. |
@@ -574,7 +577,7 @@ installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 4bc2b8fdf4ae71c5575817dabe5fdc9d0cbf68e55a20ef3e936ce6867b8e31e1 -->
+<!-- skills-review: c36e233f4af1721d03605454b11d317273715db2af17315d4da77e0ff25032b9 -->
 
 ### Owner maintenance
 

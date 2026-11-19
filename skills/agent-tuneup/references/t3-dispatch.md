@@ -1,7 +1,9 @@
 # T3 dispatch preflight
 
 Read before starting a T3 session or delegate, including reviewers, designers,
-implementation workers and issue writers.
+implementation workers and issue writers. If [binaric](../../binaric/SKILL.md)
+is installed, apply its audience rule to each brief, send and requested reply.
+Either way, give each new delegate a self-contained brief.
 
 ## Check subscription headroom before choosing a route
 
