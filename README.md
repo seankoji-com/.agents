@@ -15,7 +15,7 @@ still needs your attention.
 [Find a skill](#find-your-starting-point) · [Why T3 Code](#built-for-t3-code) · [See an example](#what-it-looks-like-in-practice) · [Get started](#use-the-library) · [All skills](#skill-catalog)
 
 > [!TIP]
-> **New here?** The [skills site](https://seankoji-com.github.io/.agents/)
+> **New here?** The [skills site](https://skills.seankoji.com/)
 > describes every skill in plain language, with a copy-ready install command
 > and a link to its definition on GitHub. This README is the full reference.
 
@@ -419,7 +419,7 @@ A fresh checkout does not install these optional skills automatically.
 ## How the workflows fit together
 
 Use the skills that help with the current task. You do not need the whole
-library for every change. The [workflow guide](https://seankoji-com.github.io/.agents/workflows.html)
+library for every change. The [workflow guide](https://skills.seankoji.com/workflows.html)
 on the skills site shows the handoffs with diagrams: decisions, implementation
 in a separate worktree, review, delivery, deferred-bug filing and the T3
 permission workarounds. Each skill's own file holds the exact rules.
