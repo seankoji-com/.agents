@@ -120,7 +120,9 @@ The [review](skills/review/SKILL.md) skill applies this in a few rules:
   Formal review keeps DeepSeek Flash V4.1 out of direct reviewer dispatch. OCR
   follows the [OCR skill](skills/ocr/SKILL.md): a public repository draws free
   OpenCode reviewers, and the paid CLI uses DeepSeek Flash V4.1 unless DeepSeek
-  wrote the code, in which case it uses Qwen 3.8 Flash high. Other models require
+  wrote the code, in which case it uses Qwen 3.8 Flash and the control that
+  sends high reasoning effort. `--effort high` is OCR review depth and is
+  recorded separately. Other models require
   your explicit selection. The [selection rules](skills/review/references/model-selection.md)
   apply inside `implement` too. If no eligible authorised route remains, review
   stays pending.
@@ -590,7 +592,7 @@ installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 6bf046f95d7c969e16e51ee4f7615df14013484b70f2d63dda5b8e27d3de1531 -->
+<!-- skills-review: 539282a7b0296a70642d3c60e43361b2c865ef0bba1900ba3881fd9ff47bf8da -->
 
 ### Owner maintenance
 

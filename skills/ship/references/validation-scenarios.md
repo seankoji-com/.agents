@@ -55,7 +55,10 @@ the code. A model with no family is left out. A catalog page that still names
 omitted models is fetched again before the draw.
 
 Mutation: every free leg fails, or none are eligible. Expected: run the paid
-route and label it as the fallback. DeepSeek Flash V4.1 is that backend unless
+route and label it as the fallback. The watcher brief names the repository,
+revision, scope, provider, model, `--timeout` minutes, a directory `git
+check-ignore` accepts, and whether this is the one allowed rerun. A missing
+field means the watcher runs nothing. DeepSeek Flash V4.1 is that backend unless
 DeepSeek wrote the code, in which case the backend is Qwen 3.8 Flash with the
 control that sends high reasoning effort. `--effort high` stays OCR's review
 depth and is reported separately. If Qwen also wrote the code, or Qwen is

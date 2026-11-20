@@ -34,11 +34,11 @@ A private repository, or unknown visibility, uses the paid route only.
 ## Free route
 
 The free route is not the `ocr` CLI. Dispatch one async delegate on a
-low-powered model. It owns the draw, the three reviewers, and the single
-report. It is not a reviewer, so its family does not matter. The caller
+low-powered model. That delegate owns the draw, the three reviewers, and the
+single report. It is not a reviewer, so its family does not matter. The caller
 receives nothing until that report.
 
-The owner pages `orchestrator_capabilities` until `omittedModels` is 0 or the
+The delegate pages `orchestrator_capabilities` until `omittedModels` is 0 or the
 page repeats. A model is eligible when the host can run it, its id is
 `opencode/*-free`, `tool_call` is true, and `https://models.dev/api.json`
 gives the `opencode` provider a `family` for it that differs from every
@@ -52,8 +52,10 @@ frozen revision. Reuse it for that revision. A new revision draws again.
 Fewer than three eligible models: run all of them. None eligible: return that
 fact so the caller starts the paid route.
 
-The owner runs the reviewers itself. It starts no delegate and no child agent.
-Each leg is one `opencode run` in the frozen checkout:
+The delegate runs the reviewers itself. It starts no child delegate and no
+child agent. Each leg is one `opencode run` in the frozen checkout.
+Write each log under a directory that `git check-ignore` confirms is ignored.
+A directory that check does not accept is not an output path.
 
 ```sh
 opencode run --model opencode/<model>#<variant> --auto --format json \
@@ -83,14 +85,17 @@ distinct claim, including a claim from only one model, and name the models
 that reported it. Record a leg that found nothing and a leg that failed. Do
 not change a severity and do not drop a claim. One usable report makes the
 free route succeed. When every leg fails, say so. The caller then starts the
-paid route. The owner does not.
+paid route. The delegate does not.
 
 ## Paid route
 
 Dispatch one async delegate on a low-powered model. It is a watcher, not a
 reviewer, so its family does not matter. Give it the
-[OCR watcher card](references/ocr-watcher.md) at its absolute path and the
-resolved backend, scope, revision, budget, and output paths. It runs the
+[OCR watcher card](references/ocr-watcher.md) at its absolute path. The brief
+names the repository, the frozen revision, the scope, the provider, the model,
+the `--timeout` minutes, an output directory that `git check-ignore` confirms
+is ignored, and whether this invocation is the one allowed rerun. A missing
+field is a gap, and the watcher runs nothing. It runs the
 `ocr` CLI, follows the process until it exits, and returns one report. The
 orchestrator gets nothing until that report, including the one budget rerun.
 Dispatch it with `delegate_task` in `async` mode. A `wait` call returns

@@ -38,7 +38,8 @@ Run this lane only where step 2 requires it, or when the user asks. Apply the
 [OCR skill](../../ocr/SKILL.md). Pass the frozen revision, every material
 code-author lineage, repository visibility, and the sharing decision. That
 skill chooses the free or paid route, runs the review, and returns the
-findings. Keep this lane's report separate from the primary. Handle findings
+findings. It writes logs only in a directory `git check-ignore` confirms is
+ignored. Keep this lane's report separate from the primary. Handle findings
 under review's severity and disposition rules.
 
 ## Hydrogen high

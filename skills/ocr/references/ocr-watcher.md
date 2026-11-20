@@ -16,7 +16,9 @@ allowed rerun. Missing any of those, return that gap and run nothing.
    `ocr config set timeout` is rejected. It is distinct from the per-request
    `timeout_sec`. Raising `timeout_sec` does not help when requests return in
    seconds.
-2. Write JSON with `--output` and the log beside it. Keep stdout and stderr
+2. Confirm the output directory with `git check-ignore` before writing. If
+   that check does not ignore it, return the gap and run nothing. Write JSON
+   with `--output` and the log beside it. Keep stdout and stderr
    off `tail`, `head`, and `grep`. Those filters buffer until EOF, so a kill,
    hang, or budget cancellation leaves an empty capture and drops the reason
    line. For a frozen dirty workspace:

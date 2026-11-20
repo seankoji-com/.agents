@@ -37,7 +37,9 @@ delivery review as usual.
    DeepSeek Flash V4.1 is removed from direct reviewer dispatch. OCR follows
    the [OCR skill](../../ocr/SKILL.md): a public repository draws free OpenCode
    reviewers, and the paid `ocr` CLI uses DeepSeek Flash V4.1 unless DeepSeek
-   wrote the code, in which case it uses Qwen 3.8 Flash at high model effort.
+   wrote the code, in which case it uses Qwen 3.8 Flash and the control that
+   sends high reasoning effort. `--effort high` is OCR review depth and is
+   recorded separately.
    A named DeepSeek request still uses OCR, not direct host-model dispatch.
    Hydrogen's separate role as the required visual companion keeps standing
    authority; it adds a second visual review rather than replacing the primary's.
