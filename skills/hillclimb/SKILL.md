@@ -73,7 +73,8 @@ reports before settling the next repair.
    A failed run gets one automatic recovery before any operator question.
    Record the attempt before the fix, diagnose from the retained evidence, fix
    the cause and re-invoke once from the latest candidate under the original
-   run ID and spent slot, with a fresh counter.
+   run ID and spent slot, with a fresh counter. A fix that fails or is blocked
+   before dispatch is recorded as spent.
    Retain the phase and roster; record any criteria or roster change and flag a
    pass under either with the original target. A second failure stops the
    run and reports. Apply the shared [recovery procedure](../review/references/budget-exhaustion.md#continue-a-stopped-scoring-loop)

@@ -118,9 +118,11 @@ not justify an empty PR: return the baseline/report and explain that limitation.
 
 After the automatic recovery, rank candidates across invocations only when the
 phase, rubric, target, required checks and roster all match. Otherwise use the
-retry's best under the frozen current contract. A retry that starts an existing
-panel phase uses its frozen repaired baseline as the panel entry when no
-complete panel score exists. When neither run has a fully scored eligible
+retry's best under the frozen current contract. A retry that starts in an
+existing panel phase uses its frozen repaired baseline as the panel entry when
+no complete panel score exists. A retry that starts in primary and later enters
+panel keeps the candidate that entered panel when panel scoring never
+completes. When neither run has a fully scored eligible
 candidate, preserve the latest eligible work and report no ranked best.
 Required formal fixes still constrain the handback.
 
@@ -182,8 +184,10 @@ Use these synthetic cases to check the instructions without live models:
 | Formal review permits coordinator verification under `review_rounds: 1`, but the repaired head has no Hillclimb score | The formal recheck can pass. Hillclimb remains incomplete until its own score and checks pass |
 | Evaluation stays blocked after its one operation retry | The invocation has failed; recover once with a fresh counter, then stop and report if the retry also fails |
 | Retry changes the rubric or roster and passes | Deliver with the original and revised targets flagged; older scores are historical |
-| Retry reaches the panel but panel scoring never completes | Hand back the retry's frozen repaired baseline as the panel entry and state that it has no complete panel result |
+| Retry starts in an existing panel phase and panel scoring never completes | Hand back the retry's frozen repaired baseline as the panel entry and state that it has no complete panel result |
+| Retry starts in primary, later enters panel, and panel scoring never completes | Hand back the candidate that entered panel and state that it has no complete panel result |
 | Explicit repair-round cap is spent | A setup-only fix may recover; a candidate-changing fix is blocked and reported |
+| Deadline or spend cap is already exhausted | Record the recovery as failed before dispatch and report; dispatch nothing |
 | Resume finds a started recovery with no usable handle | Treat the recovery as spent, dispatch nothing and report |
 | Resume sees `dispatching` with no handle | Treat the slot as spent, reconcile the repair and report; never relaunch |
 | Retry delegate lacks the original run ID and recovery slot | Invalid recovery; carry both in its brief and return its outcome to the original coordinator |

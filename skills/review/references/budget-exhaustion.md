@@ -152,15 +152,17 @@ change the repair strategy, implementation, setup, loop rubric, target,
 loop-required checks and a roster seat, but not scope or a hard gate.
 
 1. Record before acting, against the original run ID: `committed` with the
-   trigger and diagnosis before the fix; `dispatching` with the intended route
-   and frozen candidate before the host call or the first inline retry action;
+   trigger and diagnosis before the fix; `fix-failed` when that fix fails or
+   is blocked, before any dispatch; `dispatching` with the intended route and
+   frozen candidate before the host call or the first inline retry action;
    `started` with the delegate task and child thread, or the inline run ID and
    start time, once the retry begins; `returned` with its result. On resume,
    reconcile the repair from the retained evidence. A `committed` record with
-   no `dispatching` may resume the fix and launch once; `dispatching` or
-   `started` without a usable handle means the slot is spent and the launch
-   state is unknown, so report and never relaunch. No recoverable record means
-   no automatic recovery.
+   no later outcome may resume the fix and launch once. `fix-failed` means the
+   recovery is spent: keep the stop, dispatch nothing and report the failed or
+   blocked fix. `dispatching` or `started` without a usable handle means the
+   slot is spent and the launch state is unknown, so report and never relaunch.
+   No recoverable record means no automatic recovery.
 2. Diagnose from the retained evidence; start no evaluator for the diagnosis.
    Keep the existing one-operation retry inside every invocation. Only this
    loop-level recovery is capped at one.
@@ -170,11 +172,14 @@ loop-required checks and a roster seat, but not scope or a hard gate.
    approval. Prefer a confirmed alternate. Record every change and its reason.
    A new provider or model, user constraint, repository gate, permission,
    publication authority, formal delivery review or scope change blocks the
-   recovery; report and stop.
-4. Fit the remaining allowance. An explicit repair-round cap counts a
-   candidate-changing fix, including a pre-baseline fix. Re-baselining consumes
-   no repair round. An exhausted deadline or spend cap blocks all recovery work;
-   a spent repair-round allowance still permits a setup-only recovery.
+   recovery. Record `fix-failed`, report and stop.
+4. Fit the remaining allowance before the fix. An explicit repair-round cap
+   counts a candidate-changing fix, including a pre-baseline fix.
+   Re-baselining consumes no repair round. An exhausted deadline or spend cap
+   blocks every recovery action, including setup. A spent repair-round
+   allowance still permits a setup-only recovery and blocks a
+   candidate-changing fix. Record either blocked case as `fix-failed`: the
+   slot is spent because the limit made that recovery unavailable.
 5. Freeze the latest candidate after the fix as the new baseline before scoring,
    and retain the phase: primary stays primary; panel stays panel with every
    confirmed scorer. Reuse a score only when the candidate and evaluation
@@ -196,11 +201,14 @@ Handback after a second failure: under an unchanged contract, use the best
 eligible candidate across both invocations that retains required fixes, even
 when the retry scored lower. When the phase, rubric, target, required checks or
 roster changed, scores are not comparable. Use the retry's best under the
-frozen current contract. If the retry started an existing panel phase and never
-completed a panel score, use its frozen repaired baseline as the panel entry;
-otherwise, when panel scoring never completed, use the earlier panel-entry
-candidate. If neither invocation has a fully scored eligible candidate,
-preserve the latest eligible work, report that there is no ranked best, and
+frozen current contract. If the retry started in an existing panel phase and
+never completed a panel score, use its frozen repaired baseline as the panel
+entry. If the retry started in primary, later entered panel, and never
+completed a panel score, use the candidate that entered panel. If the retry
+never entered panel and panel scoring never completed, use the earlier
+panel-entry candidate. If neither invocation has a fully scored eligible
+candidate, preserve the latest eligible work, report that there is no ranked
+best, and
 name the retry's frozen baseline as the fallback. Mark older scores historical.
 
 ### Operator-approved continuation
@@ -257,8 +265,12 @@ Use these synthetic cases to check the instruction contract without live models:
 | A technical failure remains after its one operation retry | Record the recovery, diagnose, fix, and re-invoke once from the latest candidate with a fresh counter. |
 | The recovery retry also fails | Stop the loop and report both attempts; no second recovery and no continuation delegate. |
 | An explicit repair-round cap is spent | Permit a setup-only fix; block a candidate-changing fix, report it and stop. |
+| A deadline or spend cap is already exhausted | Record `fix-failed`, dispatch nothing and report. The slot is spent because the limit blocked recovery. |
 | The retry revises the rubric or roster and passes | Deliver with the original and revised targets flagged; never claim the original target was met. |
-| The retry reaches the panel but never gets a complete panel score | Hand back the retry's frozen repaired baseline as the panel entry and state that it has no complete panel result. |
+| The retry starts in an existing panel phase and never gets a complete panel score | Hand back the retry's frozen repaired baseline as the panel entry and state that it has no complete panel result. |
+| The retry starts in primary, enters panel on a later candidate, and never gets a complete panel score | Hand back that later panel-entry candidate and state that it has no complete panel result. |
+| A resume finds `committed` followed by `fix-failed` | Treat the recovery as spent, dispatch nothing and report the failed or blocked fix. |
+| A resume finds `committed` with no later outcome | Resume the fix and launch once. |
 | A resume finds `started` with no usable handle | Treat the recovery as spent, dispatch nothing and report the unknown state. |
 | A resume finds `dispatching` with no handle | Treat the slot as spent, reconcile the repair from evidence and report; never relaunch. |
 | The retry brief omits the original run ID or recovery slot | Invalid recovery; carry both and return the outcome to the original coordinator. |

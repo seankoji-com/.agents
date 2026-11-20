@@ -316,8 +316,10 @@ a job, especially one that can publish or merge changes.
   Missing access, unavailable reviewers, and unverified behavior remain visible gaps.
 - **Stopped scoring loops.** A failed `review-loop` or `hillclimb` run gets one
   automatic recovery: the agent records the attempt, diagnoses what stalled,
-  fixes the cause and re-invokes once from the latest candidate. Your round,
-  deadline or spending caps still stop it. A revised rubric, target or roster
+  fixes the cause and re-invokes once from the latest candidate. A deadline or
+  spending cap already reached stops the recovery. A repair-round cap already
+  reached still allows a setup-only fix, and blocks one that changes the
+  candidate. A revised rubric, target or roster
   is recorded and flagged against the original target. If the retry also fails,
   the agent reports both attempts and the best candidate rather than continuing.
 - **Follow-through.** Confirmed bugs deliberately left unfixed need tracking.
@@ -594,7 +596,7 @@ installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: f7800675d735093ed50495213c8afe8020351ff5fd09737f828ff8d287e539b8 -->
+<!-- skills-review: d6b660a8f2ffbf70a8d508f7aef35107955514bd909c4d36ca500a91d4c983ca -->
 
 ### Owner maintenance
 

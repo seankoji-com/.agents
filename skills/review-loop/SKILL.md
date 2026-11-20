@@ -154,9 +154,10 @@ does not automatically need this loop.
      behaviour on each target. Report the actual endpoint and any incomplete gate.
 
 On an ordinary resume, reconcile tasks and preserve decisions, findings, scores,
-best candidate, counters and limits. Reconcile the recovery record; a
-`dispatching` or `started` recovery without a usable handle is spent and is
-never redispatched. Use the
+best candidate, counters and limits. Reconcile the recovery record. A
+`fix-failed` record is spent. A `dispatching` or `started` recovery without a
+usable handle is spent and is never redispatched. A `committed` record with no
+later outcome may resume the fix once. Use the
 continuation procedure after the automatic recovery for an operator-approved
 new baseline. On cancellation, stop only owned work and confirm it stopped.
 
