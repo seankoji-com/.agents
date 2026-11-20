@@ -52,22 +52,31 @@ frozen revision. Reuse it for that revision. A new revision draws again.
 Fewer than three eligible models: run all of them. None eligible: return that
 fact so the caller starts the paid route.
 
-The owner starts the reviewers. Respect `max_concurrent_delegates`. When fewer
-than three slots are free, run waves. Request `runtimeMode: full-access` for
-each OpenCode child when the parent can grant it. Zero permission-compatible
-candidates fails the free route. Each leg is an async `delegate_task` on the
-drawn model, at the high variant when the model exposes one, otherwise the
-model default. Give it the
-[assigned-reviewer card](../review/references/assigned-reviewer.md) at its
-absolute path, plus the scope, revision, and acceptance criteria. Tell it to
-run a check only when a finding depends on that check. These delegates do not
-run `ocr`.
+The owner runs the reviewers itself. It starts no delegate and no child agent.
+Each leg is one `opencode run` in the frozen checkout:
 
-A leg's budget is 60 minutes for a high-effort review of a handful of files.
-A usable report names the assigned revision and required scope, and either
-lists findings or says there are none. A wrong revision, a missing scope, an
-error, a cancellation, or silence past the budget is a failed leg. Wait until
-every started leg returns or hits its budget.
+```sh
+opencode run --model opencode/<model>#<variant> --auto --format json \
+  "<review brief>" > /path/ignored/<model>.log 2>&1
+```
+
+Use `#high` when that model exposes a high variant. Otherwise omit `#variant`.
+Confirm the flag in `opencode run --help` before the first live run. The
+brief contains the [assigned-reviewer card](../review/references/assigned-reviewer.md)
+text, the scope, the revision, and the acceptance criteria, and it tells the
+model to run a check only when a finding depends on that check. Do not pipe
+the command through `tail`, `head`, or `grep`. A killed process drops a
+buffered pipe, and the log is the only copy of the report.
+
+Set the shell wait to the whole free-route budget: 60 minutes per leg for a
+high-effort review of a handful of files, so three sequential legs need 180
+minutes. Run the three commands in parallel when the host allows three
+concurrent processes. Record each PID. On cancel, stop those PIDs only.
+
+A usable log names the assigned revision and required scope, and either lists
+findings or says there are none. A wrong revision, a missing scope, a non-zero
+exit, a cancellation, or an empty log is a failed leg. Read each log after
+its process exits.
 
 Group findings that cite the same file and the same claim. Keep every
 distinct claim, including a claim from only one model, and name the models

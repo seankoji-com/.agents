@@ -45,10 +45,11 @@ models have a `models.dev` family different from every code author. Sharing
 authority covers the frozen revision.
 
 Expected: one low-powered delegate pages the catalog, draws those three, or
-three from a larger eligible set, and starts them. It groups findings that
-cite the same file and the same claim, keeps a claim reported by only one
-model, and returns one report. One usable report, including an explicit zero,
-completes the free route. The paid `ocr` CLI does not run.
+three from a larger eligible set, and runs each with `opencode run` in its
+own checkout. It starts no child delegate. It groups findings that cite the
+same file and the same claim, keeps a claim reported by only one model, and
+returns one report. One usable report, including an explicit zero, completes
+the free route. The paid `ocr` CLI does not run.
 `opencode/deepseek-v4.1-flash-free` stays eligible when DeepSeek did not write
 the code. A model with no family is left out. A catalog page that still names
 omitted models is fetched again before the draw.
