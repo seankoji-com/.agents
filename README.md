@@ -178,7 +178,7 @@ Build, check, and deliver changes with evidence of what works and what remains.
 - [implement](skills/implement/SKILL.md): Move substantial coding into a separate workspace and return reviewed commits to the main conversation for integration. Requires T3 delegation.
 - [plan-report](skills/plan-report/SKILL.md): Show proposed plans, progress and final calibration on a timeline from a private ledger.
 - [review](skills/review/SKILL.md): Evaluate a plan, change, or release against its requirements. Code reviewers differ in family from code authors. Return evidence-backed findings without edits.
-- [ocr](skills/ocr/SKILL.md): Run OpenCodeReview on a frozen diff. A public repository draws three free OpenCode reviewers. A private one runs the `ocr` CLI through one watcher. Findings come back unchanged.
+- [ocr](skills/ocr/SKILL.md): Run OpenCodeReview on a frozen diff. A public repository draws up to three free OpenCode reviewers and returns one grouped report. A private one runs the `ocr` CLI through one watcher.
 - [review-loop](skills/review-loop/SKILL.md): Hill-climb through repairs and review until the score target and required gates pass or two consecutive rounds fail to improve the best score.
 - [hillclimb](skills/hillclimb/SKILL.md): Improve a workflow, artifact or product toward a fixed score target. Confirm the judging roster, follow the rounds in one report and use the real interface for UI judging.
 - [test-writer](skills/test-writer/SKILL.md): Choose tests that catch consequential failures, with attention to reliability, maintenance, and CI time.
@@ -384,9 +384,10 @@ hosts can use skills whose required capabilities they provide. Isolated `impleme
 required capability is missing. Inline issue work requires an explicit request.
 
 Reading the instructions needs no running service. Python helpers require Python
-3.10+ and the standard library. Diff reviews that use OCR also require the installed
+3.10+ and the standard library. The paid OCR route needs the installed
 [OpenCodeReview CLI](https://github.com/alibaba/open-code-review) and a configured,
-authorised OCR provider. UI/visual review needs host browser or device access and
+authorised OCR provider. A public repository uses free OpenCode models first and
+falls back to that CLI only when every free reviewer fails. UI/visual review needs host browser or device access and
 Hydrogen high.
 Owner host-delivery configuration is only for
 maintaining this repository, not for using skills from a clone.
@@ -518,7 +519,7 @@ for a human introduction, or open a skill here to read its exact instructions.
 | [github-writing](skills/github-writing/SKILL.md) | Add a byline when drafting or editing AI-written GitHub issues, pull requests, comments, reviews, discussions or release notes on the user's behalf. |
 | [hillclimb](skills/hillclimb/SKILL.md) | Improve a workflow, artifact or product toward an agreed score over several rounds. Confirm the judges, report each round and review delivery. Judge UI work on the real interface. |
 | [implement](skills/implement/SKILL.md) | Implement through T3 delegation when the user requests it or invokes implement. Return reviewed commits to the main thread for integration and delivery. |
-| [ocr](skills/ocr/SKILL.md) | Run OpenCodeReview on a frozen diff. A public repository draws three free OpenCode reviewers; a private one runs the ocr CLI through one watcher. Relay the findings unchanged. |
+| [ocr](skills/ocr/SKILL.md) | Run OpenCodeReview on a frozen diff. A public repository draws up to three free OpenCode reviewers and returns one grouped report; a private one runs the ocr CLI through one watcher. |
 | [plan-report](skills/plan-report/SKILL.md) | Show a plan, progress or final calibration on an HTML timeline from a private ledger. Use for coordinated work, timeline requests or reporting in ship, backlog-burn and implement. |
 | [raise-issue](skills/raise-issue/SKILL.md) | Investigate, draft, file or follow up on a bug, feature or task issue when the user or an authorised workflow asks. Use an asynchronous T3 delegate. |
 | [raise-pr](skills/raise-pr/SKILL.md) | Prepare, create or update a pull request during implementation, review-loop, ship or PR maintenance. Include the repository's required evidence and checks. |
@@ -589,7 +590,7 @@ installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: e08e9752e3f04520b54a6f9c9d71f923514035d743a0ed6f78a7af829f30ce97 -->
+<!-- skills-review: 470cb244d22552989ae04d63ea9f6fa0c6f6d31875e89b4dd729b992cb393a58 -->
 
 ### Owner maintenance
 

@@ -44,16 +44,21 @@ Input: a public repository asks for OCR. Three runnable `opencode/*-free`
 models have a `models.dev` family different from every code author. Sharing
 authority covers the frozen revision.
 
-Expected: draw those three, or three from a larger eligible set, and dispatch
-them as OpenCode reviewers. Relay each usable report unchanged. One usable
-report, including an explicit zero findings, completes the free route. The
-paid `ocr` CLI does not run. `opencode/deepseek-v4.1-flash-free` stays eligible
-when DeepSeek did not write the code. A model with no family is left out.
+Expected: one low-powered delegate pages the catalog, draws those three, or
+three from a larger eligible set, and starts them. It groups findings that
+cite the same file and the same claim, keeps a claim reported by only one
+model, and returns one report. One usable report, including an explicit zero,
+completes the free route. The paid `ocr` CLI does not run.
+`opencode/deepseek-v4.1-flash-free` stays eligible when DeepSeek did not write
+the code. A model with no family is left out. A catalog page that still names
+omitted models is fetched again before the draw.
 
 Mutation: every free leg fails, or none are eligible. Expected: run the paid
 route and label it as the fallback. DeepSeek Flash V4.1 is that backend unless
-DeepSeek wrote the code, in which case the backend is Qwen 3.8 Flash at high
-model effort. If Qwen also wrote the code, or Qwen is unavailable, the paid
+DeepSeek wrote the code, in which case the backend is Qwen 3.8 Flash with the
+control that sends high reasoning effort. `--effort high` stays OCR's review
+depth and is reported separately. If Qwen also wrote the code, or Qwen is
+unavailable, the paid
 route is unavailable. Do not send the diff to an unlisted backend.
 
 Mutation: the repository is private, or visibility stays unknown after one

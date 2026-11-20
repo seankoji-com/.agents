@@ -27,7 +27,11 @@ allowed rerun. Missing any of those, return that gap and run nothing.
      --output /path/ignored/ocr.json > /path/ignored/ocr.log 2>&1
    ```
 
-   For committed scope, add `--from <base-sha> --to <head-sha>`. Pass the
+   `--effort high` sets OCR's review depth. It does not set the model's
+   reasoning effort. Report the two separately. When the brief names Qwen
+   3.8 Flash, also pass the control that sends high reasoning effort, and
+   record whether the run verified it. Do not infer one setting from the
+   other. For committed scope, add `--from <base-sha> --to <head-sha>`. Pass the
    brief with `--background-file` when the brief supplies one. Run `--preview`
    first and confirm the file list matches the brief. Set the shell wait
    above `--timeout`. Record the `ocr` PID at launch. On cancel, stop that

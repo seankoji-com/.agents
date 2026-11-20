@@ -1,6 +1,6 @@
 ---
 name: ocr
-description: "Run OpenCodeReview on a frozen diff. A public repository draws three free OpenCode reviewers; a private one runs the ocr CLI through one watcher. Relay the findings unchanged."
+description: "Run OpenCodeReview on a frozen diff. A public repository draws up to three free OpenCode reviewers and returns one grouped report; a private one runs the ocr CLI through one watcher."
 ---
 
 # Run OpenCodeReview
@@ -33,49 +33,48 @@ A private repository, or unknown visibility, uses the paid route only.
 
 ## Free route
 
-The free route is not the `ocr` CLI. Discover runnable `opencode/*-free`
-models with `orchestrator_capabilities`. Read each model's `family` and
-`tool_call` from the `opencode` provider at `https://models.dev/api.json`.
-Reuse that record for 24 hours. It is a family lookup, not a quality ranking
-and not a frozen allowlist. `litellm/*-free` names are not this route.
+The free route is not the `ocr` CLI. Dispatch one async delegate on a
+low-powered model. It owns the draw, the three reviewers, and the single
+report. It is not a reviewer, so its family does not matter. The caller
+receives nothing until that report.
 
-A model is eligible when the host can run it, `tool_call` is true, `family`
-is present, and that family differs from every material code author. A null
-or missing family is ineligible; record it. DeepSeek Flash stays eligible
-when DeepSeek did not write the code. The bar on dispatching DeepSeek as a
-direct reviewer belongs to the review skill, not to this draw.
+The owner pages `orchestrator_capabilities` until `omittedModels` is 0 or the
+page repeats. A model is eligible when the host can run it, its id is
+`opencode/*-free`, `tool_call` is true, and `https://models.dev/api.json`
+gives the `opencode` provider a `family` for it that differs from every
+material code author. Reuse that record for 24 hours. It is a family lookup,
+not a quality ranking. A null or missing family is ineligible. DeepSeek Flash
+stays eligible when DeepSeek did not write the code. `litellm/*-free` names
+are not this route.
 
 Draw up to three eligible models at random and record the draw against the
-frozen revision. Reuse it for that revision, including a retry. A new
-revision draws again. Fewer than three eligible models: run all of them.
-None eligible: skip to the paid route.
+frozen revision. Reuse it for that revision. A new revision draws again.
+Fewer than three eligible models: run all of them. None eligible: return that
+fact so the caller starts the paid route.
 
-Respect `max_concurrent_delegates` and the host limit. When fewer than three
-slots are free, run waves until three have started or the cap blocks another
-start. Request `runtimeMode: full-access` for each OpenCode child when the
-parent can grant it. A parent that cannot grant it has no free candidates.
-Zero permission-compatible candidates fails the free route. The paid route
-then runs only when it is itself permitted and the sharing decision covers
-its provider.
+The owner starts the reviewers. Respect `max_concurrent_delegates`. When fewer
+than three slots are free, run waves. Request `runtimeMode: full-access` for
+each OpenCode child when the parent can grant it. Zero permission-compatible
+candidates fails the free route. Each leg is an async `delegate_task` on the
+drawn model, at the high variant when the model exposes one, otherwise the
+model default. Give it the
+[assigned-reviewer card](../review/references/assigned-reviewer.md) at its
+absolute path, plus the scope, revision, and acceptance criteria. Tell it to
+run a check only when a finding depends on that check. These delegates do not
+run `ocr`.
 
-Each leg is an async `delegate_task` on the OpenCode provider and the drawn
-model, at the high variant when the model exposes one, otherwise the model
-default. Give it the [assigned-reviewer card](../review/references/assigned-reviewer.md)
-at its absolute path, plus the scope, revision, and acceptance criteria.
-These delegates are the reviewers. They do not run `ocr`.
+A leg's budget is 60 minutes for a high-effort review of a handful of files.
+A usable report names the assigned revision and required scope, and either
+lists findings or says there are none. A wrong revision, a missing scope, an
+error, a cancellation, or silence past the budget is a failed leg. Wait until
+every started leg returns or hits its budget.
 
-A leg's budget equals the paid route's `--timeout` for the same scope: 60
-minutes for a high-effort review of a handful of files. A usable report names
-the assigned revision and the required scope, and either lists findings or
-says there are none. A wrong revision, a missing scope, an error, a
-cancellation, or silence past the budget is a failed leg. Zero findings with
-the scope covered is success.
-
-Wait until every started leg returns or hits its budget. One usable report
-makes the free route succeed, and the other legs still finish. Start the
-paid route only after every free leg has failed. The final report includes
-every leg, its model, and whether the paid route ran. Relay each report
-unchanged. Do not merge or re-score findings.
+Group findings that cite the same file and the same claim. Keep every
+distinct claim, including a claim from only one model, and name the models
+that reported it. Record a leg that found nothing and a leg that failed. Do
+not change a severity and do not drop a claim. One usable report makes the
+free route succeed. When every leg fails, say so. The caller then starts the
+paid route. The owner does not.
 
 ## Paid route
 
@@ -90,7 +89,10 @@ within 45 seconds and does not stop the child.
 
 The backend is DeepSeek Flash V4.1 on an authorised configured provider.
 When DeepSeek Flash V4.1 wrote material code in the scope, use Qwen 3.8 Flash
-(`qwen3.8-flash`) at high model effort instead. If Qwen also wrote that code,
+(`qwen3.8-flash`) and the control that sends high reasoning effort. `--effort
+high` is OCR's review depth, not that reasoning effort. Record the two
+separately, and do not claim a reasoning effort the run did not verify. If
+Qwen also wrote that code,
 or Qwen is unavailable or unauthorised, the paid route is unavailable. Do not
 use DeepSeek to review its own code. Select the backend per run with
 `--provider` and `--model`. Change no global `ocr` configuration, add no
