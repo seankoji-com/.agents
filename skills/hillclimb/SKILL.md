@@ -111,3 +111,6 @@ Hand back the selected revision, goal status, report and evidence locations,
 verified PR URL and head when applicable, local checks and formal review.
 Report hosted CI, merge, deployment and live acceptance separately. Stop
 owned tasks and preserve required evidence before cleanup.
+
+When this is the outermost handback and nothing remains, finish with
+[settle](../settle/SKILL.md).

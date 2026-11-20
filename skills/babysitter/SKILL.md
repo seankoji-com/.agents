@@ -179,6 +179,10 @@ Children return complete plain-text evidence to their coordinator. Use supported
 native presentation for substantial multi-PR reports, readable text otherwise.
 Keep private records and secrets out of public comments.
 
+When this thread is the outermost handback and nothing remains, finish with
+[settle](../settle/SKILL.md). A babysitter running inside ship leaves settlement
+to ship.
+
 Outside T3, use this skill's absolute-path `scripts/pr-wait <pr> [--repo owner/name]
 [--until ready|green|any-change]`. Exit 0 means the requested intermediate
 condition or merge, 1 means action/closure, 2 means invalid input. Run the same

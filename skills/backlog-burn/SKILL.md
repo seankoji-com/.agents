@@ -196,4 +196,7 @@ ship's consolidated retrospective, then report per
 [the ledger's handoff](references/ledger.md#handoff), keeping local checks, CI,
 merge, deployment and live acceptance separate.
 
+When the outermost handback is empty, finish with
+[settle](../settle/SKILL.md).
+
 When changing this workflow, exercise [the validation cases](references/validation.md).

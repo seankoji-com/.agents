@@ -125,7 +125,8 @@ evidence. These are options, not a required sequence:
    Apply the retrospective's coverage rules. Record verified proposal URLs or
    evidence that no amendment is warranted. Coverage gaps and blocked filing
    leave the retrospective incomplete. This stage ends with proposals and the
-   memory result.
+   memory result. Finish the run with [settle](../settle/SKILL.md) as the last
+   step, once this outermost handback has nothing left.
 
 Where repository policy requires direct publication instead of PRs, use its
 prescribed delivery path through the same proof and review gates. Do not create

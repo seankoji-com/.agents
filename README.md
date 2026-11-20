@@ -180,6 +180,7 @@ Build, check, and deliver changes with evidence of what works and what remains.
 - [babysitter](skills/babysitter/SKILL.md): Repair an existing PR, handle checks and review gates, and verify its merge when permitted. Explicit limits such as no-merge still apply.
 - [raise-issue](skills/raise-issue/SKILL.md): Prepare and file a bug, feature, or task asynchronously, preserving the evidence and returning a verified issue URL. Requires T3 delegation.
 - [backlog-burn](skills/backlog-burn/SKILL.md): Drive a repository's open issues and PRs to zero. It closes obsolete issues and superseded PRs with evidence, babysits unowned PRs to merge, and fills available delegate capacity up to 20 for worthwhile work through ship. Naming an organisation launches one run per repository. Requires T3 delegation.
+- [settle](skills/settle/SKILL.md): Close out a finished thread. Save durable decisions, remove only what the session created, raise optional follow-ups, release closed PRs, then settle the thread in T3.
 
 ### Writing and conversation
 
@@ -516,6 +517,7 @@ for a human introduction, or open a skill here to read its exact instructions.
 | [reremember](skills/reremember/SKILL.md) | Use when a remembered claim is contradicted by the code, when asked to correct or consolidate what the project remembers, or when a session settles a decision later work depends on. |
 | [review](skills/review/SKILL.md) | Review plans, code, UI, backend or releases independently, including review-loop and think's readiness check. Code reviewers must come from a different model family than the code authors. |
 | [review-loop](skills/review-loop/SKILL.md) | Implement, review and repair in rounds when asked to iterate with independent review or when the user invokes review-loop. Work toward the agreed score and acceptance criteria. |
+| [settle](skills/settle/SKILL.md) | Close out a finished top-level thread: save durable memory, remove task-owned scratch, raise optional follow-ups, unwatch closed PRs, then settle it in T3. Use at a completed handback or /settle. |
 | [ship](skills/ship/SKILL.md) | Deliver and verify a change when the user explicitly asks to ship or backlog-burn calls for delivery. Show progress and finish with a retrospective. |
 | [test-writer](skills/test-writer/SKILL.md) | Write or review tests, choose regression coverage, or assess test value, reliability and CI runtime. |
 | [think](skills/think/SKILL.md) | Turn an idea, plan or decision into a brief ready to build. Use when asked to think about it, think it through, keep thinking, interrogate or stress-test it, or clarify it through an interview. |
@@ -579,7 +581,7 @@ installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 0b377fb4d0a748dcf1d9ce61728ce65929e9b78bd5f72c3f225246f2cda04175 -->
+<!-- skills-review: d51e5de094dfa8df1d0da59ac87c11c4cb74fbc7b4a40250249645cfc4eb6642 -->
 
 ### Owner maintenance
 

@@ -45,6 +45,7 @@
           <li><strong>Check and repair</strong><p><a href="./#skill-review-loop">review-loop</a> uses independent findings to guide repairs and verify the result.</p></li>
           <li><strong>Open and finish the PR</strong><p><a href="./#skill-raise-pr">raise-pr</a> prepares the evidence. <a href="./#skill-babysitter">babysitter</a> handles checks, reviews and the merge.</p></li>
           <li><strong>Review the run</strong><p><a href="./#skill-ship">ship</a> verifies the requested endpoint, accounts for tracked bugs and records what to change next time.</p></li>
+          <li><strong>Close out the thread</strong><p><a href="./#skill-settle">settle</a> saves what matters, removes the session's own scratch and settles a finished thread.</p></li>
         </ol>
       </figure>
       <div class="facts">
@@ -66,6 +67,10 @@
         <div>
           <h3>Decide how to handle findings</h3>
           <p>The coordinator fixes material findings, records reasons for declining invalid or out-of-scope requests, and files eligible deferred bugs as issues. Required approvals and changes-requested reviews still block the merge.</p>
+        </div>
+        <div>
+          <h3>Close the finished thread</h3>
+          <p><a href="https://github.com/seankoji-com/.agents/blob/main/skills/settle/SKILL.md">settle</a> runs last. It saves durable decisions, raises optional follow-ups as new threads, and removes only what the session created. It leaves the thread open while a pull request or owner question still needs its owner.</p>
         </div>
       </div>
     </section>
