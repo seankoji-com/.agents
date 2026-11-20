@@ -660,9 +660,9 @@
         <li><strong>Review a frozen candidate</strong><p>Reviewers score the same revision, read-only.</p></li>
         <li><strong>Verify and repair</strong><p>Fix supported findings within scope.</p></li>
         <li><strong>Recheck changes</strong><p>Material repairs get a fresh review.</p></li>
-        <li><strong>Accept or explain</strong><p>Report the evidence, or why the loop stopped.</p></li>
+        <li><strong>Accept or explain</strong><p>Report the evidence, or recover from a failed run and then explain the stop.</p></li>
       </ol>
-      <div class="flow-loop" style="--from:3;--to:5"><span>Repeat until the score and checks pass, or two rounds fail to beat the best score</span></div>
+      <div class="flow-loop" style="--from:3;--to:5"><span>Repeat until the score and checks pass, or two rounds fail to beat the best. A failed run gets one recovery retry, then it reports</span></div>
     </figure>
     <p class="lb-links"><a href="workflows.html#outcome">Read the full workflow</a> · <a href="https://github.com/seankoji-com/.agents/blob/main/skills/review-loop/SKILL.md">Read review-loop's SKILL.md</a></p>
   </div>
@@ -683,7 +683,7 @@
         <li><strong>Full panel confirms</strong><p>Every judge must reach the target on the same version.</p></li>
         <li><strong>Deliver</strong><p>raise-pr takes the final candidate to review and a PR.</p></li>
       </ol>
-      <div class="flow-loop" style="--from:3;--to:4"><span>Each round lands in one rolling report. Two rounds without a gain stop the run</span></div>
+      <div class="flow-loop" style="--from:3;--to:4"><span>Each round lands in one rolling report. Two rounds without a gain stop the run; a failed run gets one recovery retry, then it reports</span></div>
     </figure>
     <p class="lb-links"><a href="workflows.html#outcome">Read the full workflow</a> · <a href="https://github.com/seankoji-com/.agents/blob/main/skills/hillclimb/SKILL.md">Read hillclimb's SKILL.md</a></p>
   </div>

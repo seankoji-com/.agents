@@ -91,7 +91,10 @@ unrounded sum to make the calculation auditable. A missing dimension means an
 incomplete evaluation, not zero or a reweighted average.
 
 The operator chooses the target. Keep the target and weights fixed across the
-approved panel transition. Resolve confirmed bugs under the required gates and
+approved panel transition. The single automatic recovery may revise the target,
+weights or required checks without a new operator question; record the revision
+and freeze it before scoring. A revised-criteria pass reports the original and
+revised target. Resolve confirmed bugs under the required gates and
 finding severity rules.
 
 ## Measurable checks and coverage

@@ -181,8 +181,8 @@ Build, check, and deliver changes with evidence of what works and what remains.
 - [plan-report](skills/plan-report/SKILL.md): Show proposed plans, progress and final calibration on a timeline from a private ledger.
 - [review](skills/review/SKILL.md): Evaluate a plan, change, or release against its requirements. Code reviewers differ in family from code authors. Return evidence-backed findings without edits.
 - [ocr](skills/ocr/SKILL.md): Run OpenCodeReview on a frozen diff. A public repository draws up to three free OpenCode reviewers and returns one grouped report. A private one runs the `ocr` CLI through one watcher.
-- [review-loop](skills/review-loop/SKILL.md): Hill-climb through repairs and review until the score target and required gates pass or two consecutive rounds fail to improve the best score.
-- [hillclimb](skills/hillclimb/SKILL.md): Improve a workflow, artifact or product toward a fixed score target. Confirm the judging roster, follow the rounds in one report and use the real interface for UI judging.
+- [review-loop](skills/review-loop/SKILL.md): Hill-climb through repairs and review until the score target and required gates pass or two consecutive rounds fail to improve the best score. A failed run gets one reflect-fix-re-invoke before it reports.
+- [hillclimb](skills/hillclimb/SKILL.md): Improve a workflow, artifact or product toward a fixed score target. Confirm the judging roster, follow the rounds in one report and use the real interface for UI judging. A failed run gets one reflect-fix-re-invoke before it reports.
 - [test-writer](skills/test-writer/SKILL.md): Choose tests that catch consequential failures, with attention to reliability, maintenance, and CI time.
 - [raise-pr](skills/raise-pr/SKILL.md): Prepare PR descriptions and evidence that meet the repository's requirements. Creating or updating the PR needs authority from your request.
 - [babysitter](skills/babysitter/SKILL.md): Repair an existing PR, handle checks and review gates, and verify its merge when permitted. Explicit limits such as no-merge still apply.
@@ -314,10 +314,12 @@ a job, especially one that can publish or merge changes.
   when the route and settings can be verified.
 - **Evidence.** The agent reports checks against the revision it actually tested.
   Missing access, unavailable reviewers, and unverified behavior remain visible gaps.
-- **Stopped scoring loops.** The implementer reports what stalled and proposes
-  a changed approach. You can approve continuing `review-loop` or `hillclimb`
-  from the latest candidate, carrying forward valid judge access checks and the
-  time or budget already used.
+- **Stopped scoring loops.** A failed `review-loop` or `hillclimb` run gets one
+  automatic recovery: the agent records the attempt, diagnoses what stalled,
+  fixes the cause and re-invokes once from the latest candidate. Your round,
+  deadline or spending caps still stop it. A revised rubric, target or roster
+  is recorded and flagged against the original target. If the retry also fails,
+  the agent reports both attempts and the best candidate rather than continuing.
 - **Follow-through.** Confirmed bugs deliberately left unfixed need tracking.
   The workflow records what remains rather than treating a passing check as the end.
 
@@ -592,7 +594,7 @@ installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 921df3630716e3212319f55f5c68fc1397f5a9a3e17fbe0e0ade114b9a656406 -->
+<!-- skills-review: f7800675d735093ed50495213c8afe8020351ff5fd09737f828ff8d287e539b8 -->
 
 ### Owner maintenance
 

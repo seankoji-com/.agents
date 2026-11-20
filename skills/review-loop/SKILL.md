@@ -7,7 +7,8 @@ description: "Implement, review and repair in rounds when asked to iterate with 
 
 Agree on what success looks like, then alternate repairs and independent
 evaluation. Stop when the score and required checks pass, or report the best
-result if two consecutive rounds fail to improve it. Ordinary engineering work
+result if two consecutive rounds fail to improve it. A failed run gets one
+recovery: diagnose, fix, re-invoke once, then report. Ordinary engineering work
 does not automatically need this loop.
 
 ## Workflow
@@ -23,7 +24,8 @@ does not automatically need this loop.
      completed evaluation once. A higher score becomes the best and resets the
      counter. A tie or lower score increments it and keeps the earlier best.
    - Check the target and required gates first. If they pass, finish. Otherwise
-     stop incomplete after two consecutive rounds without a higher score.
+     stop incomplete after two consecutive rounds without a higher score. A
+     stop-incomplete run gets the single recovery in step 7.
    - Preserve required bug fixes when choosing the repair base or final candidate,
      even if an older candidate scored higher. Keep scores, counters and prior
      progress across repairs, reviewers and resumes. Record any metric change.
@@ -83,7 +85,8 @@ does not automatically need this loop.
    - Keep scoped files frozen. If evaluation fails or returns no report, cancel
      any active failed task and verify it has stopped. Diagnose the failure before one
      retry. Missing evaluations have no score and leave the counter unchanged.
-     Stop incomplete if recovery fails.
+     If that retry still fails, apply the single recovery in step 7, or stop
+     incomplete when it is unavailable.
 
 5. **Verify findings and repair within scope.**
 
@@ -127,11 +130,14 @@ does not automatically need this loop.
    - Track confirmed non-blocking bugs left unfixed. Use verified issue URLs or
      owned asynchronous filing requests within authority. Tracking finishes when
      the URLs are verified.
-   - If the loop stops incomplete, collect the implementer's retrospective and
-     offer [a changed approach from the latest candidate](../review/references/budget-exhaustion.md#continue-a-stopped-scoring-loop).
-     Use [progress diagnosis](../review/references/budget-exhaustion.md) for limits
-     and extensions. Report the unmet target and remaining gates. Escalate only
-     decisions that need the user, and continue independent authorised work.
+   - If the loop stops incomplete, apply the [single recovery](../review/references/budget-exhaustion.md#continue-a-stopped-scoring-loop):
+     record the attempt, diagnose from the retained evidence, fix the cause and
+     re-invoke once from the latest candidate under the original run ID and
+     spent slot. Record any revised criteria or roster and flag a pass under
+     either with the original target. A second
+     failure stops the loop and reports both attempts. Use [progress diagnosis](../review/references/budget-exhaustion.md)
+     for remaining limits and extensions. Escalate only decisions that need the
+     user, and continue independent authorised work.
 
 8. **Verify the agreed endpoint.**
 
@@ -148,8 +154,11 @@ does not automatically need this loop.
      behaviour on each target. Report the actual endpoint and any incomplete gate.
 
 On an ordinary resume, reconcile tasks and preserve decisions, findings, scores,
-best candidate, counters and limits. Use the continuation procedure for an
-operator-approved new baseline. On cancellation, stop only owned work and confirm it stopped.
+best candidate, counters and limits. Reconcile the recovery record; a
+`dispatching` or `started` recovery without a usable handle is spent and is
+never redispatched. Use the
+continuation procedure after the automatic recovery for an operator-approved
+new baseline. On cancellation, stop only owned work and confirm it stopped.
 
 ## Outputs
 

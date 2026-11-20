@@ -140,7 +140,72 @@ delegated authority claims or mark them unknown rather than dropping the history
 ## Continue a stopped scoring loop
 
 Use this for an incomplete `review-loop` or `hillclimb` run. Preserve its
-outcome and complete the diagnosis above. Collect short retrospective notes
+outcome and complete the diagnosis above.
+
+### One automatic recovery
+
+A failed invocation gets one recovery before any operator question. A failure
+is a stop-incomplete run or an evaluation operation that still fails after its
+one retry; formal delivery review keeps its own rules. The loop skill's
+standing rule supplies the authority for this one retry. The recovery may
+change the repair strategy, implementation, setup, loop rubric, target,
+loop-required checks and a roster seat, but not scope or a hard gate.
+
+1. Record before acting, against the original run ID: `committed` with the
+   trigger and diagnosis before the fix; `dispatching` with the intended route
+   and frozen candidate before the host call or the first inline retry action;
+   `started` with the delegate task and child thread, or the inline run ID and
+   start time, once the retry begins; `returned` with its result. On resume,
+   reconcile the repair from the retained evidence. A `committed` record with
+   no `dispatching` may resume the fix and launch once; `dispatching` or
+   `started` without a usable handle means the slot is spent and the launch
+   state is unknown, so report and never relaunch. No recoverable record means
+   no automatic recovery.
+2. Diagnose from the retained evidence; start no evaluator for the diagnosis.
+   Keep the existing one-operation retry inside every invocation. Only this
+   loop-level recovery is capped at one.
+3. Preauthorised changes are the repair strategy, implementation, setup, loop
+   rubric, target, loop-required checks, and a roster replacement from an
+   eligible model already authorised for the run that needs no new lineage
+   approval. Prefer a confirmed alternate. Record every change and its reason.
+   A new provider or model, user constraint, repository gate, permission,
+   publication authority, formal delivery review or scope change blocks the
+   recovery; report and stop.
+4. Fit the remaining allowance. An explicit repair-round cap counts a
+   candidate-changing fix, including a pre-baseline fix. Re-baselining consumes
+   no repair round. An exhausted deadline or spend cap blocks all recovery work;
+   a spent repair-round allowance still permits a setup-only recovery.
+5. Freeze the latest candidate after the fix as the new baseline before scoring,
+   and retain the phase: primary stays primary; panel stays panel with every
+   confirmed scorer. Reuse a score only when the candidate and evaluation
+   contract both match. A roster or criteria change seeds a new baseline under
+   the frozen revised contract.
+6. Start a fresh non-improvement counter. Preserve prior scores, findings,
+   candidates and consumed limits as history. A pass under a revised
+   evaluation contract, whether criteria or roster, delivers normally, with the
+   report and PR naming the original target, the revised one, the reason and
+   the score history. It never claims the original target was met.
+7. The retry is one run, not a new one. Give its launch brief the original run
+   ID and the consumed recovery slot, and require it to return its outcome to
+   the original coordinator. A failure inside the retry ends the recovery; it
+   never opens a new slot. If the retry also fails, stop and report both
+   triggers, diagnoses, fixes, attempts, scores, limits and unresolved gates.
+   Start no second recovery and no continuation delegate.
+
+Handback after a second failure: under an unchanged contract, use the best
+eligible candidate across both invocations that retains required fixes, even
+when the retry scored lower. When the phase, rubric, target, required checks or
+roster changed, scores are not comparable. Use the retry's best under the
+frozen current contract. If the retry started an existing panel phase and never
+completed a panel score, use its frozen repaired baseline as the panel entry;
+otherwise, when panel scoring never completed, use the earlier panel-entry
+candidate. If neither invocation has a fully scored eligible candidate,
+preserve the latest eligible work, report that there is no ranked best, and
+name the retry's frozen baseline as the fallback. Mark older scores historical.
+
+### Operator-approved continuation
+
+After the automatic recovery is spent, collect short retrospective notes
 from the implementer, or write them yourself if you did the implementation.
 Reconcile the attempts, useful evidence, failed assumptions and what would
 change the outcome. Ask the implementer to recommend a change to the premise,
@@ -158,9 +223,9 @@ and any changes to scope, rubric, roster, checks or limits before proceeding.
 For an approved continuation:
 
 1. Preserve the old run's best and latest candidates, scores, findings,
-   non-improvement counter, attempts and consumed limits. Record the approved
-   changes in the same ledger or report. Carry forward remaining authority,
-   required repairs and delivery gates.
+   non-improvement counter, attempts, consumed limits and the spent recovery
+   slot. Record the approved changes in the same ledger or report. Carry
+   forward remaining authority, required repairs and delivery gates.
 2. Freeze the latest candidate as the new baseline. Retain any required fixes
    and record a new revision if they need to be reapplied. Reuse valid scores
    and check evidence for that exact candidate and evaluation contract.
@@ -186,8 +251,18 @@ Use these synthetic cases to check the instruction contract without live models:
 | Caller allowed one automatic addition of 2 after its original 3; all 5 used | Show the automatic addition and its caller-rule authority separately from user approvals. Any later request reports 5 used, not just the original 3. |
 | A finding survives successive repairs and the next proposal repeats the same repair without new evidence | Diagnose stalled or cycling using the attempts. Hold review, omit an extension request, and give a reproduction, different repair or concrete blocker while independent work continues. |
 | Old approval says only "continue" and the amount cannot be recovered | Mark the amount and cumulative authority unknown; show known consumption. Hold dependent review if remaining authority cannot be established and request the precise missing confirmation. |
-| Uncapped scored loop stops after two non-improving rounds | Show target, best/current scores, counter and actual attempts; state no numeric cap. Diagnose stagnation before proposing a changed approach; extra rounds alone do not override the stopping rule. |
-| After two non-improving rounds, best is 8.8 and latest is 8.4. The operator approves a different repair strategy. The latest candidate's evidence, rubric, check context and judges still apply | Seed the new phase at 8.4 with counter zero. Retain the 8.8 result, stopped phase and consumed limits. Reuse the existing capability pilots. |
+| Uncapped scored loop stops after two non-improving rounds | Show target, best/current scores, counter and actual attempts; state no numeric cap. Diagnose stagnation, apply the single automatic recovery, then propose a changed approach; extra rounds alone do not override the stopping rule. |
+| After two non-improving rounds, best is 8.8 and latest is 8.4. The automatic recovery is spent and the operator approves a different repair strategy. The latest candidate's evidence, rubric, check context and judges still apply | Seed the new phase at 8.4 with counter zero. Retain the 8.8 result, stopped phase and consumed limits. Reuse the existing capability pilots. |
 | Latest candidate has a missing score, or the operator changes the rubric or a judge's required test modality | Keep the candidate as baseline, obtain the missing or invalidated evidence, and probe only capability or access the earlier checks did not prove. Seed the new score when the required evaluation is complete. |
+| A technical failure remains after its one operation retry | Record the recovery, diagnose, fix, and re-invoke once from the latest candidate with a fresh counter. |
+| The recovery retry also fails | Stop the loop and report both attempts; no second recovery and no continuation delegate. |
+| An explicit repair-round cap is spent | Permit a setup-only fix; block a candidate-changing fix, report it and stop. |
+| The retry revises the rubric or roster and passes | Deliver with the original and revised targets flagged; never claim the original target was met. |
+| The retry reaches the panel but never gets a complete panel score | Hand back the retry's frozen repaired baseline as the panel entry and state that it has no complete panel result. |
+| A resume finds `started` with no usable handle | Treat the recovery as spent, dispatch nothing and report the unknown state. |
+| A resume finds `dispatching` with no handle | Treat the slot as spent, reconcile the repair from evidence and report; never relaunch. |
+| The retry brief omits the original run ID or recovery slot | Invalid recovery; carry both and return the outcome to the original coordinator. |
+| Neither invocation has a fully scored eligible candidate | Preserve the latest eligible work, report no ranked best and name the retry's frozen baseline as fallback. |
+| First run best is 8.8; the retry under the same contract finishes at 8.4 | Hand back the 8.8 eligible candidate that retains required fixes; the lower retry does not replace it. |
 
 These walkthroughs specify expected decisions, not observed live-agent compliance.

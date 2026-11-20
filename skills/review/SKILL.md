@@ -58,6 +58,7 @@ Apply [T3 dispatch preflight](../agent-tuneup/references/t3-dispatch.md) before 
      stop rule. Standalone review allows three rounds, including failures.
      `review-loop` and `hillclimb` use score targets and stop after two rounds
      without improvement. Hillclimb's own skill governs its scoring roster.
+     A failed `review-loop` or `hillclimb` run applies the shared recovery.
    - Recheck material changes or unresolved findings. Use the
      [budget diagnosis](references/budget-exhaustion.md) when review stalls or
      runs out of attempts. Preserve budgets across reviewers. Do not seek unanimity.

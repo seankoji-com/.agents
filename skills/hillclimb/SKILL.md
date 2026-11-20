@@ -70,13 +70,24 @@ reports before settling the next repair.
    Two consecutive non-improving rounds stop the run. Apply the round reference
    for failures, explicit limits and changes to the delivery candidate.
 
+   A failed run gets one automatic recovery before any operator question.
+   Record the attempt before the fix, diagnose from the retained evidence, fix
+   the cause and re-invoke once from the latest candidate under the original
+   run ID and spent slot, with a fresh counter.
+   Retain the phase and roster; record any criteria or roster change and flag a
+   pass under either with the original target. A second failure stops the
+   run and reports. Apply the shared [recovery procedure](../review/references/budget-exhaustion.md#continue-a-stopped-scoring-loop)
+   for accounting and handback.
+
 Accept only when all confirmed scorers reach target on the same candidate and
 all required checks and coverage pass. Keep measured results separate from
 judge scores. Follow the run's explicit limits. Stop incomplete on an unresolved
-blocker, a limit that prevents completion or stagnation.
+blocker, a limit that prevents completion or stagnation, after the single
+recovery.
 
-If the run stops incomplete, collect the implementer's retrospective and offer
-the operator [a changed approach from the latest candidate](../review/references/budget-exhaustion.md#continue-a-stopped-scoring-loop).
+After the automatic recovery, if the run still stops incomplete, collect the
+implementer's retrospective and offer the operator [a changed approach from the
+latest candidate](../review/references/budget-exhaustion.md#continue-a-stopped-scoring-loop).
 Add the notes, choice and any approved continuation to the rolling report.
 
 ## Deliver the result

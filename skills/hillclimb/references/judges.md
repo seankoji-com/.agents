@@ -21,9 +21,11 @@
    model for scoring, with distinct read-only judge sessions. Record it.
 4. Present exact models, routes, effort, the panel trigger and any preapproved
    primary upgrade. Get explicit confirmation before scoring or implementation.
-   Reconfirm material roster changes. All confirmed panel seats join together
-   when the primary reaches target and required checks and coverage pass,
-   unless the operator confirms an earlier trigger.
+   Reconfirm material roster changes, except a replacement made during the
+   single automatic recovery from an already authorised eligible model that
+   needs no new lineage approval; record and report that change. All confirmed
+   panel seats join together when the primary reaches target and required checks
+   and coverage pass, unless the operator confirms an earlier trigger.
 
 ## Route scoring and delivery review
 
