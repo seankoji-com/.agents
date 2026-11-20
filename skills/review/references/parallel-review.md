@@ -54,10 +54,28 @@ add no wrapper, provider SDK or model task pretending to be OCR.
    any other ineligible backend, use an authorised per-run `--provider`/`--model`
    override or report the missing lane; never dispatch DeepSeek directly as a
    substitute. Unlisted OCR backends need user authority.
-2. Put output in a verified ignored task directory. For frozen workspace scope:
+2. Set `--timeout` on every live run. It is the whole-run task budget in minutes,
+   covering LLM requests and retries. It is a CLI flag only: `ocr config set timeout`
+   is rejected (`unknown config key: timeout`), so nothing in `ocr config` persists
+   it. It is distinct from the per-request limit (`llm.timeout_sec` or
+   `providers.<name>.timeout_sec`, overridable with `OCR_LLM_TIMEOUT`). Raising
+   `timeout_sec` does nothing when requests already return in seconds. Choose the
+   budget from scope and `--effort`. Name **60** for a high-effort review of a
+   handful of files: on 2026-11-20 AEDT a frozen 4-file, 178-line diff at
+   `--effort high` on `qwen3.8-flash` used 14m52s, 92 requests and 3,975,237
+   tokens, then the 15-minute default cancelled it mid-round. Scale up for a
+   larger diff or higher concurrency; `0` means unlimited and needs a reason.
+   `ocr review --help` remains the source for the installed default (15 on 1.13.13).
+3. Write JSON with `--output` and capture the log beside it. The CLI's reason
+   line goes to the terminal, so the log is the only copy once the process is
+   gone. On a long run, keep the CLI's stdout and stderr off `tail`, `head` and
+   `grep`. Those filters buffer until EOF, so a kill, hang or budget cancellation
+   leaves a 0-byte capture and drops the reason line; only the JSON file survives.
+   Read the tail of the log after the process exits. For frozen workspace scope:
 
    ```sh
-   ocr review --repo /path/to/repo --effort high --format json --output /path/to/ignored/ocr.json
+   ocr review --repo /path/to/repo --effort high --timeout 60 --format json \
+     --output /path/to/ignored/ocr.json > /path/to/ignored/ocr.log 2>&1
    ```
 
    Use workspace mode only for explicitly authorised, frozen dirty scope; it
@@ -65,12 +83,36 @@ add no wrapper, provider SDK or model task pretending to be OCR.
    scope, add `--from <base-sha> --to <head-sha>`. Supply the request and acceptance
    criteria with `--background-file <brief.md>`. Check `--preview` and exclusions
    against the intended scope before the live run.
-3. `--effort high` controls OCR's review depth, not the backend's reasoning effort.
+4. `--effort high` controls OCR's review depth, not the backend's reasoning effort.
    Report those separately; do not claim an unverified model-effort mapping.
-   Inspect the JSON coverage/terminal state and findings. Exit zero, empty comments,
-   partial coverage or an empty selection alone do not establish completed review.
-   Record timeouts, failed/skipped files and unsupported scope explicitly.
-4. Preserve source/HEAD during the run. Handle findings under review's normal
+   Read the JSON before treating the exit code as the result. Check `status`,
+   `manifest.terminal_state`, `manifest.coverage` and `retry_report`. Exit zero,
+   empty comments, partial coverage or an empty selection alone do not establish
+   completed review. Record failed, skipped and unsupported files explicitly.
+   Classify a non-zero run from the JSON:
+
+   - **Budget expiry.** `cancelled_requests > 0` with `failed_requests: 0`,
+     attempt `error_class: cancelled`, `failure_phase: context`, HTTP 200 and a
+     short `duration_to_headers_ms` (about two seconds in the 2026-11-20 run).
+     The server answered; the client cancelled because `--timeout` elapsed.
+     `manifest.terminal_state: failed` and a message such as
+     `Review failed (cancelled)` can still accompany usable findings. Keep those
+     findings as evidence. The lane is incomplete and cannot carry a score.
+   - **Provider failure.** `failed_requests > 0`, or attempts whose
+     `failure_phase` is the request itself, with a non-200 status or an error
+     class other than `cancelled`. That is a backend fault. Findings from such
+     a run stay evidence only; the lane stays incomplete.
+   - **Token budget.** `--max-tokens-budget` is separate. Help text on 1.13.13
+     says a budget-only partial review with usable coverage exits 0, while an
+     operational failure (timeout or provider error) exits non-zero. Do not
+     treat a token-budget exit 0 as this wall-clock expiry.
+
+   On budget expiry, rerun once on the same frozen revision with a larger
+   `--timeout` (double the expired budget, still chosen from the remaining
+   scope). If that rerun also expires or fails, report the lane unavailable.
+   One rerun is the bound: no retry loop, and no swap to an ineligible backend
+   or to DeepSeek when this lane required Qwen 3.8 Flash.
+5. Preserve source/HEAD during the run. Handle findings under review's normal
    severity and disposition rules. Track the process and clean task-owned output
    after the handoff; do not delete durable evidence needed for deferred issues.
    Record OCR's session ID. Its normal session history under

@@ -52,6 +52,15 @@ Mutation: Qwen 3.8 Flash is unavailable or unauthorised. Expected: report the
 missing OCR lane and keep review incomplete rather than falling back to
 DeepSeek's backend or an unlisted backend without the owner's authority.
 
+Mutation: the lane is dispatched, and the JSON shows `cancelled_requests > 0`,
+`failed_requests: 0`, `error_class: cancelled`, `failure_phase: context` and
+HTTP 200 with a short `duration_to_headers_ms`, while `manifest.terminal_state`
+is `failed`. Expected: classify budget expiry, keep the findings as evidence,
+and rerun once on the same frozen revision with a larger `--timeout`. A second
+expiry reports the lane unavailable. No further retries, and no swap to
+DeepSeek or another ineligible backend. A run with `failed_requests > 0` is a
+provider failure, not a reason to raise `timeout_sec`.
+
 ## One review round, traceable repairs
 
 Input: `review_rounds: 1`; one eligible primary plus required companions reviews
