@@ -45,9 +45,15 @@ add no wrapper, provider SDK or model task pretending to be OCR.
    provider/backend without printing credentials or changing global configuration.
    DeepSeek Flash V4.1 is permitted inside OCR only. Record the actual backend;
    the OCR tool name is not a model lineage. For code review, verify it against
-   the code authors. If the backend is ineligible, use an authorised per-run
-   `--provider`/`--model` override or report the missing lane; never dispatch
-   DeepSeek directly as a substitute. Unlisted OCR backends need user authority.
+   the code authors. When DeepSeek Flash V4.1 wrote material code in the reviewed
+   scope, run this lane on Qwen 3.8 Flash (`qwen3.8-flash`) at high model effort
+   instead. Select it per run with `--provider`/`--model` on an authorised
+   provider that offers it and sends high reasoning effort; do not change global
+   configuration to get there. If that route is unavailable or lineage-ineligible,
+   report the missing lane rather than falling back to DeepSeek's backend. For
+   any other ineligible backend, use an authorised per-run `--provider`/`--model`
+   override or report the missing lane; never dispatch DeepSeek directly as a
+   substitute. Unlisted OCR backends need user authority.
 2. Put output in a verified ignored task directory. For frozen workspace scope:
 
    ```sh

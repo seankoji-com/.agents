@@ -38,6 +38,20 @@ Mutation: replace the reviewer with an eligible discovered identity and confirme
 settings. Expected: apply the adopted choice within host limits. Never copy this
 project's route into the library's defaults.
 
+## A DeepSeek-authored diff in a PR-less repository
+
+Input: a PR-less repository needs OCR alongside the primary, and DeepSeek Flash
+V4.1 wrote material code in the frozen revision.
+
+Expected: the OCR lane runs on Qwen 3.8 Flash with high model effort, selected
+per run without changing global configuration. The report records that backend
+separately from `--effort high` review depth. DeepSeek Flash is not used as OCR's
+backend and is not dispatched as a direct reviewer.
+
+Mutation: Qwen 3.8 Flash is unavailable or unauthorised. Expected: report the
+missing OCR lane and keep review incomplete rather than falling back to
+DeepSeek's backend or an unlisted backend without the owner's authority.
+
 ## One review round, traceable repairs
 
 Input: `review_rounds: 1`; one eligible primary plus required companions reviews

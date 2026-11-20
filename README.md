@@ -117,7 +117,8 @@ The [review](skills/review/SKILL.md) skill applies this in a few rules:
   candidates, so a score alone can make any of them primary and review may land on
   a weaker family than a fixed chain would pick. With no score available the order
   is Sol, Opus, Sonnet via AGY, Grok 4.7, Neon, Hydrogen, all at high effort.
-  Formal review uses DeepSeek Flash V4.1 only inside OCR. Other models require
+  Formal review uses DeepSeek Flash V4.1 only inside OCR, and switches OCR to
+  Qwen 3.8 Flash high when DeepSeek Flash wrote the code. Other models require
   your explicit selection. The [selection rules](skills/review/references/model-selection.md)
   apply inside `implement` too. If no eligible authorised route remains, review
   stays pending.
@@ -233,7 +234,8 @@ The project's [Delegation settings](skills/ship/references/project-settings.md)
 can name routes, capacity ceilings, cadence and screenshot commit permission.
 Ready independent work refills available capacity within authority. Routing
 changes preserve checkpoints and checkout ownership; they add a new model segment.
-Formal review keeps its lineage rules and uses DeepSeek only inside OCR. Opting into
+Formal review keeps its lineage rules: DeepSeek runs only inside OCR, which
+uses Qwen 3.8 Flash high when DeepSeek Flash implemented. Opting into
 `review_rounds: 1` keeps primary and companion coverage and permits coordinator
 verification of that round's repairs, disclosed as not independently re-reviewed.
 The original score stays reported; coordinator verification replaces that score
@@ -583,7 +585,7 @@ installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 5d513e34f40b7f4d383b3d34b39e049b7b08f37502dafda0d3d720da3e7757d2 -->
+<!-- skills-review: 281c601cb9d6e2e2a4906b356ffea5c11e1d9701e58f19b34ea29d57bbd50556 -->
 
 ### Owner maintenance
 

@@ -35,7 +35,9 @@ delivery review as usual.
    primary. Every unlisted model, including Argon and Muse/Wonder Full, requires
    the user's explicit selection.
    DeepSeek Flash V4.1 is removed from direct reviewer dispatch; it is allowed
-   only as OCR's backend under [parallel review](parallel-review.md).
+   only as OCR's backend under [parallel review](parallel-review.md). When
+   DeepSeek Flash V4.1 wrote material code under review, OCR uses Qwen 3.8 Flash
+   at high model effort instead.
    A named DeepSeek request still uses OCR, not direct host-model dispatch.
    Hydrogen's separate role as the required visual companion keeps standing
    authority; it adds a second visual review rather than replacing the primary's.
