@@ -117,8 +117,10 @@ The [review](skills/review/SKILL.md) skill applies this in a few rules:
   candidates, so a score alone can make any of them primary and review may land on
   a weaker family than a fixed chain would pick. With no score available the order
   is Sol, Opus, Sonnet via AGY, Grok 4.7, Neon, Hydrogen, all at high effort.
-  Formal review uses DeepSeek Flash V4.1 only inside OCR, and switches OCR to
-  Qwen 3.8 Flash high when DeepSeek Flash wrote the code. Other models require
+  Formal review keeps DeepSeek Flash V4.1 out of direct reviewer dispatch. OCR
+  follows the [OCR skill](skills/ocr/SKILL.md): a public repository draws free
+  OpenCode reviewers, and the paid CLI uses DeepSeek Flash V4.1 unless DeepSeek
+  wrote the code, in which case it uses Qwen 3.8 Flash high. Other models require
   your explicit selection. The [selection rules](skills/review/references/model-selection.md)
   apply inside `implement` too. If no eligible authorised route remains, review
   stays pending.
@@ -176,6 +178,7 @@ Build, check, and deliver changes with evidence of what works and what remains.
 - [implement](skills/implement/SKILL.md): Move substantial coding into a separate workspace and return reviewed commits to the main conversation for integration. Requires T3 delegation.
 - [plan-report](skills/plan-report/SKILL.md): Show proposed plans, progress and final calibration on a timeline from a private ledger.
 - [review](skills/review/SKILL.md): Evaluate a plan, change, or release against its requirements. Code reviewers differ in family from code authors. Return evidence-backed findings without edits.
+- [ocr](skills/ocr/SKILL.md): Run OpenCodeReview on a frozen diff. A public repository draws three free OpenCode reviewers. A private one runs the `ocr` CLI through one watcher. Findings come back unchanged.
 - [review-loop](skills/review-loop/SKILL.md): Hill-climb through repairs and review until the score target and required gates pass or two consecutive rounds fail to improve the best score.
 - [hillclimb](skills/hillclimb/SKILL.md): Improve a workflow, artifact or product toward a fixed score target. Confirm the judging roster, follow the rounds in one report and use the real interface for UI judging.
 - [test-writer](skills/test-writer/SKILL.md): Choose tests that catch consequential failures, with attention to reliability, maintenance, and CI time.
@@ -234,8 +237,8 @@ The project's [Delegation settings](skills/ship/references/project-settings.md)
 can name routes, capacity ceilings, cadence and screenshot commit permission.
 Ready independent work refills available capacity within authority. Routing
 changes preserve checkpoints and checkout ownership; they add a new model segment.
-Formal review keeps its lineage rules: DeepSeek runs only inside OCR, which
-uses Qwen 3.8 Flash high when DeepSeek Flash implemented. Opting into
+Formal review keeps DeepSeek out of direct reviewer dispatch. OCR follows the
+[OCR skill](skills/ocr/SKILL.md). Opting into
 `review_rounds: 1` keeps primary and companion coverage and permits coordinator
 verification of that round's repairs, disclosed as not independently re-reviewed.
 The original score stays reported; coordinator verification replaces that score
@@ -515,6 +518,7 @@ for a human introduction, or open a skill here to read its exact instructions.
 | [github-writing](skills/github-writing/SKILL.md) | Add a byline when drafting or editing AI-written GitHub issues, pull requests, comments, reviews, discussions or release notes on the user's behalf. |
 | [hillclimb](skills/hillclimb/SKILL.md) | Improve a workflow, artifact or product toward an agreed score over several rounds. Confirm the judges, report each round and review delivery. Judge UI work on the real interface. |
 | [implement](skills/implement/SKILL.md) | Implement through T3 delegation when the user requests it or invokes implement. Return reviewed commits to the main thread for integration and delivery. |
+| [ocr](skills/ocr/SKILL.md) | Run OpenCodeReview on a frozen diff. A public repository draws three free OpenCode reviewers; a private one runs the ocr CLI through one watcher. Relay the findings unchanged. |
 | [plan-report](skills/plan-report/SKILL.md) | Show a plan, progress or final calibration on an HTML timeline from a private ledger. Use for coordinated work, timeline requests or reporting in ship, backlog-burn and implement. |
 | [raise-issue](skills/raise-issue/SKILL.md) | Investigate, draft, file or follow up on a bug, feature or task issue when the user or an authorised workflow asks. Use an asynchronous T3 delegate. |
 | [raise-pr](skills/raise-pr/SKILL.md) | Prepare, create or update a pull request during implementation, review-loop, ship or PR maintenance. Include the repository's required evidence and checks. |
@@ -585,7 +589,7 @@ installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: b78bcfa122a5d168ad94181e0ea1ee741db4329ada32ee0defba7d3735e1cdef -->
+<!-- skills-review: e08e9752e3f04520b54a6f9c9d71f923514035d743a0ed6f78a7af829f30ce97 -->
 
 ### Owner maintenance
 

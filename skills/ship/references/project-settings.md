@@ -28,8 +28,8 @@ setting grants neither delegation nor publication authority.
    Preserve narrower limits and verify outgoing settings through the host.
 2. Apply review's code-author lineage and model-selection rules, subscription
    headroom, the host's effort ceiling and permission/provider restrictions.
-   For review, DeepSeek remains OCR-only, with Qwen 3.8 Flash high as OCR's
-   backend when DeepSeek Flash wrote the code. A routing row cannot extend
+   For review, DeepSeek remains out of direct reviewer dispatch. OCR follows
+   the [OCR skill](../../ocr/SKILL.md). A routing row cannot extend
    [Hillclimb's scoring exception](../../hillclimb/references/judges.md).
    Gate reviewers supplement required primary/companion coverage unless the
    owner explicitly changes an overridable requirement.

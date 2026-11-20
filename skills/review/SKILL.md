@@ -47,8 +47,8 @@ Apply [T3 dispatch preflight](../agent-tuneup/references/t3-dispatch.md) before 
      its absolute path.
    - In T3 Code, discover models with `orchestrator_capabilities` and use a new
      `delegate_task` for each review or recheck you dispatch. Record its
-     `taskId` and follow `next`. Use native orchestration elsewhere and the OCR
-     library CLI for OCR.
+     `taskId` and follow `next`. Use native orchestration elsewhere. When this
+     review requires OCR, apply the [OCR skill](../ocr/SKILL.md).
    - Apply these identity, scope and reporting rules to external reviews.
      Report any qualifying evidence still missing.
 4. **Stop when review is complete or the caller's limit is reached.**

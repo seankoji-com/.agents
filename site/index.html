@@ -305,6 +305,24 @@
               <a href="#skill-review">Close install instructions</a>
             </div>
           </li>
+          <li class="skill" id="skill-ocr" tabindex="-1">
+            <div class="skill-heading" id="install-ocr" tabindex="-1">
+              <h3>ocr</h3>
+            </div>
+            <p class="skill-description">Run OpenCodeReview on a frozen diff. A public repository draws three free OpenCode reviewers. A private one runs the ocr CLI through one watcher.</p>
+            <div class="skill-actions">
+              <a class="install-action" href="#install-ocr" aria-label="Install instructions for ocr">Install</a>
+              <a href="https://github.com/seankoji-com/.agents/blob/main/skills/ocr/SKILL.md" aria-label="Source for ocr on GitHub (SKILL.md)">Source</a>
+            </div>
+            <div class="skill-install">
+              <div class="term"><pre class="cmd" id="cmd-ocr">npx skills add <span class="cmd-repo">seankoji-com/.agents</span> <span class="skill-flag">--skill</span> <span class="skill-arg">ocr</span></pre></div>
+              <p>Choose your agents when prompted.</p>
+              <p>Try asking <q>Run OCR on this frozen diff. The repository is public and Opus wrote the code.</q></p>
+              <p class="helpers">Supporting skills include <a href="#skill-review">review</a>.</p>
+              <p class="t3-preflight">On T3 Code, also install <a href="#skill-agent-tuneup">agent-tuneup</a> for the permission check.</p>
+              <a href="#skill-ocr">Close install instructions</a>
+            </div>
+          </li>
           <li class="skill" id="skill-review-loop" tabindex="-1">
             <div class="skill-heading" id="install-review-loop" tabindex="-1">
               <h3>review-loop</h3>
@@ -557,7 +575,7 @@
         <div class="need">
           <h3>What the agent brings</h3>
           <p>Installing a skill adds instructions, not access. Reviews, browser checks and delivery use the models, tools and permissions your agent already has. UI review needs browser or device access in the host.</p>
-          <p>Diff reviews that use OCR also need the <a href="https://github.com/alibaba/open-code-review">OpenCodeReview CLI</a> with a configured provider.</p>
+          <p>The paid OCR route needs the <a href="https://github.com/alibaba/open-code-review">OpenCodeReview CLI</a> with a configured provider. A public repository uses free OpenCode models instead, and falls back to that CLI only when every free reviewer fails.</p>
         </div>
       </div>
     </section>

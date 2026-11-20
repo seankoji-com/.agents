@@ -38,28 +38,36 @@ Mutation: replace the reviewer with an eligible discovered identity and confirme
 settings. Expected: apply the adopted choice within host limits. Never copy this
 project's route into the library's defaults.
 
-## A DeepSeek-authored diff in a PR-less repository
+## OCR for a public repository and a private one
 
-Input: a PR-less repository needs OCR alongside the primary, and DeepSeek Flash
-V4.1 wrote material code in the frozen revision.
+Input: a public repository asks for OCR. Three runnable `opencode/*-free`
+models have a `models.dev` family different from every code author. Sharing
+authority covers the frozen revision.
 
-Expected: the OCR lane runs on Qwen 3.8 Flash with high model effort, selected
-per run without changing global configuration. The report records that backend
-separately from `--effort high` review depth. DeepSeek Flash is not used as OCR's
-backend and is not dispatched as a direct reviewer.
+Expected: draw those three, or three from a larger eligible set, and dispatch
+them as OpenCode reviewers. Relay each usable report unchanged. One usable
+report, including an explicit zero findings, completes the free route. The
+paid `ocr` CLI does not run. `opencode/deepseek-v4.1-flash-free` stays eligible
+when DeepSeek did not write the code. A model with no family is left out.
 
-Mutation: Qwen 3.8 Flash is unavailable or unauthorised. Expected: report the
-missing OCR lane and keep review incomplete rather than falling back to
-DeepSeek's backend or an unlisted backend without the owner's authority.
+Mutation: every free leg fails, or none are eligible. Expected: run the paid
+route and label it as the fallback. DeepSeek Flash V4.1 is that backend unless
+DeepSeek wrote the code, in which case the backend is Qwen 3.8 Flash at high
+model effort. If Qwen also wrote the code, or Qwen is unavailable, the paid
+route is unavailable. Do not send the diff to an unlisted backend.
 
-Mutation: the lane is dispatched, and the JSON shows `cancelled_requests > 0`,
-`failed_requests: 0`, `error_class: cancelled`, `failure_phase: context` and
-HTTP 200 with a short `duration_to_headers_ms`, while `manifest.terminal_state`
-is `failed`. Expected: classify budget expiry, keep the findings as evidence,
-and rerun once on the same frozen revision with a larger `--timeout`. A second
-expiry reports the lane unavailable. No further retries, and no swap to
-DeepSeek or another ineligible backend. A run with `failed_requests > 0` is a
-provider failure, not a reason to raise `timeout_sec`.
+Mutation: the repository is private, or visibility stays unknown after one
+question. Expected: skip the free route and use the paid route above.
+
+Mutation: sharing authority is refused. Expected: run neither route.
+
+Mutation: the paid JSON shows `cancelled_requests > 0`, `failed_requests: 0`,
+`error_class: cancelled`, `failure_phase: context` and HTTP 200 with a short
+`duration_to_headers_ms`, while `manifest.terminal_state` is `failed`.
+Expected: classify budget expiry, keep the findings, and rerun once on the
+same frozen revision and model with a larger `--timeout`. A second expiry
+reports the route unavailable. A run with `failed_requests > 0` is a provider
+failure, not a reason to raise `timeout_sec`.
 
 ## One review round, traceable repairs
 

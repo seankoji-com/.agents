@@ -15,7 +15,7 @@ SKILLS = ('babysitter', 'review-loop', 'challenge', 'focus-group',
           'agent-tuneup', 'reremember', 'test-writer', 'raise-issue', 'ship',
           'think', 'review', 'choose-design', 'raise-pr',
           'implement', 'github-writing', 'hillclimb', 'backlog-burn', 'plan-report',
-          'binaric', 'settle')
+          'binaric', 'settle', 'ocr')
 RETIRED = re.compile(r'agents-bootstrap|PKG/|(?:core|shared|plugins)/|bin/agents|'
                      r'scripts/(?:install|agents_bootstrap|source_runtime)|'
                      r'migration/|agents start|\.local/share/t3-plugins')
@@ -24,7 +24,8 @@ RETIRED_ROOTS = {'core', 'shared', 'plugins', 'bin', 'bench', 'conformance',
                  'migration', 'docs', 'overrides', 'roles', 'packaging'}
 # A dispatched child reads one card instead of a skill and everything it links to.
 CARDS = ('skills/review/references/assigned-reviewer.md',
-         'skills/review/references/implementation-participant.md')
+         'skills/review/references/implementation-participant.md',
+         'skills/ocr/references/ocr-watcher.md')
 CARD_WORDS = 600
 CATALOG_START = '<!-- skill-catalog:start -->'
 CATALOG_END = '<!-- skill-catalog:end -->'

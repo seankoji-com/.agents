@@ -714,6 +714,8 @@ class Documentation(unittest.TestCase):
                               (self.root / relative).read_text())
         self.assertIn('references/implementation-participant.md',
                       (self.root / 'skills/implement/SKILL.md').read_text())
+        self.assertIn('references/ocr-watcher.md',
+                      (self.root / 'skills/ocr/SKILL.md').read_text())
 
     def test_load_stats_follow_links_and_report_each_skill_once(self):
         rows = {name: (entry, own, closure, files)
