@@ -35,9 +35,10 @@ allowed rerun. Missing any of those, return that gap and run nothing.
    record whether the run verified it. Do not infer one setting from the
    other. For committed scope, add `--from <base-sha> --to <head-sha>`. Pass the
    brief with `--background-file` when the brief supplies one. Run `--preview`
-   first and confirm the file list matches the brief. Set the shell wait
-   above `--timeout`. Record the `ocr` PID at launch. On cancel, stop that
-   PID only.
+   first and confirm the file list matches the brief. Run it as a background
+   shell and wait with `t3_background_wait` on its shell ID; when the host
+   exposes no `t3_background_wait`, set the shell wait above `--timeout`.
+   Record the `ocr` PID at launch. On cancel, stop that PID only.
 3. After the process exits, read the tail of the log and the JSON. Check
    `status`, `manifest.terminal_state`, `manifest.coverage`, and
    `retry_report`. Exit zero, empty comments, partial coverage, or an empty

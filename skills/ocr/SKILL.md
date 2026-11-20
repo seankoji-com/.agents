@@ -70,10 +70,13 @@ model to run a check only when a finding depends on that check. Do not pipe
 the command through `tail`, `head`, or `grep`. A killed process drops a
 buffered pipe, and the log is the only copy of the report.
 
-Set the shell wait to the whole free-route budget: 60 minutes per leg for a
-high-effort review of a handful of files, so three sequential legs need 180
-minutes. Run the three commands in parallel when the host allows three
-concurrent processes. Record each PID. On cancel, stop those PIDs only.
+Run each leg as a background shell and wait for it with `t3_background_wait`
+on its shell ID. Do not hold one foreground shell open for the whole budget.
+Budget 60 minutes per leg for a high-effort review of a handful of files, so
+three sequential legs need 180 minutes. Run the three commands in parallel
+when the host allows three concurrent processes. Record each shell ID and PID.
+On cancel, stop those PIDs only. If the host exposes no `t3_background_wait`,
+set the shell wait to the whole leg budget instead.
 
 A usable log names the assigned revision and required scope, and either lists
 findings or says there are none. A wrong revision, a missing scope, a non-zero
@@ -96,8 +99,9 @@ names the repository, the frozen revision, the scope, the provider, the model,
 the `--timeout` minutes, an output directory that `git check-ignore` confirms
 is ignored, and whether this invocation is the one allowed rerun. A missing
 field is a gap, and the watcher runs nothing. It runs the
-`ocr` CLI, follows the process until it exits, and returns one report. The
-orchestrator gets nothing until that report, including the one budget rerun.
+`ocr` CLI as a background shell, waits with `t3_background_wait` on its shell
+ID, and returns one report. The orchestrator gets nothing until that report,
+including the one budget rerun.
 Dispatch it with `delegate_task` in `async` mode. A `wait` call returns
 within 45 seconds and does not stop the child.
 
