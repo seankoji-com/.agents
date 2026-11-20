@@ -53,10 +53,18 @@ workers. Every reviewer, recheck and additional opinion uses
 - Discover provider/model identities, options and tool support; apply
   [T3 preflight](../agent-tuneup/references/t3-dispatch.md) before dispatch. Preserve
   explicit model choices subject to review's eligibility rules.
-- Match capability to the work. A bounded mechanical edit with deterministic
-  checks can use a smaller model and lower supported effort. Ambiguous behavior,
-  shared interfaces, security or state/concurrency work needs stronger reasoning
-  from the start.
+- Choose the provider before the model. After the lineage, permission and
+  tool-support gates, take the provider with the highest limits-MCP pace score.
+  An unscored provider cannot win; when nothing is scored, keep the static order.
+  That may pick a different family than a fixed order would.
+- Then match the model to the work inside that provider. A bounded mechanical
+  edit with deterministic checks can take its smaller model. Ambiguous behavior,
+  shared interfaces, security or state/concurrency work needs the stronger one,
+  never a model the provider does not offer.
+- Keep effort high. A smaller model never justifies lower effort. Where the host
+  exposes no effort control, keep the provider default and record effort as not
+  applicable; a variant whose name carries high reasoning is the alternative where
+  the route offers one.
 - Compare feasible choices using available cost and capability evidence, including
   likely extra attempts and coordination overhead. If reliable prices or task
   performance are unavailable, state the heuristic and uncertainty. Do not invent

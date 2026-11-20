@@ -111,14 +111,16 @@ the same way:
 
 The [review](skills/review/SKILL.md) skill applies this in a few rules:
 
-- Reviewers default to Sol at high effort, or Opus at high effort when Sol
-  materially authored the reviewed code. On exhausted
-  credits or insufficient subscription headroom, Sol falls back to Opus, then Sonnet via AGY; Opus falls back to Sonnet
-  via AGY, then Sol. All three use high effort. For primary fallbacks, only code-author lineage conflicts unlock
-  Grok 4.7, then Hydrogen high. Formal review uses DeepSeek Flash V4.1 only
-  inside OCR. Other models require
+- Reviewers come from the provider with the best quota pace score once lineage is
+  satisfied, then use the model that matches the review's difficulty at high
+  effort. Sol, Opus, Sonnet via AGY, Grok 4.7, Neon and Hydrogen are all ordinary
+  candidates, so a score alone can make any of them primary and review may land on
+  a weaker family than a fixed chain would pick. With no score available the order
+  is Sol, Opus, Sonnet via AGY, Grok 4.7, Neon, Hydrogen, all at high effort.
+  Formal review uses DeepSeek Flash V4.1 only inside OCR. Other models require
   your explicit selection. The [selection rules](skills/review/references/model-selection.md)
-  apply inside `implement` too. If no eligible authorised route remains, review stays pending.
+  apply inside `implement` too. If no eligible authorised route remains, review
+  stays pending.
 - Cross-lineage restrictions apply only to written code, measured against models
   that materially wrote that code. The orchestrator is irrelevant unless it also
   wrote code. Sol can review Opus/Fable-authored code while Sol orchestrates,
@@ -581,7 +583,7 @@ installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: d51e5de094dfa8df1d0da59ac87c11c4cb74fbc7b4a40250249645cfc4eb6642 -->
+<!-- skills-review: 5d513e34f40b7f4d383b3d34b39e049b7b08f37502dafda0d3d720da3e7757d2 -->
 
 ### Owner maintenance
 

@@ -5,36 +5,46 @@ implementation workers and issue writers. If [binaric](../../binaric/SKILL.md)
 is installed, apply its audience rule to each brief, send and requested reply.
 Either way, give each new delegate a self-contained brief.
 
-## Check subscription headroom before choosing a route
+## Choose the provider by score, then the model by role
 
-1. Discover and call LiteLLM's read-only `limits-limits_snapshot` MCP tool before
-   selecting a T3 delegate route. Use its exposed schema and host-managed
-   connection and authentication. Connection settings belong to dotfiles;
-   keep credentials and personal endpoints out of briefs and library source.
-2. Match observations to the actual provider route, account and model, including
-   shared subscription windows. Provider aliases do not establish separate
-   quotas. Check observation time, freshness, remaining capacity and reset
-   information where supplied. A fresh fetch can contain old observations;
-   missing coverage or ambiguous account mapping means unknown capacity.
-3. Skip routes reported exhausted or near exhaustion. Where the service supplies
-   no warning, compare reported headroom with the task's expected consumption,
-   duration and concurrent work, including required reviews. Prefer an otherwise
-   eligible route with enough headroom. State estimates and uncertainty; do not
-   invent percentages, consumption rates or a universal warning threshold.
-4. Apply the caller's authorised model/fallback order, lineage, effort and
-   permission rules to the remaining routes. Quota evidence does not authorise
-   new models, paid overage or a silent substitute for a named model. If every
-   eligible route is constrained, hold dependent dispatch and report the limiting
-   window and reset estimate when known. Continue independent work.
-5. Reuse a fresh snapshot for a dispatch batch; refresh before later batches,
-   retries or replacements when observations have aged or usage has changed.
-   Account for running children; a snapshot is not a capacity reservation.
-   Retain the relevant observation time and selection reason, not the raw account
-   inventory. A predicted reset alone does not establish restored capacity.
-6. If the tool is unavailable, errors, or returns stale/incomplete coverage,
-   record capacity as unknown. Neither tool failure nor missing data proves
-   exhaustion or healthy headroom. Preserve known constraints and any stricter
-   caller gate; disclose uncertainty when proceeding under the existing policy.
+1. Call LiteLLM's read-only `limits-limits_snapshot` MCP tool with
+   `detail: "brief"` before selecting a T3 delegate route. Use its exposed schema
+   and host-managed connection and authentication. Connection settings belong to
+   dotfiles; keep credentials and personal endpoints out of briefs and library
+   source.
+2. Apply the hard gates first: lineage independence from every material author,
+   explicit model choices, permission and runtime mode, tool support, and the
+   models the provider actually offers. Lineage follows the model family, not the
+   provider alias: Opus and Sonnet stay Anthropic when routed through AGY.
+3. Among the routes that survive, take the provider with the highest
+   `providers[].paceScore`. Higher means spend that subscription sooner:
+   −100 exhausted, 0 even pace, +100 unused quota about to expire. `null` is
+   unknown and is not a score, so an unscored provider cannot win. When no
+   candidate has a score, keep the caller's static order and record capacity as
+   unknown.
+4. Then match the model to the role's difficulty, never the reverse. Bounded
+   mechanical work with deterministic checks takes the provider's smaller model.
+   Ambiguous behaviour, shared interfaces, security and state/concurrency work
+   take the stronger one. Never choose a model the provider does not offer.
+5. Use high effort. Set it through the host's effort or thought-level control
+   wherever one exists. Where a route exposes none, as Gemini can, select the
+   model variant whose name carries the high reasoning setting. With neither
+   control nor variant, keep the provider default and record effort as not
+   applicable. A smaller model never means lower effort; xhigh and max stay
+   forbidden.
+6. Read `paceBasis` with the number. `upper-bound` comes from a stale reading or a
+   missing shorter window, so the true score can only be lower. `headroomNow` is
+   the best usable account's smallest remaining fraction and answers whether a
+   long task fits now, which the score does not. `availableAt` gives an exhausted
+   provider's return, and a predicted reset alone does not establish capacity.
+7. Quota evidence never authorises paid overage, a mid-task provider switch, a
+   model outside the provider's catalogue, or a threshold you invented. Unknown,
+   stale, unsupported and source-failure states all mean unknown capacity; none
+   proves exhaustion or healthy headroom.
+8. Reuse one snapshot for a dispatch batch, and refresh before later batches,
+   retries or replacements. Account for running children; a snapshot is not a
+   reservation. Record the observation time, the chosen provider's score and
+   basis, and the reason, not the raw account inventory.
 
 ## Permission workarounds
 
