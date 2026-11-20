@@ -502,15 +502,16 @@
       <div class="tiers">
         <div class="tier tier-needs">
           <p class="tier-label">Needs T3 Code</p>
-          <p class="chips"><a href="#skill-implement">implement</a> <a href="#skill-backlog-burn">backlog-burn</a> <a href="#skill-raise-issue">raise-issue</a></p>
+          <p class="chips"><a href="#skill-implement">implement</a> <a href="#skill-backlog-burn">backlog-burn</a> <a href="#skill-raise-issue">raise-issue</a> <a href="#skill-ocr">ocr</a></p>
           <p>These hand work to T3 delegates that run in their own threads or worktrees, so your conversation stays free. <code>raise-issue</code> can still file inline if you ask for that explicitly.</p>
         </div>
         <div class="tier tier-better">
           <p class="tier-label">Better in T3 Code</p>
-          <p class="chips"><a href="#skill-review">review</a> <a href="#skill-think">think</a> <a href="#skill-challenge">challenge</a> <a href="#skill-review-loop">review-loop</a> <a href="#skill-hillclimb">hillclimb</a> <a href="#skill-choose-design">choose-design</a> <a href="#skill-focus-group">focus-group</a> <a href="#skill-ship">ship</a> <a href="#skill-babysitter">babysitter</a></p>
+          <p class="chips"><a href="#skill-review">review</a> <a href="#skill-think">think</a> <a href="#skill-challenge">challenge</a> <a href="#skill-review-loop">review-loop</a> <a href="#skill-hillclimb">hillclimb</a> <a href="#skill-choose-design">choose-design</a> <a href="#skill-focus-group">focus-group</a> <a href="#skill-ship">ship</a> <a href="#skill-babysitter">babysitter</a> <a href="#skill-settle">settle</a></p>
           <ul>
             <li>Reviewers, judges and designers start on another provider from the same conversation. Code review needs a second model family; without one, the agent reports the review as unavailable.</li>
             <li><code>babysitter</code> uses T3's pull request watch to wake when checks or reviews change. Elsewhere it waits with its bundled <code>pr-wait</code> helper.</li>
+            <li><code>settle</code> calls T3's thread tool to close a finished thread. Without it, it reports the gap instead of claiming the thread is settled.</li>
             <li><code>ship</code>, <code>implement</code> and <code>review-loop</code> show their phases in T3's Tasks row. <code>choose-design</code> shows mockups side by side in preview frames.</li>
           </ul>
         </div>

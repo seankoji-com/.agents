@@ -30,8 +30,9 @@ Either way, give each new delegate a self-contained brief.
    wherever one exists. Where a route exposes none, as Gemini can, select the
    model variant whose name carries the high reasoning setting. With neither
    control nor variant, keep the provider default and record effort as not
-   applicable. A smaller model never means lower effort; xhigh and max stay
-   forbidden.
+   applicable. A smaller model never means lower effort. High stays the
+   default: go to xhigh only on the operator's explicit approval, as in
+   Hillclimb's panel-entry upgrade, and never to max.
 6. Read `paceBasis` with the number. `upper-bound` comes from a stale reading or a
    missing shorter window, so the true score can only be lower. `headroomNow` is
    the best usable account's smallest remaining fraction and answers whether a

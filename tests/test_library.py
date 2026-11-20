@@ -594,6 +594,12 @@ class Documentation(unittest.TestCase):
                                  '<span class="skill-arg">review</span>', 1),
             'unknown related skill: interrogate':
                 original.replace('href="#skill-review"', 'href="#skill-interrogate"', 1),
+            'skill missing from a tier: ocr':
+                original.replace(' <a href="#skill-ocr">ocr</a>', '', 1),
+            'skill in more than one tier: think':
+                original.replace('<a href="#skill-settle">settle</a>',
+                                 '<a href="#skill-settle">settle</a> '
+                                 '<a href="#skill-think">think</a>', 1),
         }
         for expected, text in cases.items():
             with self.subTest(expected=expected):

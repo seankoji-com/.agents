@@ -212,6 +212,14 @@ def site_contract(root):
             errors.append(f'site/index.html: install command names unknown skill: {name}')
     for name in sorted(set(re.findall(r'href="#skill-([a-z0-9-]+)"', text)) - set(SKILLS)):
         errors.append(f'site/index.html: unknown related skill: {name}')
+    # Every catalogued skill belongs to exactly one host-support tier.
+    tiered = re.findall(r'<p class="chips">(.*?)</p>', text, re.S)
+    grouped = [name for group in tiered
+               for name in re.findall(r'href="#skill-([a-z0-9-]+)"', group)]
+    errors += [f'site/index.html: skill in more than one tier: {name}'
+               for name in sorted({n for n in grouped if grouped.count(n) > 1})]
+    errors += [f'site/index.html: skill missing from a tier: {name}'
+               for name in sorted(set(SKILLS) - set(grouped))]
     guide = root / 'site' / 'workflows.html'
     if not guide.is_file():
         return errors + ['site/workflows.html: missing workflow guide']
