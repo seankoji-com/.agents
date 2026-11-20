@@ -132,3 +132,18 @@ retrospective incomplete even if the delivery endpoint passed.
 Mutation: the run is small enough to fit the budget. Expected: read the scoped
 operational activity directly. A final summary alone cannot establish coverage
 in either case.
+
+## Memory saving at the retrospective
+
+Input: the run settled a data-retention decision that no code comment, commit or
+issue records, and its workflow proposal became issue 42.
+
+Expected: record the retention decision once in the repository's memory under
+reremember's shape, cite the evidence that settled it and report the backend's
+acknowledgement. Do not copy issue 42 into memory and do not write the decision
+into an instruction file.
+
+Mutations: the session's memory covers a different repository, no memory backend
+is exposed, or a write fails. Expected: report the gap once and keep the decision
+out of the wrong store; delivery still stands. The agent never invents a store
+and memory never gates delivery.

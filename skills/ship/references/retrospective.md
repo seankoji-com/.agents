@@ -1,8 +1,9 @@
 # Finish with a workflow retrospective
 
 The main-thread coordinator owns this final stage, after the authorised delivery
-endpoint and required deferred-bug tracking. It proposes improvements; it does
-not silently amend skills or broaden the delivered change.
+endpoint and required deferred-bug tracking. It proposes improvements and saves
+durable decisions; it does not silently amend skills or broaden the delivered
+change.
 For a terminal blocked handback, analyse the available activity and report the
 delivery and coverage gaps. File supported proposals from that history within
 the same established posting authority, unless cancelled or posting is prohibited.
@@ -77,6 +78,30 @@ record an evidence-based no-change result only with complete coverage and no
 warranted amendment. Partial coverage can report no proposals found so far,
 but cannot close the phase as a no-change success.
 
+## Save durable decisions to memory
+
+Use the host's memory tools and [reremember](../../reremember/SKILL.md) to
+record what later work would act on differently. Memory holds facts and settled
+decisions, not new workflow rules: an amendment still goes to its issue, and no
+instruction file is edited from this stage.
+
+Save only a fact that outlives the run, changes what a later agent does, and
+that no commit, PR, issue or code comment already says better. Typically that is
+a decision the run settled, a constraint the code does not reveal, or a
+remembered claim the run disproved. Never save a transcript, per-run status,
+scores, cost, transient identifiers, private evidence or secrets.
+
+Write to the project memory for the repository the run worked in. When the
+session's memory covers another workspace or that repository has none, report
+the gap instead of misfiling another repository's decisions.
+
+Search first and reuse the owning record. Write claim, scope, exact values,
+evidence and date in reremember's shape, and supersede a stale record rather
+than adding a parallel one. One record or none is a normal result. Report each
+title, the backend's acknowledgement and whether it is visible now or waits for
+a rebuild. A blocked or unavailable backend is reported once and never invented;
+it does not hold an otherwise-ready merge.
+
 ## File and close the run
 
 Use [raise-issue](../../raise-issue/SKILL.md) to check for existing reports and
@@ -98,7 +123,7 @@ Mark hypotheses and proposals honestly, using existing repository conventions.
 Keep this phase bounded: logs after the cutoff that concern retrospective issue
 filing contribute their result or blocker to the final handoff, without starting
 another retrospective of the retrospective. Once all owned writers finish,
-report delivery evidence, log coverage/gaps and verified proposal URLs or the
-no-change rationale. If filing or log access is blocked, leave this stage visibly
+report delivery evidence, log coverage/gaps, the memory result and verified
+proposal URLs or the no-change rationale. If filing or log access is blocked, leave this stage visibly
 incomplete and retain the redacted draft and exact next action. Do not hold an
 otherwise-ready merge on this post-delivery stage.

@@ -169,7 +169,7 @@ Settle what to build and how people will use it before implementation.
 
 Build, check, and deliver changes with evidence of what works and what remains.
 
-- [ship](skills/ship/SKILL.md): Carry a change through implementation, checks, independent review, and delivery, with visible progress and a final workflow retrospective.
+- [ship](skills/ship/SKILL.md): Carry a change through implementation, checks, independent review, and delivery, with visible progress and a final workflow retrospective that saves durable decisions and files workflow amendments.
 - [implement](skills/implement/SKILL.md): Move substantial coding into a separate workspace and return reviewed commits to the main conversation for integration. Requires T3 delegation.
 - [plan-report](skills/plan-report/SKILL.md): Show proposed plans, progress and final calibration on a timeline from a private ledger.
 - [review](skills/review/SKILL.md): Evaluate a plan, change, or release against its requirements. Code reviewers differ in family from code authors. Return evidence-backed findings without edits.
@@ -466,8 +466,8 @@ available capacity on every completion, PR notification,
 answer or continuation wake. An empty ready queue resumes discovery. At full
 capacity, the coordinator continues classification and owner questions. It retains
 PR delivery and watches, records why capacity is unused, and finishes with one
-consolidated retrospective. Ready independent work
-starts before blocking questions.
+consolidated retrospective that saves durable decisions to project memory.
+Ready independent work starts before blocking questions.
 One unanswered question or watched PR cannot stop independent
 work. Awaiting-owner requires every remaining issue and PR to be explicitly held,
 owned by a live owner elsewhere or awaiting an actual unanswered question; a
@@ -579,7 +579,7 @@ installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 476efea2c40df93eba2918819a76f525ee4ff5ec62d3fe8a1ef5767b92d40557 -->
+<!-- skills-review: 0b377fb4d0a748dcf1d9ce61728ce65929e9b78bd5f72c3f225246f2cda04175 -->
 
 ### Owner maintenance
 

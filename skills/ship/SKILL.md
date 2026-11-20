@@ -24,6 +24,10 @@ operator named or configured. This owner configured `seankoji-com/.agents`.
 Verify ownership through account and repository evidence. Confirm posting
 authority from the operator's instructions. A clone's origin or collaborator
 access does not establish either.
+It may also record verified, durable decisions in the memory of the repository
+the run worked in, under [reremember](../reremember/SKILL.md). Memory is a
+record, not another proposal route: it never replaces a commit, PR or issue,
+and it never edits an instruction file.
 
 Apply [GitHub writing](../github-writing/SKILL.md) to authored GitHub prose,
 including authorised release notes and delegated drafts.
@@ -116,10 +120,12 @@ evidence. These are options, not a required sequence:
    [workflow retrospective](references/retrospective.md) using the recorded
    evidence and targeted log reads. Pitch supported, broadly applicable skill
    amendments through [raise-issue](../raise-issue/SKILL.md) in the authorised
-   skill repository, `seankoji-com/.agents` for this owner.
+   skill repository, `seankoji-com/.agents` for this owner. Save durable
+   decisions the run settled under the retrospective's memory rules.
    Apply the retrospective's coverage rules. Record verified proposal URLs or
    evidence that no amendment is warranted. Coverage gaps and blocked filing
-   leave the retrospective incomplete. This stage ends with proposals.
+   leave the retrospective incomplete. This stage ends with proposals and the
+   memory result.
 
 Where repository policy requires direct publication instead of PRs, use its
 prescribed delivery path through the same proof and review gates. Do not create
@@ -173,8 +179,8 @@ Return the delivery link and revision, [cited proof](../review/references/proof-
 for material verification claims, review status, decisions and any unmet
 endpoint. Delegates return complete plain-text reports with descendant
 task/thread IDs and operational evidence to their coordinator.
-The parent includes task-list status, history coverage and amendment issue URLs
-or the no-change rationale. In T3 Code, only the main-thread coordinator uses
+The parent includes task-list status, history coverage, the memory result and
+amendment issue URLs or the no-change rationale. In T3 Code, only the main-thread coordinator uses
 `html_preview` then `html_render` for a substantive report; use readable text when
 native HTML is unavailable or the result is brief. Do not claim deployment or
 live acceptance from a merge.
