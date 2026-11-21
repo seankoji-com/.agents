@@ -641,14 +641,19 @@ class Discovery(unittest.TestCase):
                 '\n- Before publishing, inspect the diff\n- See [notes](references/trigger-evals.md)\n',
                 # Punctuation inside link text does not split the sentence early.
                 '\nSee [What next? Notes](references/trigger-evals.md).\n',
+                # Parenthesised ordered lists are list items too.
+                '\n1) Before publishing, inspect the diff\n2) See [notes](references/trigger-evals.md)\n',
                 # A heading is its own block.
                 '\n## When ready\nSee [notes](references/trigger-evals.md).\n'):
             with self.subTest(case=case):
                 self.entry.write_text(self.original + case)
                 self.assertIn(flagged, self.errors())
         # A link inside a fenced example is not a live link.
-        self.entry.write_text(self.original + '\n```md\nSee [notes](references/trigger-evals.md).\n```\n')
-        self.assertNotIn('reading condition', self.errors())
+        for fence in ('```', '~~~'):
+            with self.subTest(fence=fence):
+                self.entry.write_text(self.original +
+                                      f'\n{fence}md\nSee [notes](references/trigger-evals.md).\n{fence}\n')
+                self.assertNotIn('reading condition', self.errors())
 
     def test_model_invoked_skills_need_well_formed_trigger_evals(self):
         evals = self.root / 'skills/think/references/trigger-evals.md'
@@ -674,6 +679,9 @@ class Discovery(unittest.TestCase):
             'needs one "Should fire" section': body(extra='\n## Should fire\n\n' + fire),
             # Prompts only inside a fence are examples, not prompts.
             'needs 5 "Should not fire" prompts ': body(miss_items='```\n' + miss + '```\n'),
+            'needs 5 "Should not fire" prompts  ': body(miss_items='~~~\n' + miss + '~~~\n'),
+            'near miss expects the skill under test':
+                body(miss_items=miss.replace('(expect: none)', '(expect: think)', 1)),
         }
         for expected, text in cases.items():
             with self.subTest(expected=expected):

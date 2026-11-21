@@ -44,9 +44,9 @@ CONDITION = re.compile(r'\b(?:when|whenever|before|after|if|unless|during|once|w
                        re.I)
 EVALS = 'references/trigger-evals.md'
 EVAL_PROMPTS = 5
-FENCE = re.compile(r'^[ \t]*```.*?^[ \t]*```[^\n]*$', re.S | re.M)
+FENCE = re.compile(r'^[ \t]*(```|~~~).*?^[ \t]*\1[^\n]*$', re.S | re.M)
 # A paragraph, list item, table row or heading is one block; sentences never span blocks.
-BLOCK = re.compile(r'\n[ \t]*\n|\n(?=[ \t]*(?:[-*+]|\d+\.|\||#+) )')
+BLOCK = re.compile(r'\n[ \t]*\n|\n(?=[ \t]*(?:[-*+]|\d+[.)]|\||#+) )')
 
 
 def description_value(value):
@@ -126,7 +126,9 @@ def eval_errors(name, folder, names):
                 errors.append(f'{name}: {EVALS} "{heading}" prompts must end with '
                               '(expect: <skill|none>)')
                 break
-            if match.group(2) not in names and match.group(2) != 'none':
+            if match.group(2) == name:
+                errors.append(f'{name}: {EVALS} near miss expects the skill under test')
+            elif match.group(2) not in names and match.group(2) != 'none':
                 errors.append(f'{name}: {EVALS} expects unknown skill: {match.group(2)}')
     return errors
 

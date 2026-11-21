@@ -38,7 +38,8 @@ it and stop.
    ```
 
    The checker fails a description over 40 words or 250 characters, one that
-   says "I", "you", "your", "this skill" or "then" outside quotes, and a
+   says "I", "you", "your" or "this skill" outside quotes, one that says
+   "then" anywhere, and a
    model-invoked one without a `Use when/for/at` or `when asked/the user`
    clause. Keep the procedure, and rules that matter only after selection, in
    the body: an agent that reads steps in the description can run them and

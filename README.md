@@ -579,7 +579,7 @@ The same checks run in CI and before owner publication. They enforce:
 - Changes to skill instructions or their Markdown references invalidate the
   README's review receipt, requiring another look at the prose and diagrams.
 - Every description stays within 40 words and 250 characters, avoids "I",
-  "you", "your", "this skill" and "then" outside quotes, and, for a skill agents
+  "you", "your" and "this skill" outside quotes, never says "then", and, for a skill agents
   can pick up on their own, includes a `Use when/for/at` or `when asked/the user`
   clause. The description loads on every turn, so it says when to pick the
   skill and leaves the procedure to the body.
@@ -616,7 +616,7 @@ installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 135266f23cfab2c6fc7313d66be50fe3fb1110695489b8593f09da238032e289 -->
+<!-- skills-review: 1969fb65bb0d7a8db933e85862e88f09af60dc3b054f41749363e6591c8880cf -->
 
 ### Owner maintenance
 
