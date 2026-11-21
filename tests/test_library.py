@@ -1,4 +1,5 @@
 """Synthetic library/helper contracts. No provider or network access."""
+import ast
 import importlib.util
 from importlib.machinery import SourceFileLoader
 from contextlib import contextmanager, redirect_stdout, redirect_stderr
@@ -66,7 +67,259 @@ class Helpers(unittest.TestCase):
         self.assertEqual(result['leaves'], 5)
         self.assertEqual(result['broad_permission_pointers'],
                          ['/permissions/allow/0', '/permissions/a~1b~0c'])
+        self.assertEqual(result['prompt_policy_pointers'], [])
+        self.assertEqual(result['findings'], [
+            {'pointer': '/permissions/allow/0', 'category': 'wildcard_or_allow'},
+            {'pointer': '/permissions/a~1b~0c', 'category': 'wildcard_or_allow'},
+        ])
         self.assertNotIn('synthetic-private-value', json.dumps(result))
+
+    def test_config_restrictive_branches_agent_ids_and_opencode_shapes(self):
+        claude = scanner.scan({
+            'permissions': {
+                'allow': ['Bash(git *)', 'Read'],
+                'ask': ['Bash(rm *)'],
+                'deny': ['Bash(sudo *)', '*'],
+                'defaultMode': 'dontAsk',
+            },
+            'deny': ['*'],
+        })
+        self.assertEqual(claude['leaves'], 7)
+        self.assertEqual(claude['broad_permission_pointers'], ['/permissions/allow/0'])
+        self.assertEqual(claude['prompt_policy_pointers'], ['/permissions/defaultMode'])
+
+        # Agent ID colliding with "ask" must not suppress its nested permissions.
+        agent_ask = scanner.scan({
+            'agents': {
+                'ask': {
+                    'permissions': [
+                        {'action': 'shell', 'resource': '*', 'effect': 'allow'},
+                    ],
+                },
+            },
+        })
+        self.assertEqual(agent_ask['broad_permission_pointers'],
+                         ['/agents/ask/permissions/0/resource'])
+
+        # OpenCode V1: scoped selectors, literal regex punctuation, and whitespace are excluded.
+        opencode_v1_clean = scanner.scan({
+            'permission': {
+                'bash': {
+                    '*': 'ask',
+                    'rm *': 'deny',
+                    'git status': 'allow',
+                    'git status*': 'allow',
+                    '/.*/': 'allow',
+                    '* ': 'allow',
+                },
+            },
+        })
+        self.assertEqual(opencode_v1_clean['broad_permission_pointers'], [])
+        self.assertEqual(opencode_v1_clean['leaves'], 6)
+
+        opencode_v1_broad = scanner.scan({
+            'permission': {
+                'bash': {'*': 'allow'},
+                'read': 'allow',
+            },
+        })
+        self.assertEqual(opencode_v1_broad['broad_permission_pointers'],
+                         ['/permission/bash/*', '/permission/read'])
+
+        # OpenCode V2: require exact action/resource/effect=="allow" and whole-value wildcard.
+        opencode_v2 = scanner.scan({
+            'permissions': [
+                {'decision': 'always', 'path': '*'},
+                {'action': 'shell', 'resource': '*', 'effect': False, 'allow': '*'},
+                {'action': '*', 'resource': 'git status', 'effect': 'allow'},
+                {'action': 'read', 'resource': '**/*', 'effect': 'allow'},
+                {'action': 'shell', 'resource': '*', 'effect': 'ask'},
+                {'action': 'shell', 'resource': '*', 'effect': 'deny'},
+                {'action': 'shell', 'resource': 'git status*', 'effect': 'allow'},
+                {'action': 'shell', 'resource': '* ', 'effect': 'allow'},
+                {'action': 'shell', 'resource': '*', 'effect': 'allow'},
+            ],
+        })
+        self.assertEqual(opencode_v2['broad_permission_pointers'],
+                         ['/permissions/8/resource'])
+        self.assertEqual(opencode_v2['leaves'], 27)
+
+    def test_config_separates_prompt_policy_and_matches_vscode_catchalls(self):
+        restricted = scanner.scan({
+            'approval_policy': 'never',
+            'sandbox_mode': 'workspace-write',
+        })
+        self.assertEqual(restricted['broad_permission_pointers'], [])
+        self.assertEqual(restricted['prompt_policy_pointers'], ['/approval_policy'])
+
+        unrestricted = scanner.scan({
+            'approval_policy': 'never',
+            'sandbox_mode': 'danger-full-access',
+            'defaultMode': 'bypassPermissions',
+            'runtimeMode': 'full-access',
+            'secret': 'synthetic-secret-token',
+        })
+        self.assertEqual(unrestricted['broad_permission_pointers'], [
+            '/sandbox_mode', '/defaultMode', '/runtimeMode',
+        ])
+        self.assertEqual(unrestricted['prompt_policy_pointers'], ['/approval_policy'])
+        self.assertNotIn('synthetic-secret-token', json.dumps(unrestricted))
+
+        vscode_pos = scanner.scan({
+            'chat.tools.global.autoApprove': True,
+            'chat.tools.terminal.autoApprove': {
+                '/.*/': True,
+                '/.*/gi': True,
+                '/.*/ii': True,
+                '/.*/uv': True,
+                '/.+/': True,
+                '/.+/gg': True,
+            },
+        })
+        self.assertEqual(vscode_pos['broad_permission_pointers'], [
+            '/chat.tools.global.autoApprove',
+            '/chat.tools.terminal.autoApprove/~1.*~1',
+            '/chat.tools.terminal.autoApprove/~1.*~1gi',
+            '/chat.tools.terminal.autoApprove/~1.*~1ii',
+            '/chat.tools.terminal.autoApprove/~1.*~1uv',
+            '/chat.tools.terminal.autoApprove/~1.+~1',
+            '/chat.tools.terminal.autoApprove/~1.+~1gg',
+        ])
+
+        vscode_obj = scanner.scan({
+            'chat.tools.terminal.autoApprove': {
+                '/.*/': {'approve': True, 'matchCommandLine': True},
+                'git status': {'approve': True, 'matchCommandLine': False},
+            },
+        })
+        self.assertEqual(vscode_obj['broad_permission_pointers'],
+                         ['/chat.tools.terminal.autoApprove/~1.*~1'])
+
+        # Invalid non-dict types and conflicting-case/disabled/inactive VS Code rules.
+        for payload in (
+            {'chat.tools.terminal.autoApprove': True},
+            {'chat.tools.terminal.autoApprove': '*'},
+            {
+                'chat.tools.global.autoApprove': False,
+                'chat.tools.terminal.autoApprove': {
+                    '*': True,
+                    '/^.*$/': True,
+                    r'/[\s\S]*/': True,
+                    '/.*/q': True,
+                    '/.+/ii': True,
+                    '/.+/uv': True,
+                    '/^git status[ ]*$/': True,
+                    '/.*/': False,
+                    '/.*/i': {'approve': False, 'matchCommandLine': True},
+                },
+                'claudeCode.allowDangerouslySkipPermissions': True,
+            },
+            {
+                'chat.tools.terminal.autoApprove': {
+                    '/.*/': {'approve': False, 'Approve': True, 'matchCommandLine': True},
+                },
+            },
+            {
+                'bypassPermissions': False,
+                'approval_policy': 'on-request',
+                'sandbox_mode': 'workspace-write',
+                'runtimeMode': 'auto',
+            },
+            {
+                'permissions': {'defaultMode': {'allow': ['*']}},
+                'defaultMode': {'allow': ['*']},
+            },
+        ):
+            with self.subTest(payload=payload):
+                res = scanner.scan(payload)
+                self.assertEqual(res['broad_permission_pointers'], [])
+                self.assertEqual(res['prompt_policy_pointers'], [])
+
+        for malformed_scalar in (
+            {'permissions': {'defaultMode': {'allow': ['*']}}},
+            {'defaultMode': {'allow': ['*']}},
+        ):
+            with self.subTest(malformed_scalar=malformed_scalar):
+                res = scanner.scan(malformed_scalar)
+                self.assertEqual(res['leaves'], 1)
+                self.assertEqual(res['broad_permission_pointers'], [])
+                self.assertEqual(res['prompt_policy_pointers'], [])
+
+    def test_config_parses_jsonc_and_rejects_malformed_inputs(self):
+        jsonc = (
+            '// leading comment\n'
+            '{\n'
+            '  "url": "https://example.invalid/*not-a-comment*/",\n'
+            '  /* block comment */\n'
+            '  "bypassPermissions": true, /* trailing */\n'
+            '  "allow": ["tool:*",],\n'
+            '}\n'
+        )
+        parsed = scanner.parse_config(jsonc, '.jsonc')
+        self.assertEqual(parsed['url'], 'https://example.invalid/*not-a-comment*/')
+        res = scanner.scan(parsed)
+        self.assertEqual(res['broad_permission_pointers'],
+                         ['/bypassPermissions', '/allow/0'])
+        self.assertNotIn('example.invalid', json.dumps(res))
+
+        bom_jsonc = '\ufeff// settings with UTF-8 BOM\n{"bypassPermissions": true,}\n'
+        self.assertEqual(scanner.scan(scanner.parse_config(bom_jsonc, '.jsonc'))['broad_permission_pointers'],
+                         ['/bypassPermissions'])
+
+        malformed = (
+            'tr/* gap */ue',
+            '1/* gap */2',
+            '[,]',
+            '{,}',
+            '[1,,]',
+            '{"a": ,}',
+            '{"a": 1 /* unterminated',
+            '[NaN,]',
+            '{"a": Infinity}',
+            '{"a": -Infinity}',
+        )
+        for bad in malformed:
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                scanner.parse_config(bad, '.jsonc')
+
+    def test_config_toml_and_python310_compatibility(self):
+        source = (ROOT / 'skills/agent-tuneup/scripts/scan_config.py').read_text(encoding='utf-8')
+        tree = ast.parse(source, feature_version=(3, 10))
+        py310_stdlib = {'argparse', 'importlib', 'json', 'pathlib', 're', 'sys'}
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    self.assertIn(alias.name.split('.')[0], py310_stdlib)
+            elif isinstance(node, ast.ImportFrom):
+                self.assertIn((node.module or '').split('.')[0], py310_stdlib)
+
+        toml_text = (
+            'approval_policy = "never"\n'
+            'sandbox_mode = "danger-full-access"\n'
+            'secret_key = "synthetic-toml-secret"\n'
+            '[permissions]\n'
+            'deny = ["*"]\n'
+            'ask = ["Bash(git *)"]\n'
+        )
+        if sys.version_info >= (3, 11):
+            parsed = scanner.parse_config(toml_text, '.toml')
+            res = scanner.scan(parsed)
+            self.assertEqual(res['broad_permission_pointers'], ['/sandbox_mode'])
+            self.assertEqual(res['prompt_policy_pointers'], ['/approval_policy'])
+            self.assertNotIn('synthetic-toml-secret', json.dumps(res))
+
+        # Verify Python 3.10 fallback without tomllib emits sanitized exit 2.
+        with tempfile.TemporaryDirectory() as tmp:
+            toml_path = Path(tmp) / 'config.toml'
+            toml_path.write_text(toml_text, encoding='utf-8')
+            err = io.StringIO()
+            with mock.patch.object(scanner, '_load_tomllib', return_value=None), \
+                    mock.patch.object(sys, 'argv', ['scan_config.py', str(toml_path)]), \
+                    redirect_stderr(err), self.assertRaises(SystemExit) as exited:
+                scanner.main()
+            self.assertEqual(exited.exception.code, 2)
+            self.assertIn('Python 3.11+', err.getvalue())
+            self.assertNotIn('synthetic-toml-secret', err.getvalue())
 
     def test_copied_skill_helpers_run_from_foreign_cwd(self):
         # Copy entire independent skill folders, without repository/runtime support.
@@ -93,6 +346,39 @@ class Helpers(unittest.TestCase):
                                          str(source)], cwd=foreign, capture_output=True, text=True)
                 self.assertEqual(failed.returncode, 2)
                 self.assertNotIn('secret-like', failed.stderr)
+
+            # Verify copied scan_config.py handles JSONC, invalid JSONC and TOML from foreign cwd.
+            copied_scanner = root / 'agent-tuneup' / 'scripts' / 'scan_config.py'
+            jsonc_file = foreign / 'settings.jsonc'
+            jsonc_file.write_text('// comment\n{"bypassPermissions": true,}\n')
+            ok_jsonc = subprocess.run([sys.executable, str(copied_scanner), str(jsonc_file)],
+                                      cwd=foreign, capture_output=True, text=True)
+            self.assertEqual(ok_jsonc.returncode, 0, ok_jsonc.stderr)
+            self.assertEqual(json.loads(ok_jsonc.stdout)['broad_permission_pointers'],
+                             ['/bypassPermissions'])
+
+            bad_jsonc = foreign / 'bad.jsonc'
+            bad_jsonc.write_text('[NaN,] // secret-token\n')
+            fail_jsonc = subprocess.run([sys.executable, str(copied_scanner), str(bad_jsonc)],
+                                        cwd=foreign, capture_output=True, text=True)
+            self.assertEqual(fail_jsonc.returncode, 2)
+            self.assertNotIn('secret-token', fail_jsonc.stderr)
+            self.assertNotIn('NaN', fail_jsonc.stderr)
+
+            toml_file = foreign / 'config.toml'
+            toml_file.write_text('approval_policy = "never"\nsandbox_mode = "danger-full-access"\n'
+                                 'token = "secret-toml"\n')
+            toml_run = subprocess.run([sys.executable, str(copied_scanner), str(toml_file)],
+                                      cwd=foreign, capture_output=True, text=True)
+            if sys.version_info >= (3, 11):
+                self.assertEqual(toml_run.returncode, 0, toml_run.stderr)
+                payload = json.loads(toml_run.stdout)
+                self.assertEqual(payload['broad_permission_pointers'], ['/sandbox_mode'])
+                self.assertEqual(payload['prompt_policy_pointers'], ['/approval_policy'])
+            else:
+                self.assertEqual(toml_run.returncode, 2)
+                self.assertIn('Python 3.11+', toml_run.stderr)
+                self.assertNotIn('secret-toml', toml_run.stderr)
 
 
 class Watcher(unittest.TestCase):

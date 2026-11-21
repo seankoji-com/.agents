@@ -65,8 +65,9 @@ one app. They use what T3 provides:
   delivery carries on.
 - **Subscription checks.** Before routing delegates, the shared
   [dispatch preflight](skills/agent-tuneup/references/t3-dispatch.md) consults
-  LiteLLM's limits snapshot when available. It skips exhausted or near-exhausted
-  routes within the authorised model choices and reports unknown capacity.
+  LiteLLM's limits snapshot when available. It ranks eligible providers by quota
+  pace score (`paceScore`), checks current headroom (`headroomNow`) for long
+  tasks, and records unknown capacity instead of inventing thresholds.
 - **PR watching without polling.** `babysitter` uses T3's pull request watch, which
   wakes the agent when checks or reviews change.
 - **Progress and previews you can see.** `ship`, `implement` and `review-loop` show
@@ -201,7 +202,7 @@ Understand the work and communicate it clearly.
 
 Maintain the instructions and configuration your agents depend on.
 
-- [agent-tuneup](skills/agent-tuneup/SKILL.md): Diagnose settings, permissions, connections, or missing skills. Separate saved configuration from observed behavior.
+- [agent-tuneup](skills/agent-tuneup/SKILL.md): Diagnose settings, permissions, hooks, connections, or missing skills. Separate saved configuration from observed behavior.
 - [reremember](skills/reremember/SKILL.md): Keep a project's long-term memory accurate. Verify claims against the code, record decisions so a later agent can check them, and supersede stale records.
 - [new-skill](skills/new-skill/SKILL.md): Add a skill to this library with a description agents can match, steps a small model can follow, trigger evals and full registration. Slash-only.
 
@@ -524,7 +525,7 @@ for a human introduction, or open a skill here to read its exact instructions.
 
 | Skill | When to use it |
 | --- | --- |
-| [agent-tuneup](skills/agent-tuneup/SKILL.md) | Audit, troubleshoot or change agent configuration, permissions, MCP connections or native skill discovery when the user asks. |
+| [agent-tuneup](skills/agent-tuneup/SKILL.md) | Audit, troubleshoot or change agent configuration, permissions, hooks, MCP connections or native skill discovery when the user asks. |
 | [babysitter](skills/babysitter/SKILL.md) | Repair and monitor open pull requests through verified merge when asked to babysit, merge, watch or monitor them. Honour read-only and no-merge limits. |
 | [backlog-burn](skills/backlog-burn/SKILL.md) | Clear a repository's open issues and pull requests, or launch one backlog run per repository in a named organisation. Use when asked to clear, burn down or get the backlog to zero. |
 | [binaric](skills/binaric/SKILL.md) | ONLY for LLM-to-LLM messages: delegate briefs, follow-ups and child reports, kept short with every fact the reader acts on. Never for anything a human is meant to read. |
@@ -616,7 +617,7 @@ installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 1969fb65bb0d7a8db933e85862e88f09af60dc3b054f41749363e6591c8880cf -->
+<!-- skills-review: ab3ed64b498c1d53d626e9c886eeb5dd9b8b1cc668555ba8c774dc6ce2927f4e -->
 
 ### Owner maintenance
 
