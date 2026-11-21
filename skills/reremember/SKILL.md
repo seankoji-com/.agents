@@ -42,7 +42,7 @@ override the user's live instructions.
    request or issue already says it better. When it fails, put the fact where it
    belongs and say where.
 4. **Write in shape.** Claim, scope, exact values verbatim, evidence, date,
-   supersedes. Use the [document reference](references/memory-document.md).
+   supersedes. Follow the [document reference](references/memory-document.md) when writing the record.
 5. **Supersede with the backend you have.**
    - A backend that edits records in place and reads them back synchronously:
      edit the owning record and read it back.

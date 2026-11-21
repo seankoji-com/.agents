@@ -1,6 +1,6 @@
 ---
 name: review
-description: "Review plans, code, UI, backend or releases independently, including review-loop and think's readiness check. Code reviewers must come from a different model family than the code authors."
+description: "Review plans, code, UI, backend or releases independently. Use when asked for a review, or for review-loop rounds and think's readiness check. Pressure-testing an idea belongs to challenge."
 ---
 
 # Review against the goal
@@ -30,8 +30,9 @@ Apply [T3 dispatch preflight](../agent-tuneup/references/t3-dispatch.md) before 
    - Apply [model selection](references/model-selection.md) to each review,
      recheck and additional opinion, including inside implement. Honour named
      choices and the applicable credit, lineage and permission rules.
-   - The primary covers the whole change, including visuals. Run required
-     [companions](references/parallel-review.md) on the same frozen revision.
+   - The primary covers the whole change, including visuals. Run
+     [companions](references/parallel-review.md) on the same frozen revision when
+     that reference requires them.
      Run OCR only where the repository has no PR path or the user asks for it.
      Other judges may share a lineage and cannot replace the primary.
 3. **Reuse or dispatch.** Reuse completed reviews only if they cover the current
@@ -43,8 +44,7 @@ Apply [T3 dispatch preflight](../agent-tuneup/references/t3-dispatch.md) before 
    - Supply the request, scope, revision, evidence, criteria and model
      identities. Follow the [reviewer brief](references/reviewer-brief.md) for
      frozen source, allowed checks, scratch ownership and cleanup. Require
-     reading the [assigned-reviewer card](references/assigned-reviewer.md) at
-     its absolute path.
+     reading the [assigned-reviewer card](references/assigned-reviewer.md) at its absolute path before the review starts.
    - In T3 Code, discover models with `orchestrator_capabilities` and use a new
      `delegate_task` for each review or recheck you dispatch. Record its
      `taskId` and follow `next`. Use native orchestration elsewhere. When this
@@ -75,11 +75,12 @@ Required human approval remains a separate gate.
 
 Give each delegate its self-contained role card as its only review instructions.
 
-- The [assigned reviewer](references/assigned-reviewer.md) checks code-author
+- When dispatched, the [assigned reviewer](references/assigned-reviewer.md) checks code-author
   lineage and reports missing or conflicting identities. It reviews directly
   and returns evidence and severity. It cannot delegate, repair, decide
   deferrals, file issues or change labels.
-- The [implementation participant](references/implementation-participant.md)
+- When repairing, the
+  [implementation participant](references/implementation-participant.md)
   applies the parent's dispositions without dispatching reviewers or claiming
   independent review.
 
@@ -87,7 +88,8 @@ A later explicit repair assignment is separate work.
 For separately authorised GitHub reviews, apply [GitHub writing](../github-writing/SKILL.md).
 
 The parent validates findings, then decides what to fix, defer, reject or file
-within its authority. Apply [feedback dispositions](references/feedback-dispositions.md).
+within its authority. Apply [feedback dispositions](references/feedback-dispositions.md)
+when deciding each finding.
 Validating or repairing does not count as independent review. For a direct user
 request, the coordinator obtains the review and reports it to the user.
 
@@ -161,7 +163,8 @@ the workflow stays open until required issue URLs are verified.
 ## Return a usable report
 
 Include scope, revision, checks, reviewed flows and coverage gaps, even when no
-bugs are found. [Cite verification evidence](references/proof-quality.md#cite-verification-in-the-handoff).
+bugs are found. Before handing back,
+[cite verification evidence](references/proof-quality.md#cite-verification-in-the-handoff).
 Record material code-author and reviewer model identities,
 verified lineages and any unknowns. For each finding provide:
 

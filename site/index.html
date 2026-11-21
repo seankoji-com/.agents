@@ -434,6 +434,23 @@
               <a href="#skill-reremember">Close install instructions</a>
             </div>
           </li>
+          <li class="skill" id="skill-new-skill" tabindex="-1">
+            <div class="skill-heading" id="install-new-skill" tabindex="-1">
+              <h3>new-skill</h3>
+            </div>
+            <p class="skill-description">Add a skill to this library. Write a short description agents can match, steps a small model can follow and sample prompts that should and should not pick it, then register it everywhere the checks expect.</p>
+            <div class="skill-actions">
+              <a class="install-action" href="#install-new-skill" aria-label="Install instructions for new-skill">Install</a>
+              <a href="https://github.com/seankoji-com/.agents/blob/main/skills/new-skill/SKILL.md" aria-label="Source for new-skill on GitHub (SKILL.md)">Source</a>
+            </div>
+            <div class="skill-install">
+              <div class="term"><pre class="cmd" id="cmd-new-skill">npx skills add <span class="cmd-repo">seankoji-com/.agents</span> <span class="skill-flag">--skill</span> <span class="skill-arg">new-skill</span></pre></div>
+              <p>Choose your agents when prompted.</p>
+              <p>Try asking <q>/new-skill for drafting weekly status updates.</q></p>
+              <p>Invoke this skill explicitly, for example with <code>/new-skill</code> in Claude Code or <code>$new-skill</code> in Codex. Agents do not pick it up on their own.</p>
+              <a href="#skill-new-skill">Close install instructions</a>
+            </div>
+          </li>
         </ul>
       </div>
       </div>
@@ -517,7 +534,7 @@
         </div>
         <div class="tier tier-any">
           <p class="tier-label">Works anywhere</p>
-          <p class="chips"><a href="#skill-raise-pr">raise-pr</a> <a href="#skill-plan-report">plan-report</a> <a href="#skill-test-writer">test-writer</a> <a href="#skill-github-writing">github-writing</a> <a href="#skill-binaric">binaric</a> <a href="#skill-agent-tuneup">agent-tuneup</a> <a href="#skill-reremember">reremember</a></p>
+          <p class="chips"><a href="#skill-raise-pr">raise-pr</a> <a href="#skill-plan-report">plan-report</a> <a href="#skill-test-writer">test-writer</a> <a href="#skill-github-writing">github-writing</a> <a href="#skill-binaric">binaric</a> <a href="#skill-agent-tuneup">agent-tuneup</a> <a href="#skill-reremember">reremember</a> <a href="#skill-new-skill">new-skill</a></p>
           <p>These need only the files and tools your agent already has. On T3, <code>agent-tuneup</code> holds the dispatch preflight that other skills read before starting a delegate, so install it alongside them.</p>
         </div>
       </div>

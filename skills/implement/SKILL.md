@@ -12,8 +12,8 @@ main thread owns acceptance, integration and shipping.
 
 Read [project settings](../ship/references/project-settings.md) at start for
 routing, review limits and ready-work capacity refill.
-The main thread applies [plan-report](../plan-report/SKILL.md) at proposal,
-task completion, final handback and on request. Review/fix rounds get short chat
+The main thread applies [plan-report](../plan-report/SKILL.md) when proposing, completing a task,
+handing back and on request. Review/fix rounds get short chat
 updates. Leads return timing and cost
 observations; only the main thread presents the report. Track the main thread's
 phases on the [native task list](../ship/references/native-task-list.md) when
@@ -37,7 +37,7 @@ the host exposes one; the lead's own list stays separate.
    If the required T3 route is unavailable, report it without substituting a
    shell launcher, native agent or top-level thread.
 4. **Verify the handoff.** Check the worktree, exact HEAD, checks, review and
-   remaining gates against the brief before accepting or integrating. Record every deferred-bug
+   remaining gates against the brief before accepting or integrating. When a handoff defers a bug, record its
    packet under [tracking](../review/references/deferred-bugs.md), dispatch it
    through raise-issue and retain ownership until its issue URL is verified.
    Code readiness and tracking completion are separate states. Continue
@@ -48,7 +48,7 @@ the host exposes one; the lead's own list stays separate.
 Optimise expected total cost across implementation, context, review, retries and
 repairs while meeting the quality bar. Apply this policy to the lead and coding
 workers. Every reviewer, recheck and additional opinion uses
-[review's model selection](../review/references/model-selection.md).
+[review's model selection](../review/references/model-selection.md) before dispatch.
 
 - Discover provider/model identities, options and tool support; apply
   [T3 preflight](../agent-tuneup/references/t3-dispatch.md) before dispatch. Preserve

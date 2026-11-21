@@ -83,9 +83,9 @@ asking and recording replies; the renderer only displays the ledger.
      --mode report --output /worktree/ignored/report.html
    ```
 
-   Use `--mode propose` at proposal and `--mode final` at final handback. The
-   [chart and renderer options](references/ledger.md#chart) describe the view,
-   theme flags and synthetic replay. Correct a rejected ledger before presenting.
+   Use `--mode propose` at proposal and `--mode final` at final handback. Read the
+   [chart and renderer options](references/ledger.md#chart) before changing the
+   view, theme flags or synthetic replay. Correct a rejected ledger before presenting.
    Use an observed as-of time for every live report.
 5. In T3 the main thread uses `html_preview` then `html_render` on the generated
    file. Outside T3 use the host's equivalent artifact or an accessible file link.

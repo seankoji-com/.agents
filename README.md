@@ -203,6 +203,7 @@ Maintain the instructions and configuration your agents depend on.
 
 - [agent-tuneup](skills/agent-tuneup/SKILL.md): Diagnose settings, permissions, connections, or missing skills. Separate saved configuration from observed behavior.
 - [reremember](skills/reremember/SKILL.md): Keep a project's long-term memory accurate. Verify claims against the code, record decisions so a later agent can check them, and supersede stale records.
+- [new-skill](skills/new-skill/SKILL.md): Add a skill to this library with a description agents can match, steps a small model can follow, trigger evals and full registration. Slash-only.
 
 ## What it looks like in practice
 
@@ -363,9 +364,13 @@ request or a slash command. Start with a bounded job:
 Use review to evaluate this implementation against the brief. Do not edit files.
 ```
 
-`focus-group` and `binaric` disable automatic model invocation.
+`focus-group`, `binaric` and `new-skill` disable automatic model invocation.
 Use your host's explicit skill invocation, such as `/focus-group` or `/binaric`
-where slash commands are supported. The T3 dispatch preflight and reviewer
+where slash commands are supported. Claude Code reads the
+`disable-model-invocation` flag and leaves these skills out of the model's skill
+list. Codex reads `agents/openai.yaml` instead: `new-skill` sets
+`policy.allow_implicit_invocation: false` there and runs as `$new-skill`.
+`focus-group` and `binaric` have no such file yet, so Codex still lists them. The T3 dispatch preflight and reviewer
 brief link to `binaric`, so coordinators read it when they write a brief.
 
 ### Work from a clone
@@ -425,6 +430,10 @@ and keeps its upstream name:
 ```sh
 npx skills add mattpocock/skills --skill writing-for-agents --global
 ```
+
+To add a skill to this library, run `/new-skill`. It defers to `writing-for-agents`
+for the writing and covers this repository's description checks, trigger evals
+and registration steps.
 
 This library maintains its own versions of several workflow skills inspired by
 other libraries. They remain here because their instructions differ from
@@ -517,24 +526,25 @@ for a human introduction, or open a skill here to read its exact instructions.
 | --- | --- |
 | [agent-tuneup](skills/agent-tuneup/SKILL.md) | Audit, troubleshoot or change agent configuration, permissions, MCP connections or native skill discovery when the user asks. |
 | [babysitter](skills/babysitter/SKILL.md) | Repair and monitor open pull requests through verified merge when asked to babysit, merge, watch or monitor them. Honour read-only and no-merge limits. |
-| [backlog-burn](skills/backlog-burn/SKILL.md) | Clear open issues and pull requests or launch one backlog run per repository in a named organisation. Close obsolete work with evidence, resolve owner decisions and delegate worthwhile fixes within a cap of 20. |
+| [backlog-burn](skills/backlog-burn/SKILL.md) | Clear a repository's open issues and pull requests, or launch one backlog run per repository in a named organisation. Use when asked to clear, burn down or get the backlog to zero. |
 | [binaric](skills/binaric/SKILL.md) | ONLY for LLM-to-LLM messages: delegate briefs, follow-ups and child reports, kept short with every fact the reader acts on. Never for anything a human is meant to read. |
 | [challenge](skills/challenge/SKILL.md) | Pressure-test an idea, design or proposal with an independent reviewer when asked to challenge assumptions, give a second opinion or answer 'are you sure?'. Return findings without edits. |
-| [choose-design](skills/choose-design/SKILL.md) | Compare design options after product decisions are settled for new UI, a requested redesign or an unresolved visual or interaction choice. Preserve the existing design for routine edits. |
+| [choose-design](skills/choose-design/SKILL.md) | Compare design options once product decisions are settled. Use for new UI, a requested redesign or an unresolved visual or interaction choice, not for routine edits to an existing design. |
 | [focus-group](skills/focus-group/SKILL.md) | Plan, run or review a synthetic focus group or product study with fictional participants. |
-| [github-writing](skills/github-writing/SKILL.md) | Add a byline when drafting or editing AI-written GitHub issues, pull requests, comments, reviews, discussions or release notes on the user's behalf. |
-| [hillclimb](skills/hillclimb/SKILL.md) | Improve a workflow, artifact or product toward an agreed score over several rounds. Confirm the judges, report each round and review delivery. Judge UI work on the real interface. |
+| [github-writing](skills/github-writing/SKILL.md) | Add a byline to AI-written GitHub text posted on the user's behalf. Use when drafting or editing issues, pull requests, comments, reviews, discussions or release notes. |
+| [hillclimb](skills/hillclimb/SKILL.md) | Improve a workflow, artifact or product toward an agreed score over several judged rounds. Use when asked to hillclimb or to keep improving something until it reaches a target score. |
 | [implement](skills/implement/SKILL.md) | Implement through T3 delegation when the user requests it or invokes implement. Return reviewed commits to the main thread for integration and delivery. |
-| [ocr](skills/ocr/SKILL.md) | Run OpenCodeReview on a frozen diff. A public repository draws up to three free OpenCode reviewers and returns one grouped report; a private one runs the ocr CLI through one watcher. |
+| [new-skill](skills/new-skill/SKILL.md) | Add a skill to this library with a description agents can match, steps a small model can follow, trigger evals and full registration. |
+| [ocr](skills/ocr/SKILL.md) | Run OpenCodeReview on a frozen diff and return one grouped report. Use when asked for OCR or OpenCodeReview, or when review calls for it on a repository without a PR path. |
 | [plan-report](skills/plan-report/SKILL.md) | Show a plan, progress or final calibration on an HTML timeline from a private ledger. Use for coordinated work, timeline requests or reporting in ship, backlog-burn and implement. |
 | [raise-issue](skills/raise-issue/SKILL.md) | Investigate, draft, file or follow up on a bug, feature or task issue when the user or an authorised workflow asks. Use an asynchronous T3 delegate. |
-| [raise-pr](skills/raise-pr/SKILL.md) | Prepare, create or update a pull request during implementation, review-loop, ship or PR maintenance. Include the repository's required evidence and checks. |
+| [raise-pr](skills/raise-pr/SKILL.md) | Prepare, create or update a pull request with the repository's required evidence and checks. Use when opening or updating a PR during implementation, review-loop, ship or PR maintenance. |
 | [reremember](skills/reremember/SKILL.md) | Use when a remembered claim is contradicted by the code, when asked to correct or consolidate what the project remembers, or when a session settles a decision later work depends on. |
-| [review](skills/review/SKILL.md) | Review plans, code, UI, backend or releases independently, including review-loop and think's readiness check. Code reviewers must come from a different model family than the code authors. |
+| [review](skills/review/SKILL.md) | Review plans, code, UI, backend or releases independently. Use when asked for a review, or for review-loop rounds and think's readiness check. Pressure-testing an idea belongs to challenge. |
 | [review-loop](skills/review-loop/SKILL.md) | Implement, review and repair in rounds when asked to iterate with independent review or when the user invokes review-loop. Work toward the agreed score and acceptance criteria. |
-| [settle](skills/settle/SKILL.md) | Close out a finished top-level thread: save durable memory, remove task-owned scratch, raise optional follow-ups, unwatch closed PRs, then settle it in T3. Use at a completed handback or /settle. |
+| [settle](skills/settle/SKILL.md) | Close out a finished top-level thread and settle it in T3. Use at a completed handback or for /settle. |
 | [ship](skills/ship/SKILL.md) | Deliver and verify a change when the user explicitly asks to ship or backlog-burn calls for delivery. Show progress and finish with a retrospective. |
-| [test-writer](skills/test-writer/SKILL.md) | Write or review tests, choose regression coverage, or assess test value, reliability and CI runtime. |
+| [test-writer](skills/test-writer/SKILL.md) | Write or review tests, choose regression coverage, or assess test value, reliability and CI runtime. Use when adding tests or judging a suite. |
 | [think](skills/think/SKILL.md) | Turn an idea, plan or decision into a brief ready to build. Use when asked to think about it, think it through, keep thinking, interrogate or stress-test it, or clarify it through an interview. |
 
 <!-- skill-catalog:end -->
@@ -568,6 +578,16 @@ The same checks run in CI and before owner publication. They enforce:
   reads one loads nothing else.
 - Changes to skill instructions or their Markdown references invalidate the
   README's review receipt, requiring another look at the prose and diagrams.
+- Every description stays within 40 words and 250 characters, avoids "I",
+  "you", "your", "this skill" and "then" outside quotes, and, for a skill agents
+  can pick up on their own, includes a `Use when/for/at` or `when asked/the user`
+  clause. The description loads on every turn, so it says when to pick the
+  skill and leaves the procedure to the body.
+- Every local link in a `SKILL.md` sits in a sentence with a condition word
+  (when, before, after, if, for and similar), so the agent knows when to follow it.
+- Every skill agents can pick up on their own has `references/trigger-evals.md`
+  with 5 prompts that should select it and 5 that should not, each naming the
+  skill expected instead. `/new-skill` describes how to run them by hand.
 - Skill metadata, entry-point budgets, helper imports and relocation contracts
   continue to pass the existing library checks.
 
@@ -596,7 +616,7 @@ installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: d6b660a8f2ffbf70a8d508f7aef35107955514bd909c4d36ca500a91d4c983ca -->
+<!-- skills-review: 587a6ab2eb4b934dde09707ba51e2631a582c52f76701cb1035ce2160e51dba2 -->
 
 ### Owner maintenance
 

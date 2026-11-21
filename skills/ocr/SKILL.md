@@ -1,6 +1,6 @@
 ---
 name: ocr
-description: "Run OpenCodeReview on a frozen diff. A public repository draws up to three free OpenCode reviewers and returns one grouped report; a private one runs the ocr CLI through one watcher."
+description: "Run OpenCodeReview on a frozen diff and return one grouped report. Use when asked for OCR or OpenCodeReview, or when review calls for it on a repository without a PR path."
 ---
 
 # Run OpenCodeReview
@@ -94,7 +94,8 @@ paid route. The delegate does not.
 
 Dispatch one async delegate on a low-powered model. It is a watcher, not a
 reviewer, so its family does not matter. Give it the
-[OCR watcher card](references/ocr-watcher.md) at its absolute path. The brief
+[OCR watcher card](references/ocr-watcher.md) at its absolute path when
+dispatching it. The brief
 names the repository, the frozen revision, the scope, the provider, the model,
 the `--timeout` minutes, an output directory that `git check-ignore` confirms
 is ignored, and whether this invocation is the one allowed rerun. A missing

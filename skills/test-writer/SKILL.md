@@ -1,6 +1,6 @@
 ---
 name: test-writer
-description: "Write or review tests, choose regression coverage, or assess test value, reliability and CI runtime."
+description: "Write or review tests, choose regression coverage, or assess test value, reliability and CI runtime. Use when adding tests or judging a suite."
 ---
 
 # Test the failures that matter
@@ -51,7 +51,8 @@ for more coverage.
 
 Read the [audit reference](references/suite-audit.md) for suite-wide reviews or costly
 test removal; establish retained and lost detection before recommending removal.
-The optional [timing helper](scripts/summarize_timings.py) summarizes observations,
+When assessing CI runtime, the optional
+[timing helper](scripts/summarize_timings.py) summarizes observations,
 not elapsed CI time or causal speedup.
 
 ## Outputs

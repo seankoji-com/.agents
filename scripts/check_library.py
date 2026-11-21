@@ -15,7 +15,7 @@ SKILLS = ('babysitter', 'review-loop', 'challenge', 'focus-group',
           'agent-tuneup', 'reremember', 'test-writer', 'raise-issue', 'ship',
           'think', 'review', 'choose-design', 'raise-pr',
           'implement', 'github-writing', 'hillclimb', 'backlog-burn', 'plan-report',
-          'binaric', 'settle', 'ocr')
+          'binaric', 'settle', 'ocr', 'new-skill')
 RETIRED = re.compile(r'agents-bootstrap|PKG/|(?:core|shared|plugins)/|bin/agents|'
                      r'scripts/(?:install|agents_bootstrap|source_runtime)|'
                      r'migration/|agents start|\.local/share/t3-plugins')
@@ -30,6 +30,18 @@ CARD_WORDS = 600
 CATALOG_START = '<!-- skill-catalog:start -->'
 CATALOG_END = '<!-- skill-catalog:end -->'
 DOC_REVIEW = re.compile(r'<!-- skills-review: ([^\s]+) -->')
+# Every description loads on every turn, so it stays short and reads as a selection rule.
+DESCRIPTION_WORDS = 40
+DESCRIPTION_CHARS = 250
+QUOTED = re.compile(r'(?<!\w)"[^"]*"(?!\w)|(?<!\w)\'[^\']*\'(?!\w)')
+BANNED = re.compile(r'\b(?:I|you|your|then|this skill)\b', re.I)
+TRIGGER = re.compile(r'\bUse (?:when|for|at)\b|\bwhen (?:asked|the user)\b', re.I)
+USER_INVOKED = re.compile(r'^disable-model-invocation: true$', re.M)
+# A link in an entry says when to follow it; this list is the fixed test for that.
+CONDITION = re.compile(r'\b(?:when|whenever|before|after|if|unless|during|once|while|for|to)\b',
+                       re.I)
+EVALS = 'references/trigger-evals.md'
+EVAL_PROMPTS = 5
 
 
 def description_value(value):
@@ -45,6 +57,47 @@ def description_value(value):
     if not value.strip() or '\n' in value or '\r' in value:
         raise ValueError('description must be a single-line string')
     return value
+
+
+def description_errors(name, description, user_invoked):
+    """A description is a short selection rule, not a summary of the procedure."""
+    errors = []
+    if len(description.split()) > DESCRIPTION_WORDS:
+        errors.append(f'{name}: description exceeds {DESCRIPTION_WORDS} words')
+    if len(description) > DESCRIPTION_CHARS:
+        errors.append(f'{name}: description exceeds {DESCRIPTION_CHARS} characters')
+    for word in sorted({m.group(0).lower() for m in BANNED.finditer(QUOTED.sub('', description))}):
+        errors.append(f'{name}: description uses "{word}"')
+    if not user_invoked and not TRIGGER.search(description):
+        errors.append(f'{name}: model-invoked description lacks a trigger clause')
+    return errors
+
+
+def link_condition_errors(name, body):
+    """Each local link in an entry sits in a sentence that says when to read it."""
+    errors = []
+    for sentence in re.split(r'(?<=[.!?])\s+', re.sub(r'\s+', ' ', body)):
+        targets = [t for t in LINK.findall(sentence) if not urlsplit(t).scheme]
+        if targets and not CONDITION.search(LINK.sub('', sentence)):
+            errors.extend(f'{name}: link without a reading condition: {t}' for t in targets)
+    return errors
+
+
+def eval_errors(name, folder):
+    """Model-invoked skills record prompts that should and should not select them."""
+    path = folder / EVALS
+    if not path.is_file():
+        return [f'{name}: missing {EVALS}']
+    sections = re.split(r'^## ', path.read_text(encoding='utf-8'), flags=re.M)[1:]
+    found = {section.split('\n', 1)[0].strip(): section for section in sections}
+    errors = []
+    for heading, suffix in (('Should fire', None), ('Should not fire', r' \(expect: [\w:-]+\)')):
+        items = re.findall(r'^\d+\. \S.*$', found.get(heading, ''), re.M)
+        if len(items) != EVAL_PROMPTS:
+            errors.append(f'{name}: {EVALS} needs {EVAL_PROMPTS} "{heading}" prompts')
+        elif suffix and not all(re.search(suffix + '$', item) for item in items):
+            errors.append(f'{name}: {EVALS} "{heading}" prompts must end with (expect: <skill|none>)')
+    return errors
 
 
 def mermaid_errors(label, diagrams, names):
@@ -269,6 +322,13 @@ def check(root, update_readme=False, acknowledge_docs=False):
                 descriptions[name] = description_value(value)
             except (ValueError, TypeError):
                 errors.append(f'{name}: invalid single-line description')
+        user_invoked = bool(USER_INVOKED.search(metadata))
+        if name in descriptions:
+            errors.extend(description_errors(name, descriptions[name], user_invoked))
+        if front:
+            errors.extend(link_condition_errors(name, text[front.end():]))
+        if not user_invoked:
+            errors.extend(eval_errors(name, folder))
         if len(text.split()) > 1500:
             errors.append(f'{name}: exceeds 1500 words')
         if not front or not text[front.end():].strip():

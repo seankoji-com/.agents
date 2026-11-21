@@ -1,6 +1,6 @@
 ---
 name: backlog-burn
-description: "Clear open issues and pull requests or launch one backlog run per repository in a named organisation. Close obsolete work with evidence, resolve owner decisions and delegate worthwhile fixes within a cap of 20."
+description: "Clear a repository's open issues and pull requests, or launch one backlog run per repository in a named organisation. Use when asked to clear, burn down or get the backlog to zero."
 ---
 
 # Burn the backlog to zero
@@ -8,8 +8,8 @@ description: "Clear open issues and pull requests or launch one backlog run per 
 Bring open issues and pull requests to zero. Close delivered or obsolete work
 with evidence and start ready fixes while you triage the rest.
 
-Apply [plan-report](../plan-report/SKILL.md) at proposal, task completion, final
-handback and on request. Review/fix rounds get short chat updates.
+Apply [plan-report](../plan-report/SKILL.md) when proposing, completing a task,
+handing back and on request. Review/fix rounds get short chat updates.
 The main thread presents the report.
 
 ## The turn rule
@@ -46,7 +46,7 @@ and follow it instead of this file.
 1. Read the repository's `AGENTS.md`, contribution guide and known-live-issues
    index. For careynas.net, also read [its profile](references/careynas-net.md).
 2. Create the ledger from [the ledger template](references/ledger.md) in an
-   ignored directory, such as `out/backlog-burn/ledger.md`. Confirm with
+   ignored directory, for example `out/backlog-burn/ledger.md`. Confirm with
    `git check-ignore`.
 3. Inventory with these exact commands (repeat them on every wake):
 
@@ -68,7 +68,7 @@ draft flag, linked PRs and dates. Do this for the whole list in one pass and
 write it to the ledger. Headers only; no bodies yet.
 
 - PR classes: `in-flight-elsewhere`, `adopt`, `retire`, `ask`.
-- Issue classes are listed in [the ledger](references/ledger.md#table).
+- Issue classes for triage are in [the ledger](references/ledger.md#table).
 - Mark issues covered by an open PR as `in-flight` and link the PR.
 
 After header triage, interleave steps 3 and 4. With free capacity, check likely
@@ -93,7 +93,7 @@ For each open PR, decide whether someone else is actively working on it:
    activity or enabled auto-merge alone is not ownership.
 
 Record the evidence. For in-flight-elsewhere PRs, record the owner link and add
-no watch, push or review request. Classify unowned PRs as adopt, retire or ask
+no watch, push or review request. Assign unowned PRs to adopt, retire or ask
 under [the PR rules](references/pull-requests.md).
 
 Load [babysitter](../babysitter/SKILL.md) before you act on the first adopted
@@ -105,7 +105,8 @@ Do not watch it yet.
 
 Work through issues in batches of about ten, writing the ledger after each
 batch. For each issue, read the body and comments, then the minimum current
-code or docs needed. Apply [the classification rubric](references/classification.md):
+code or docs needed, and apply
+[the classification rubric](references/classification.md):
 
 - Already done, obsolete or not worth the remaining work: close it with an
   evidence comment and read back the state. Protected issues become questions.
@@ -191,7 +192,7 @@ On wake, repeat the inventory and resume from the ledger.
   waiting on a submitted question. Name each with its owner link and trigger.
 - **Not finished:** anything else. Keep working.
 
-A closed PR never satisfies its linked issues. At zero or not zero, finish
+A closed PR never satisfies its linked issues. When done, at zero or not, finish
 ship's consolidated retrospective, then report per
 [the ledger's handoff](references/ledger.md#handoff), keeping local checks, CI,
 merge, deployment and live acceptance separate.

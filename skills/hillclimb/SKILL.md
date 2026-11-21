@@ -1,6 +1,6 @@
 ---
 name: hillclimb
-description: "Improve a workflow, artifact or product toward an agreed score over several rounds. Confirm the judges, report each round and review delivery. Judge UI work on the real interface."
+description: "Improve a workflow, artifact or product toward an agreed score over several judged rounds. Use when asked to hillclimb or to keep improving something until it reaches a target score."
 ---
 
 # Improve a candidate through scored rounds
@@ -39,7 +39,7 @@ Apply ordinary formal review selection and required companions at delivery.
 Give judges the same frozen candidate, scope, rubric, checks and evidence
 requirements. Judges work read-only in separate sessions. Require independent
 observations and scored reasoning. In UI mode, each judge uses the actual
-interface, exercises the required states and takes fresh captures. Prepare
+interface, exercises the required states and takes fresh captures. Before judging, prepare
 access as described in [judge selection](references/judges.md).
 
 Run judges for the same evaluation concurrently with isolated sessions and data
@@ -106,7 +106,8 @@ requires its own scores and checks on the delivery candidate for success.
 Reconcile identified bugs against the final revision even on an incomplete run.
 Invoking the workflow authorises filing confirmed unfixed bugs in the task
 repository, subject to explicit no-post limits. Follow
-[deferred-bug tracking](../review/references/deferred-bugs.md) through `raise-issue`.
+[deferred-bug tracking](../review/references/deferred-bugs.md) through `raise-issue`
+for each confirmed unfixed bug.
 Deduplicate and record verified issue URLs in the run record, PR and handoff.
 Pending or blocked filing leaves tracking incomplete. Rejected findings and
 preferences require no issue.

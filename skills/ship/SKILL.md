@@ -24,8 +24,8 @@ operator named or configured. This owner configured `seankoji-com/.agents`.
 Verify ownership through account and repository evidence. Confirm posting
 authority from the operator's instructions. A clone's origin or collaborator
 access does not establish either.
-It may also record verified, durable decisions in the memory of the repository
-the run worked in, under [reremember](../reremember/SKILL.md). Memory is a
+When the run verifies a durable decision, it may also record it in the memory
+of the repository the run worked in, under [reremember](../reremember/SKILL.md). Memory is a
 record, not another proposal route: it never replaces a commit, PR or issue,
 and it never edits an instruction file.
 
@@ -45,8 +45,8 @@ review limits and ready-work capacity refill. Ship owns the
 [up-front blocker batch](references/start-and-blockers.md) before dispatch;
 read it for manual follow-ups and other runs' processes.
 
-Apply [plan-report](../plan-report/SKILL.md) at proposal, task completion, final
-handback and on request. Review/fix rounds get short chat updates. When completed
+Apply [plan-report](../plan-report/SKILL.md) when proposing, completing a task,
+handing back and on request. Review/fix rounds get short chat updates. When completed
 work changes something visible, show a captioned screenshot through the host's
 image tool alongside the completion report. The main thread feeds final
 estimate/actual, model, effort, segment and review-round calibration into the
@@ -109,7 +109,7 @@ evidence. These are options, not a required sequence:
 4. Create or update the PR against the intended current base using
    [raise-pr](../raise-pr/SKILL.md) for templates, screenshots, agent attribution
    and independent review. Follow host creation and linking requirements.
-5. Use [babysitter](../babysitter/SKILL.md) as the sole owner of the PR's
+5. Once the PR exists, use [babysitter](../babysitter/SKILL.md) as the sole owner of the PR's
    delivery lifecycle: its pre-watch audit, repair and review rules, merge
    eligibility, merge action, readback and watch rules apply unchanged. Supply
    ship's own acceptance requirements — observed proof, retrospective and

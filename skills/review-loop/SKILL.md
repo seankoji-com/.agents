@@ -36,11 +36,11 @@ does not automatically need this loop.
 2. **Choose reviewers and assign roles.**
 
    - The coordinator reads [review](../review/SKILL.md) for eligibility, named
-     models, conflicts and dispatch. It obtains review and owns
+     models, conflicts and dispatch. It obtains review and, when findings return, owns their
      [feedback dispositions](../review/references/feedback-dispositions.md).
-   - Evaluators read the [assigned-reviewer card](../review/references/assigned-reviewer.md)
+   - Before reviewing, evaluators read the [assigned-reviewer card](../review/references/assigned-reviewer.md)
      and return evidence without delegating.
-   - Implementers read the
+   - Before repairing, implementers read the
      [implementation-participant card](../review/references/implementation-participant.md)
      and repair selected findings.
 

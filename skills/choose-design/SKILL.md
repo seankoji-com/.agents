@@ -1,6 +1,6 @@
 ---
 name: choose-design
-description: "Compare design options after product decisions are settled for new UI, a requested redesign or an unresolved visual or interaction choice. Preserve the existing design for routine edits."
+description: "Compare design options once product decisions are settled. Use for new UI, a requested redesign or an unresolved visual or interaction choice, not for routine edits to an existing design."
 ---
 
 # Choose a visual design
@@ -116,7 +116,7 @@ make options look different. For each option, the designer returns:
   lorem ipsum. It must render well at 728px wide. If the real target is wider,
   the blurb says how the layout changes there.
 - Visible feature IDs and an annotation legend, following
-  [report requirements](references/reports.md). Read these requirements before
+  [report requirements](references/reports.md) for each option. Read these requirements before
   briefing designers and apply them when checking and presenting every option.
 
 Designers must not edit the repository. They return HTML in the final report, or

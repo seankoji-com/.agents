@@ -55,7 +55,7 @@ policy, bot handling and lifecycle acceptance scenarios.
      results, owners and dependencies. Use raise-pr's
      [preflight](../raise-pr/references/preflight.md) to confirm repository,
      clean or preserved checkout, remote, head/base, rules and merge method.
-   - On every start, wake or resume, refresh GitHub. Reconcile the request,
+   - When starting, waking or resuming, refresh GitHub and reconcile the request,
      action holds and continuation owner under
      [authority reconciliation](references/continuation.md#reconcile-authority-and-ownership).
      Discard stale-head results.
@@ -110,7 +110,7 @@ policy, bot handling and lifecycle acceptance scenarios.
      acceptance before conversion. Handle bots that need ready status. Reuse
      finish-and-merge authority once gates pass. Ask only for an unresolved
      owner decision.
-   - Refresh rules and follow the
+   - Before merging, refresh rules, follow the
      [pre-merge procedure](../raise-pr/references/preflight.md#immediately-before-every-merge).
      Attempt the explicit permitted method with the expected head SHA where
      supported. Only that procedure's explicitly authorised scoped exception
@@ -145,7 +145,7 @@ policy, bot handling and lifecycle acceptance scenarios.
    - The sole coordinator keeps one confirmed native watch per open owned PR,
      records its receipt and next trigger, and yields under host rules.
      Children never watch.
-   - On each wake repeat step 1 and
+   - After each wake, repeat step 1 and
      [reconcile watch state](references/continuation.md#keep-one-continuation-owner).
      After a push or resume, repeat the audit. A receipt proves observed
      registration, not continuous coverage.

@@ -1,6 +1,6 @@
 ---
 name: settle
-description: "Close out a finished top-level thread: save durable memory, remove task-owned scratch, raise optional follow-ups, unwatch closed PRs, then settle it in T3. Use at a completed handback or /settle."
+description: "Close out a finished top-level thread and settle it in T3. Use at a completed handback or for /settle."
 ---
 
 # Settle a finished thread
@@ -39,7 +39,7 @@ another thread.
 
 ## Save durable memory
 
-Apply [reremember](../reremember/SKILL.md). Save only what passes its
+Apply [reremember](../reremember/SKILL.md) before saving anything. Save only what passes its
 durability test: a decision later work depends on, a verified correction, or an
 initiative update. Never save a transcript, per-run status, scores, cost or
 secrets.

@@ -1,6 +1,6 @@
 ---
 name: github-writing
-description: "Add a byline when drafting or editing AI-written GitHub issues, pull requests, comments, reviews, discussions or release notes on the user's behalf."
+description: "Add a byline to AI-written GitHub text posted on the user's behalf. Use when drafting or editing issues, pull requests, comments, reviews, discussions or release notes."
 ---
 
 # Disclose AI-written GitHub prose

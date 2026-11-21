@@ -20,7 +20,7 @@ does. If the user authorises a fix, edit the owning source and verify the result
    Consult current official formats where needed; do not assume provider semantics
    or hand-edit generated copies. Unknown ownership blocks dependent changes.
 
-   The optional [JSON scanner](scripts/scan_config.py) flags broad permission
+   When auditing permissions, the optional [JSON scanner](scripts/scan_config.py) flags broad permission
    strings without printing values. Use only selected authorized files; pointers
    may still be private. It does not evaluate precedence or provider semantics.
    Flags prompt investigation, not automatic fixes. Observed calls do not prove

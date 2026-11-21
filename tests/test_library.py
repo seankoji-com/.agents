@@ -563,6 +563,93 @@ class Library(unittest.TestCase):
             self.assertIn('retired source container', '\n'.join(checker.check(root)))
 
 
+class Discovery(unittest.TestCase):
+    """Descriptions, link conditions and trigger evals keep selection cheap and predictable."""
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        library_fixture(self.root)
+        self.entry = self.root / 'skills/think/SKILL.md'
+        self.original = self.entry.read_text()
+
+    def errors(self):
+        return '\n'.join(checker.check(self.root))
+
+    def describe(self, description, extra=''):
+        current = next(line for line in self.original.splitlines()
+                       if line.startswith('description: '))
+        self.entry.write_text(self.original.replace(
+            current, f'description: {json.dumps(description)}{extra}', 1))
+
+    def test_current_library_passes_every_discovery_check(self):
+        self.assertEqual(checker.check(self.root), [])
+
+    def test_long_descriptions_fail_on_words_and_characters(self):
+        self.describe('Use when asked. ' + 'word ' * 40)
+        self.assertIn('think: description exceeds 40 words', self.errors())
+        self.describe('Use when asked to ' + 'x' * 240 + '.')
+        errors = self.errors()
+        self.assertIn('think: description exceeds 250 characters', errors)
+        self.assertNotIn('exceeds 40 words', errors)
+
+    def test_person_and_procedure_words_fail_outside_quotes(self):
+        for word, text in (('i', 'I turn ideas into briefs. Use when asked.'),
+                           ('you', 'Help you plan. Use when asked.'),
+                           ('your', 'Plan your work. Use when asked.'),
+                           ('then', 'Ask questions, then write a brief. Use when asked.'),
+                           ('this skill', 'This skill plans. Use when asked.')):
+            with self.subTest(word=word):
+                self.describe(text)
+                self.assertIn(f'think: description uses "{word}"', self.errors())
+        self.describe("Plan work. Use when asked 'are you sure?' or \"what then\".")
+        self.assertNotIn('description uses', self.errors())
+        self.describe("Plan the user's work. Use when asked.")
+        self.assertNotIn('description uses', self.errors())
+
+    def test_trigger_clause_required_only_for_model_invoked_skills(self):
+        self.describe('Turn an idea into a brief.')
+        self.assertIn('think: model-invoked description lacks a trigger clause', self.errors())
+        for clause in ('Use when asked.', 'Use for planning.', 'Use at the start.',
+                       'Run when asked.', 'Run when the user plans.'):
+            with self.subTest(clause=clause):
+                self.describe('Turn an idea into a brief. ' + clause)
+                self.assertNotIn('trigger clause', self.errors())
+        self.describe('Turn an idea into a brief.', '\ndisable-model-invocation: true')
+        self.assertNotIn('trigger clause', self.errors())
+
+    def test_local_links_need_a_reading_condition(self):
+        body = self.original + '\nSee [the notes](references/trigger-evals.md).\n'
+        self.entry.write_text(body)
+        self.assertIn('think: link without a reading condition: references/trigger-evals.md',
+                      self.errors())
+        self.entry.write_text(self.original +
+                              '\nRead [the notes](references/trigger-evals.md) before asking.\n'
+                              'See [upstream](https://example.invalid/skill).\n')
+        self.assertNotIn('reading condition', self.errors())
+
+    def test_model_invoked_skills_need_well_formed_trigger_evals(self):
+        evals = self.root / 'skills/think/references/trigger-evals.md'
+        original = evals.read_text()
+        evals.unlink()
+        self.assertIn('think: missing references/trigger-evals.md', self.errors())
+        cases = {
+            'needs 5 "Should fire" prompts': original.replace(
+                '5. Keep thinking about the migration approach.\n', ''),
+            'needs 5 "Should not fire" prompts': original + '6. Extra prompt. (expect: none)\n',
+            '"Should not fire" prompts must end with (expect: <skill|none>)': original.replace(
+                ' (expect: backlog-burn)', ''),
+        }
+        for expected, text in cases.items():
+            with self.subTest(expected=expected):
+                evals.write_text(text)
+                self.assertIn(f'think: references/trigger-evals.md {expected}', self.errors())
+        evals.unlink()
+        self.describe('Turn an idea into a brief.', '\ndisable-model-invocation: true')
+        self.assertNotIn('trigger-evals', self.errors())
+
+
 class Documentation(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
@@ -623,13 +710,14 @@ class Documentation(unittest.TestCase):
         source = self.root / 'skills/think/SKILL.md'
         lines = source.read_text().splitlines()
         index = next(i for i, line in enumerate(lines) if line.startswith('description: '))
-        lines[index] = 'description: Explain a difficult idea clearly.'
+        lines[index] = 'description: Explain a difficult idea clearly. Use when asked to explain.'
         source.write_text('\n'.join(lines) + '\n')
         errors = self.errors()
         self.assertIn('stale skill catalog', errors)
         self.assertIn('skill instructions changed', errors)
         self.assertEqual(checker.check(self.root, True, True), [])
-        self.assertIn('| Explain a difficult idea clearly. |', self.readme.read_text())
+        self.assertIn('| Explain a difficult idea clearly. Use when asked to explain. |',
+                      self.readme.read_text())
 
     def test_instruction_and_reference_changes_require_review_without_catalog_drift(self):
         for relative in ('skills/ship/SKILL.md',
@@ -766,8 +854,10 @@ class Documentation(unittest.TestCase):
         description = next(line for line in original.splitlines()
                            if line.startswith('description: '))
         for scalar, expected in (
-                ('"Say \\"hello\\" | keep it short."', 'Say "hello" \\| keep it short.'),
-                ("'Say ''hello'' | keep it short.'", "Say 'hello' \\| keep it short.")):
+                ('"Say \\"hello\\" | keep it short. Use when asked."',
+                 'Say "hello" \\| keep it short. Use when asked.'),
+                ("'Say ''hello'' | keep it short. Use when asked.'",
+                 "Say 'hello' \\| keep it short. Use when asked.")):
             with self.subTest(scalar=scalar):
                 source.write_text(original.replace(description, 'description: ' + scalar))
                 self.assertEqual(checker.check(self.root, True, True), [])
