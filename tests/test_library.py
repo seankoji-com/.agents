@@ -643,6 +643,9 @@ class Discovery(unittest.TestCase):
                 '\nSee [What next? Notes](references/trigger-evals.md).\n',
                 # Parenthesised ordered lists are list items too.
                 '\n1) Before publishing, inspect the diff\n2) See [notes](references/trigger-evals.md)\n',
+                '\n1)\tBefore publishing, inspect the diff\n2)\tSee [notes](references/trigger-evals.md)\n',
+                # A shorter inner fence does not close a longer one, and the link after it is live.
+                '\n~~~~markdown\n~~~md\n~~~~\nSee [notes](references/trigger-evals.md).\n~~~text\nx\n~~~\n',
                 # A heading is its own block.
                 '\n## When ready\nSee [notes](references/trigger-evals.md).\n'):
             with self.subTest(case=case):
@@ -680,6 +683,7 @@ class Discovery(unittest.TestCase):
             # Prompts only inside a fence are examples, not prompts.
             'needs 5 "Should not fire" prompts ': body(miss_items='```\n' + miss + '```\n'),
             'needs 5 "Should not fire" prompts  ': body(miss_items='~~~\n' + miss + '~~~\n'),
+            'needs 5 "Should not fire" prompts   ': body(miss_items='~~~~\n~~~\n' + miss + '~~~~\n'),
             'near miss expects the skill under test':
                 body(miss_items=miss.replace('(expect: none)', '(expect: think)', 1)),
         }

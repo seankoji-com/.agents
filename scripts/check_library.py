@@ -44,9 +44,25 @@ CONDITION = re.compile(r'\b(?:when|whenever|before|after|if|unless|during|once|w
                        re.I)
 EVALS = 'references/trigger-evals.md'
 EVAL_PROMPTS = 5
-FENCE = re.compile(r'^[ \t]*(```|~~~).*?^[ \t]*\1[^\n]*$', re.S | re.M)
+FENCE_OPEN = re.compile(r'[ \t]*(`{3,}|~{3,})')
 # A paragraph, list item, table row or heading is one block; sentences never span blocks.
-BLOCK = re.compile(r'\n[ \t]*\n|\n(?=[ \t]*(?:[-*+]|\d+[.)]|\||#+) )')
+BLOCK = re.compile(r'\n[ \t]*\n|\n(?=[ \t]*(?:[-*+]|\d+[.)]|\||#+)[ \t])')
+
+
+def strip_fences(text):
+    """Drop fenced code. A fence closes on a bare run of its own character, at least as long."""
+    kept, fence = [], None
+    for line in text.split('\n'):
+        match = FENCE_OPEN.match(line)
+        if fence is None:
+            if match:
+                fence = match.group(1)
+            else:
+                kept.append(line)
+        elif (match and match.group(1)[0] == fence[0] and len(match.group(1)) >= len(fence)
+              and not line[match.end():].strip()):
+            fence = None
+    return '\n'.join(kept)
 
 
 def description_value(value):
@@ -83,7 +99,7 @@ def description_errors(name, description, user_invoked):
 def link_condition_errors(name, body):
     """Each local link in an entry sits in a sentence that says when to read it."""
     errors = []
-    text = re.sub(r'^([ \t]*#+ .*)$', r'\1\n', FENCE.sub('', body), flags=re.M)
+    text = re.sub(r'^([ \t]*#+[ \t].*)$', r'\1\n', strip_fences(body), flags=re.M)
     for block in BLOCK.split(text):
         targets = []
 
@@ -106,7 +122,7 @@ def eval_errors(name, folder, names):
     path = folder / EVALS
     if not path.is_file():
         return [f'{name}: missing {EVALS}']
-    sections = re.split(r'^## ', FENCE.sub('', path.read_text(encoding='utf-8')), flags=re.M)[1:]
+    sections = re.split(r'^## ', strip_fences(path.read_text(encoding='utf-8')), flags=re.M)[1:]
     headings = [section.split('\n', 1)[0].strip() for section in sections]
     errors = []
     for heading in ('Should fire', 'Should not fire'):
