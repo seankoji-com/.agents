@@ -1,6 +1,6 @@
 ---
 name: raise-pr
-description: "Prepare, create or update a pull request with the repository's required evidence and checks. Use when opening or updating a PR during implementation, review-loop, ship or PR maintenance."
+description: "Prepare, create or update a pull request with the repository's required evidence and checks. Use when preparing, opening or updating a PR during implementation, review-loop, ship or PR maintenance."
 ---
 
 # Raise a pull request

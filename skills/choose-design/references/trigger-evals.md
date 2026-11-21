@@ -14,7 +14,7 @@ Run each in a fresh session; record which skill fires.
 ## Should not fire
 
 1. Change the button colour to blue. (expect: none)
-2. Build this page in a bold editorial style. (expect: frontend-design)
+2. Rename the header's CSS classes to kebab case. (expect: none)
 3. Review the checkout UI for bugs. (expect: review)
 4. Improve this page until the judges score it 9. (expect: hillclimb)
 5. Fix the misaligned header on mobile. (expect: none)

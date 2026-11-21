@@ -6,25 +6,34 @@ right neighbour. Tests never call live models, so the owner runs this by hand.
 1. **Choose the model.** Use the cheapest model the owner expects to run these
    skills, at its default effort. A description that works there works on
    stronger models.
-2. **Prepare the host.** Install the whole library and the owner's usual
+2. **Isolate the run.** Some prompts ask for real actions, such as merging a
+   pull request. Work in a scratch Git repository with no remote, start each
+   session in the host's plan or read-only mode, and deny every tool call that
+   writes, pushes, posts or merges. Done when a sample action cannot reach a
+   real repository, account or host.
+3. **Prepare the host.** Install the whole library and the owner's usual
    plugins, so the skill list matches real use. Done when the skill under test
    appears in the host's skill list.
-3. **Run each prompt.** Open a fresh session per prompt from
+4. **Run each prompt.** Open a fresh session per prompt from
    `skills/<name>/references/trigger-evals.md`. Send the prompt alone. Record
-   the first skill the model loads, or `none`.
-4. **Score.**
+   the first skill the model loads, or `none`, then stop the session before it
+   acts.
+5. **Score.**
 
    | Section | Pass |
    | --- | --- |
    | Should fire | The skill under test loads |
-   | Should not fire | The `expect` skill loads, or nothing when it says `none` |
+   | Should not fire | The `expect` skill loads, or no library skill when it says `none` |
+
+   A plugin skill from outside this library that loads on a `none` prompt
+   passes; note its name.
 
    Done when all 10 prompts have a recorded result.
-5. **Act on misses.** For a should-fire miss, add the missing case to the
+6. **Act on misses.** For a should-fire miss, add the missing case to the
    description in the owner's words. For a should-not miss, add the boundary to
    whichever of the two descriptions owns the case. Rerun only the prompts the
    change could affect.
-6. **Report.** Put the results in the change notes:
+7. **Report.** Put the results in the change notes:
 
    ```text
    Trigger evals: <skill> on <model>, <date>

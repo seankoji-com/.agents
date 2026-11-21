@@ -61,7 +61,8 @@ it and stop.
    `references/trigger-evals.md` in the shape of
    `skills/think/references/trigger-evals.md`: 5 should-fire prompts and 5
    should-not-fire prompts. Take the should-not prompts from the neighbours in
-   step 1 and end each with `(expect: <skill|none>)`.
+   step 1 and end each with `(expect: <skill|none>)`, naming a skill in this
+   library or `none`.
 8. **Register.**
    - Add the name to `SKILLS` in `scripts/check_library.py`.
    - Add a row to `site/index.html` with its Source link, install command and
@@ -73,10 +74,9 @@ it and stop.
    `python3 -m unittest discover -s tests -v` and
    `python3 scripts/check_library.py --stats`. Run any new helper from a foreign
    working directory. Done when all pass.
-10. **Offer the trigger evals.** When the owner wants evidence that the
-    description selects well, follow
-    [the trigger-eval procedure](references/run-trigger-evals.md). Run it after
-    any later description change too.
+10. **Offer the trigger evals.** They are opt-in. Run them only when the owner
+    asks for evidence that the description selects well, by following
+    [the trigger-eval procedure](references/run-trigger-evals.md).
 
 ## Output
 

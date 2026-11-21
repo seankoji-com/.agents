@@ -603,10 +603,15 @@ class Discovery(unittest.TestCase):
             with self.subTest(word=word):
                 self.describe(text)
                 self.assertIn(f'think: description uses "{word}"', self.errors())
-        self.describe("Plan work. Use when asked 'are you sure?' or \"what then\".")
-        self.assertNotIn('description uses', self.errors())
-        self.describe("Plan the user's work. Use when asked.")
-        self.assertNotIn('description uses', self.errors())
+        for text in ("Plan work. Use when asked 'are you sure?' or \"can I ship?\".",
+                     "Plan work. Use when asked 'are you sure it isn't stale?'.",
+                     "Plan the user's work. Use when asked."):
+            with self.subTest(text=text):
+                self.describe(text)
+                self.assertNotIn('description uses', self.errors())
+        # A step chain is banned even inside quotes.
+        self.describe('Plan work. Use when asked "what then".')
+        self.assertIn('think: description uses "then"', self.errors())
 
     def test_trigger_clause_required_only_for_model_invoked_skills(self):
         self.describe('Turn an idea into a brief.')
@@ -629,22 +634,55 @@ class Discovery(unittest.TestCase):
                               'See [upstream](https://example.invalid/skill).\n')
         self.assertNotIn('reading condition', self.errors())
 
+    def test_link_sentences_stay_inside_their_block(self):
+        flagged = 'think: link without a reading condition: references/trigger-evals.md'
+        for case in (
+                # A condition in the previous bullet does not cover this one.
+                '\n- Before publishing, inspect the diff\n- See [notes](references/trigger-evals.md)\n',
+                # Punctuation inside link text does not split the sentence early.
+                '\nSee [What next? Notes](references/trigger-evals.md).\n',
+                # A heading is its own block.
+                '\n## When ready\nSee [notes](references/trigger-evals.md).\n'):
+            with self.subTest(case=case):
+                self.entry.write_text(self.original + case)
+                self.assertIn(flagged, self.errors())
+        # A link inside a fenced example is not a live link.
+        self.entry.write_text(self.original + '\n```md\nSee [notes](references/trigger-evals.md).\n```\n')
+        self.assertNotIn('reading condition', self.errors())
+
     def test_model_invoked_skills_need_well_formed_trigger_evals(self):
         evals = self.root / 'skills/think/references/trigger-evals.md'
-        original = evals.read_text()
         evals.unlink()
         self.assertIn('think: missing references/trigger-evals.md', self.errors())
+        fire = ''.join(f'{i}. Synthetic prompt {i}.\n' for i in range(1, 6))
+        miss = ''.join(f'{i}. Synthetic near miss {i}. (expect: none)\n' for i in range(1, 6))
+
+        def body(fire_items=fire, miss_items=miss, extra=''):
+            return (f'# Trigger evals: think\n\n## Should fire\n\n{fire_items}\n'
+                    f'## Should not fire\n\n{miss_items}{extra}')
+
+        evals.write_text(body())
+        self.assertNotIn('trigger-evals', self.errors())
+        prefix = 'think: references/trigger-evals.md '
         cases = {
-            'needs 5 "Should fire" prompts': original.replace(
-                '5. Keep thinking about the migration approach.\n', ''),
-            'needs 5 "Should not fire" prompts': original + '6. Extra prompt. (expect: none)\n',
-            '"Should not fire" prompts must end with (expect: <skill|none>)': original.replace(
-                ' (expect: backlog-burn)', ''),
+            'needs 5 "Should fire" prompts': body(fire_items=fire.split('5.')[0]),
+            'needs 5 "Should not fire" prompts': body(extra='6. Extra. (expect: none)\n'),
+            '"Should not fire" prompts must end with (expect: <skill|none>)':
+                body(miss_items=miss.replace(' (expect: none)', '', 1)),
+            'expects unknown skill: retired-skill':
+                body(miss_items=miss.replace('(expect: none)', '(expect: retired-skill)', 1)),
+            'needs one "Should fire" section': body(extra='\n## Should fire\n\n' + fire),
+            # Prompts only inside a fence are examples, not prompts.
+            'needs 5 "Should not fire" prompts ': body(miss_items='```\n' + miss + '```\n'),
         }
         for expected, text in cases.items():
             with self.subTest(expected=expected):
+                self.assertNotEqual(text, body())
                 evals.write_text(text)
-                self.assertIn(f'think: references/trigger-evals.md {expected}', self.errors())
+                self.assertIn(prefix + expected.strip(), self.errors())
+        # A near miss with no prompt text before the suffix is not a prompt.
+        evals.write_text(body(miss_items=miss.replace('Synthetic near miss 1. ', '', 1)))
+        self.assertIn(prefix + '"Should not fire" prompts must end with', self.errors())
         evals.unlink()
         self.describe('Turn an idea into a brief.', '\ndisable-model-invocation: true')
         self.assertNotIn('trigger-evals', self.errors())

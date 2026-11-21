@@ -538,7 +538,7 @@ for a human introduction, or open a skill here to read its exact instructions.
 | [ocr](skills/ocr/SKILL.md) | Run OpenCodeReview on a frozen diff and return one grouped report. Use when asked for OCR or OpenCodeReview, or when review calls for it on a repository without a PR path. |
 | [plan-report](skills/plan-report/SKILL.md) | Show a plan, progress or final calibration on an HTML timeline from a private ledger. Use for coordinated work, timeline requests or reporting in ship, backlog-burn and implement. |
 | [raise-issue](skills/raise-issue/SKILL.md) | Investigate, draft, file or follow up on a bug, feature or task issue when the user or an authorised workflow asks. Use an asynchronous T3 delegate. |
-| [raise-pr](skills/raise-pr/SKILL.md) | Prepare, create or update a pull request with the repository's required evidence and checks. Use when opening or updating a PR during implementation, review-loop, ship or PR maintenance. |
+| [raise-pr](skills/raise-pr/SKILL.md) | Prepare, create or update a pull request with the repository's required evidence and checks. Use when preparing, opening or updating a PR during implementation, review-loop, ship or PR maintenance. |
 | [reremember](skills/reremember/SKILL.md) | Use when a remembered claim is contradicted by the code, when asked to correct or consolidate what the project remembers, or when a session settles a decision later work depends on. |
 | [review](skills/review/SKILL.md) | Review plans, code, UI, backend or releases independently. Use when asked for a review, or for review-loop rounds and think's readiness check. Pressure-testing an idea belongs to challenge. |
 | [review-loop](skills/review-loop/SKILL.md) | Implement, review and repair in rounds when asked to iterate with independent review or when the user invokes review-loop. Work toward the agreed score and acceptance criteria. |
@@ -616,7 +616,7 @@ installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 587a6ab2eb4b934dde09707ba51e2631a582c52f76701cb1035ce2160e51dba2 -->
+<!-- skills-review: 135266f23cfab2c6fc7313d66be50fe3fb1110695489b8593f09da238032e289 -->
 
 ### Owner maintenance
 

@@ -13,7 +13,7 @@ Run each in a fresh session; record which skill fires.
 
 ## Should not fire
 
-1. Catch me up on this chat. (expect: none)
+1. Write a status update email for the team. (expect: none)
 2. Make a bar chart of monthly sales. (expect: none)
 3. Write a project plan document. (expect: none)
 4. Ship this. (expect: ship)

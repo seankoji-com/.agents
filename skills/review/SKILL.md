@@ -30,9 +30,9 @@ Apply [T3 dispatch preflight](../agent-tuneup/references/t3-dispatch.md) before 
    - Apply [model selection](references/model-selection.md) to each review,
      recheck and additional opinion, including inside implement. Honour named
      choices and the applicable credit, lineage and permission rules.
-   - The primary covers the whole change, including visuals. Run
-     [companions](references/parallel-review.md) on the same frozen revision when
-     that reference requires them.
+   - The primary covers the whole change, including visuals. Before starting a
+     review or recheck, read the [companion rules](references/parallel-review.md)
+     and run the companions they require on the same frozen revision.
      Run OCR only where the repository has no PR path or the user asks for it.
      Other judges may share a lineage and cannot replace the primary.
 3. **Reuse or dispatch.** Reuse completed reviews only if they cover the current

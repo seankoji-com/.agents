@@ -33,8 +33,10 @@ DOC_REVIEW = re.compile(r'<!-- skills-review: ([^\s]+) -->')
 # Every description loads on every turn, so it stays short and reads as a selection rule.
 DESCRIPTION_WORDS = 40
 DESCRIPTION_CHARS = 250
-QUOTED = re.compile(r'(?<!\w)"[^"]*"(?!\w)|(?<!\w)\'[^\']*\'(?!\w)')
-BANNED = re.compile(r'\b(?:I|you|your|then|this skill)\b', re.I)
+# Quoted user phrases may use person words; an apostrophe inside a word does not end a quote.
+QUOTED = re.compile(r'(?<!\w)".*?"(?!\w)|(?<!\w)\'.*?\'(?!\w)')
+PERSON = re.compile(r'\b(?:I|you|your|this skill)\b', re.I)
+SEQUENCE = re.compile(r'\bthen\b', re.I)
 TRIGGER = re.compile(r'\bUse (?:when|for|at)\b|\bwhen (?:asked|the user)\b', re.I)
 USER_INVOKED = re.compile(r'^disable-model-invocation: true$', re.M)
 # A link in an entry says when to follow it; this list is the fixed test for that.
@@ -42,6 +44,9 @@ CONDITION = re.compile(r'\b(?:when|whenever|before|after|if|unless|during|once|w
                        re.I)
 EVALS = 'references/trigger-evals.md'
 EVAL_PROMPTS = 5
+FENCE = re.compile(r'^[ \t]*```.*?^[ \t]*```[^\n]*$', re.S | re.M)
+# A paragraph, list item, table row or heading is one block; sentences never span blocks.
+BLOCK = re.compile(r'\n[ \t]*\n|\n(?=[ \t]*(?:[-*+]|\d+\.|\||#+) )')
 
 
 def description_value(value):
@@ -66,7 +71,9 @@ def description_errors(name, description, user_invoked):
         errors.append(f'{name}: description exceeds {DESCRIPTION_WORDS} words')
     if len(description) > DESCRIPTION_CHARS:
         errors.append(f'{name}: description exceeds {DESCRIPTION_CHARS} characters')
-    for word in sorted({m.group(0).lower() for m in BANNED.finditer(QUOTED.sub('', description))}):
+    words = {m.group(0).lower() for m in PERSON.finditer(QUOTED.sub('', description))}
+    words |= {m.group(0).lower() for m in SEQUENCE.finditer(description)}
+    for word in sorted(words):
         errors.append(f'{name}: description uses "{word}"')
     if not user_invoked and not TRIGGER.search(description):
         errors.append(f'{name}: model-invoked description lacks a trigger clause')
@@ -76,27 +83,51 @@ def description_errors(name, description, user_invoked):
 def link_condition_errors(name, body):
     """Each local link in an entry sits in a sentence that says when to read it."""
     errors = []
-    for sentence in re.split(r'(?<=[.!?])\s+', re.sub(r'\s+', ' ', body)):
-        targets = [t for t in LINK.findall(sentence) if not urlsplit(t).scheme]
-        if targets and not CONDITION.search(LINK.sub('', sentence)):
-            errors.extend(f'{name}: link without a reading condition: {t}' for t in targets)
+    text = re.sub(r'^([ \t]*#+ .*)$', r'\1\n', FENCE.sub('', body), flags=re.M)
+    for block in BLOCK.split(text):
+        targets = []
+
+        def hold(match):
+            targets.append(match.group(1))
+            return f'\0{len(targets) - 1}\0'
+
+        # Swap links for placeholders first so link text cannot split a sentence.
+        flat = LINK.sub(hold, re.sub(r'\s+', ' ', block))
+        for sentence in re.split(r'(?<=[.!?])\s+', flat):
+            local = [targets[int(i)] for i in re.findall(r'\0(\d+)\0', sentence)
+                     if not urlsplit(targets[int(i)]).scheme]
+            if local and not CONDITION.search(re.sub(r'\0\d+\0', ' ', sentence)):
+                errors.extend(f'{name}: link without a reading condition: {t}' for t in local)
     return errors
 
 
-def eval_errors(name, folder):
+def eval_errors(name, folder, names):
     """Model-invoked skills record prompts that should and should not select them."""
     path = folder / EVALS
     if not path.is_file():
         return [f'{name}: missing {EVALS}']
-    sections = re.split(r'^## ', path.read_text(encoding='utf-8'), flags=re.M)[1:]
-    found = {section.split('\n', 1)[0].strip(): section for section in sections}
+    sections = re.split(r'^## ', FENCE.sub('', path.read_text(encoding='utf-8')), flags=re.M)[1:]
+    headings = [section.split('\n', 1)[0].strip() for section in sections]
     errors = []
-    for heading, suffix in (('Should fire', None), ('Should not fire', r' \(expect: [\w:-]+\)')):
-        items = re.findall(r'^\d+\. \S.*$', found.get(heading, ''), re.M)
-        if len(items) != EVAL_PROMPTS:
+    for heading in ('Should fire', 'Should not fire'):
+        if headings.count(heading) != 1:
+            errors.append(f'{name}: {EVALS} needs one "{heading}" section')
+            continue
+        section = sections[headings.index(heading)]
+        items = [item.strip() for item in re.findall(r'^\d+\. (.*)$', section, re.M)]
+        if len(items) != EVAL_PROMPTS or not all(items):
             errors.append(f'{name}: {EVALS} needs {EVAL_PROMPTS} "{heading}" prompts')
-        elif suffix and not all(re.search(suffix + '$', item) for item in items):
-            errors.append(f'{name}: {EVALS} "{heading}" prompts must end with (expect: <skill|none>)')
+            continue
+        if heading == 'Should fire':
+            continue
+        for item in items:
+            match = re.fullmatch(r'(.*\S) \(expect: ([\w:-]+)\)', item)
+            if not match:
+                errors.append(f'{name}: {EVALS} "{heading}" prompts must end with '
+                              '(expect: <skill|none>)')
+                break
+            if match.group(2) not in names and match.group(2) != 'none':
+                errors.append(f'{name}: {EVALS} expects unknown skill: {match.group(2)}')
     return errors
 
 
@@ -328,7 +359,7 @@ def check(root, update_readme=False, acknowledge_docs=False):
         if front:
             errors.extend(link_condition_errors(name, text[front.end():]))
         if not user_invoked:
-            errors.extend(eval_errors(name, folder))
+            errors.extend(eval_errors(name, folder, SKILLS))
         if len(text.split()) > 1500:
             errors.append(f'{name}: exceeds 1500 words')
         if not front or not text[front.end():].strip():
