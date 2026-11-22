@@ -301,9 +301,10 @@ a job, especially one that can publish or merge changes.
   deferred-bug issues, and proposing workflow improvements as issues in your
   explicitly configured skill repository. These skills do not bypass protections.
 - **Sharing.** Invoking `choose-design` permits sending the minimal design
-  brief, the option HTML and the rendered captures to the selected designers and
-  the Neon/Sol scoring roster, subject to your sharing limits. Redact secrets and
-  unrelated private data; broader raw-file sharing needs separate authority.
+  brief and that designer's emphasis to each selected designer, and the option
+  HTML and rendered captures to the Neon/Sol scoring roster. Both are subject to
+  your sharing limits. Redact secrets and unrelated private data; broader
+  raw-file sharing needs separate authority.
   Where OCR's lane applies, it sends the selected
   diff and context to its configured provider; use existing authority for that scope
   and exclude secrets and unrelated files. Covered authorization needs no repeated question.
@@ -620,7 +621,7 @@ installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: c0fcb072181ad43af46f403e613e2fcc9549cdd63fdc1cde66dfefdc6c351a2f -->
+<!-- skills-review: c80b9469a283e0a3daf19d8686695b512007c3f17aa721658d2c7ad06681aac3 -->
 
 ### Owner maintenance
 

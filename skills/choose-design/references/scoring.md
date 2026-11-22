@@ -8,7 +8,7 @@ Apply the [T3 dispatch preflight](../../agent-tuneup/references/t3-dispatch.md),
 then choose among these subscription routes with the preflight's provider score,
 one read-only delegate per seat:
 
-- **Neon** — an Antigravity Neon route, `thought_level: high`.
+- **Neon** — Antigravity `gemini-4-neon`, `thought_level: high`.
 - **Sol** — Codex `gpt-6.2-sol`, `reasoningEffort: high`.
 
 A paid API-credit alias for either seat needs the user's explicit acceptance.
