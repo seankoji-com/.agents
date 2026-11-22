@@ -136,6 +136,13 @@ error; do not substitute.
 Preserve the design while checking it, except to apply the report's static
 fallback and note it in the blurb. Correct inaccurate blurbs.
 
+## Score the options
+
+After checking, send the full set to Neon and Sol in one batch. Each reviews
+read-only and independently on four dimensions, with brief strengths and
+weaknesses. Read [scoring requirements](references/scoring.md) before dispatch.
+Scores inform the choice; they do not replace it.
+
 ## Present
 
 In T3 Code, give each option its own frame, grouped by designer. For each,
@@ -144,6 +151,7 @@ measured height. Each frame opens with a header in the T3 theme variables. The
 header holds a label such as `B2 · Opus`, the option name and the blurb.
 Below the header, put the mockup in its own box with its own colours, 16px of
 padding and `var(--radius)` corners. Title each frame with its label and name.
+Show both reviewers' scores and notes.
 
 After the frames, list the labels and names in one line. Ask the user to pick an
 option or describe a hybrid using feature IDs, such as "A1-F1 with B2-F3". On hosts

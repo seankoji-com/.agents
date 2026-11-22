@@ -77,7 +77,7 @@
             <div class="skill-heading" id="install-choose-design" tabindex="-1">
               <h3>choose-design</h3>
             </div>
-            <p class="skill-description">Pick a design before building. Compare independent mockups for a new screen, redesign or unresolved UI choice.</p>
+            <p class="skill-description">Pick a design before building. Compare independent Opus mockups for a new screen, redesign or unresolved UI choice, scored by Neon and Sol.</p>
             <div class="skill-actions">
               <a class="install-action" href="#install-choose-design" aria-label="Install instructions for choose-design">Install</a>
               <a class="demo-action" data-kind="shot" href="media/choose-design.png" data-lightbox="lb-choose-design" aria-label="Screenshot of a choose-design comparison" aria-haspopup="dialog">Screenshot</a>
@@ -526,7 +526,7 @@
           <p class="tier-label">Better in T3 Code</p>
           <p class="chips"><a href="#skill-review">review</a> <a href="#skill-think">think</a> <a href="#skill-challenge">challenge</a> <a href="#skill-review-loop">review-loop</a> <a href="#skill-hillclimb">hillclimb</a> <a href="#skill-choose-design">choose-design</a> <a href="#skill-focus-group">focus-group</a> <a href="#skill-ship">ship</a> <a href="#skill-babysitter">babysitter</a> <a href="#skill-settle">settle</a></p>
           <ul>
-            <li>Reviewers and judges start on another provider from the same conversation; <code>choose-design</code> runs its designers on Opus. Code review needs a second model family; without one, the agent reports the review as unavailable.</li>
+            <li>Reviewers and judges start on another provider from the same conversation; <code>choose-design</code> runs its designers on Opus and has Neon and Sol score every option. Code review needs a second model family; without one, the agent reports the review as unavailable.</li>
             <li><code>babysitter</code> uses T3's pull request watch to wake when checks or reviews change. Elsewhere it waits with its bundled <code>pr-wait</code> helper.</li>
             <li><code>settle</code> calls T3's thread tool to close a finished thread. Without it, it reports the gap instead of claiming the thread is settled.</li>
             <li><code>ship</code>, <code>implement</code> and <code>review-loop</code> show their phases in T3's Tasks row. <code>choose-design</code> shows mockups side by side in preview frames.</li>
@@ -638,7 +638,7 @@
       <form method="dialog"><button class="lb-close" aria-label="Close">✕</button></form>
     </header>
     <a class="lb-shot" href="media/choose-design.png"><img src="media/choose-design.png" width="2480" height="1490" loading="lazy" alt="Two settings-page mockups in separate frames. Option A uses a sidebar and toggles, option B uses pill tabs, cards and a sticky save bar. Numbered markers such as A-F1 point to decisions explained in a legend under each mockup."></a>
-    <p class="lb-caption">A shortened synthetic example: one option from each of two Opus designers, who got the same base brief with different emphases and never saw each other's work. A full run returns two or three options per designer. Each frame carries numbered decisions and a legend, so you can combine parts such as “A with B-F3”.</p>
+    <p class="lb-caption">A shortened layout example: one option from each of two Opus designers, who got the same base brief with different emphases and never saw each other's work. Scores and reviewer notes are omitted. A full run returns two or three options per designer, each scored by Neon and Sol. Each frame carries numbered decisions and a legend, so you can combine parts such as “A with B-F3”.</p>
     <p class="lb-links"><a href="https://github.com/seankoji-com/.agents/blob/main/skills/choose-design/SKILL.md">Read choose-design's SKILL.md</a> · <a href="media/choose-design.png">Open full size</a></p>
   </div>
 </dialog>
