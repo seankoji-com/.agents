@@ -70,7 +70,8 @@ Apply [T3 dispatch preflight](../agent-tuneup/references/t3-dispatch.md) before
 selecting T3 routes. Discover the host's delegation capabilities and exact model
 identities. Keep any named models and settings. Otherwise choose one compatible
 **Opus** route for the batch, applying the preflight's provider score, and use it
-at high effort for every unnamed slot. A named unavailable or incompatible model
+at high effort for every unnamed slot. When no Opus route has a score, use the
+first compatible route the host lists. A named unavailable or incompatible model
 remains a conflict under the preflight; do not substitute for it without the
 user's acceptance. A sharing-authority rejection follows the preflight's sharing
 procedure, not model substitution to avoid the rejection. A designer that fails
@@ -83,7 +84,7 @@ is filled, retain partial results and report an incomplete comparison. Do not
 substitute another family. The user must explicitly accept a smaller set before
 it counts as the completed run.
 
-Label designers A, B and C in dispatch order. In T3 Code, resolve models with
+Label designers A, B, C and so on in dispatch order. In T3 Code, resolve models with
 `orchestrator_capabilities` subject to the host's discovery frequency. Start one
 `delegate_task` per designer and record each `taskId`. Submit independent launches
 together where supported. Follow the returned `next`; if it requires yielding
