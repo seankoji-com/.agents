@@ -301,10 +301,11 @@ a job, especially one that can publish or merge changes.
   deferred-bug issues, and proposing workflow improvements as issues in your
   explicitly configured skill repository. These skills do not bypass protections.
 - **Sharing.** Invoking `choose-design` permits sending the minimal design
-  brief and that designer's emphasis to each selected designer, and the option
-  HTML and rendered captures to the Neon/Sol scoring roster. Both are subject to
-  your sharing limits. Redact secrets and unrelated private data; broader
-  raw-file sharing needs separate authority.
+  brief and that designer's emphasis to each selected designer, and the base
+  brief, option HTML and rendered captures to the Neon/Sol scoring roster,
+  including Fable or DeepSeek Flash when a named scorer is replaced. These sends
+  are subject to your sharing limits. Redact secrets and unrelated private data;
+  broader raw-file sharing needs separate authority.
   Where OCR's lane applies, it sends the selected
   diff and context to its configured provider; use existing authority for that scope
   and exclude secrets and unrelated files. Covered authorization needs no repeated question.
