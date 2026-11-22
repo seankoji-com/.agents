@@ -5,19 +5,39 @@ Read before dispatching design reviewers and when presenting their scores.
 ## Roster
 
 Apply the [T3 dispatch preflight](../../agent-tuneup/references/t3-dispatch.md),
-then use Neon high and Sol high, one read-only delegate each. Both review every
-option from every designer against the base brief and existing baseline. Give
-them the option HTML and the coordinator's rendered captures. They must not see
-each other's scores before returning. They do not edit, render, delegate or
-choose a winner. Record each reviewer's observed model and effort.
+then choose among these subscription routes with the preflight's provider score,
+one read-only delegate per seat:
 
-If a named reviewer is unavailable or incompatible, substitute Fable high for
-that slot. If Fable is also unavailable, use DeepSeek Flash high. This fallback
-is explicit: record the substitution and treat direct DeepSeek Flash dispatch as
-an exception to the review skill's removal of it from direct review.
-If both named reviewers and the fallbacks cannot run, present the options with
-the gap marked and report the run as incompletely scored. Do not silently
-substitute another model.
+- **Neon** — an Antigravity Neon route, `thought_level: high`.
+- **Sol** — Codex `gpt-6.2-sol`, `reasoningEffort: high`.
+
+A paid API-credit alias for either seat needs the user's explicit acceptance.
+Both seats review every option from every designer against the base brief and
+existing baseline. Give them the option HTML and the coordinator's rendered
+captures. They must not see each other's scores before returning. They do not
+edit, render, delegate or choose a winner. Record each reviewer's observed model,
+route and effort.
+
+A seat is complete only when it returns a scorecard for every option. If a seat
+cannot start or cannot complete every option, substitute Fable high on the
+Claude route (`claude-fable-5-2`, `effort: high`) for that seat. If Fable is
+unavailable or also incomplete, use DeepSeek Flash high on the OpenCode route
+(`litellm/deepseek-v4.1-flash`). Record every substitution. If either seat is
+incomplete after its fallbacks, present the options with the gap marked and
+report the run as incompletely scored; the user must accept that gap before the
+comparison counts as complete. Do not silently substitute another model. Treat
+direct DeepSeek Flash dispatch here as an explicit exception to the review
+skill's removal of it from direct review.
+
+## Sharing
+
+The invoking request names this roster and authorises the base brief, option HTML
+and rendered captures needed to score the designs. Send only that packet. Redact
+secrets and unrelated private data; never attach raw repository files or private
+screens beyond the approved brief. Fallbacks receive the same packet under the
+same authority. If the permitted material is insufficient for a seat to score an
+option, leave that seat incomplete and report the gap rather than widening
+sharing without the user's acceptance.
 
 ## Dimensions
 

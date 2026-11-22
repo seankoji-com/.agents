@@ -45,7 +45,7 @@ platforms and the existing design tokens, components or screenshots. Ask only
 about missing intent that would change the design.
 
 A direct invocation, or an authorised workflow selecting this skill, authorises
-sending the minimal design brief to the selected roster's providers. That brief
+sending the minimal design brief and scoring packet to the selected roster's providers. That brief
 may contain written intent, design tokens, task-relevant non-secret excerpts
 and redacted screenshots. User and standing restrictions on providers or content
 take precedence. Raw files beyond this brief need explicit sharing scope.
