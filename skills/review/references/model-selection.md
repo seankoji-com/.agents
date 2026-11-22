@@ -40,7 +40,9 @@ delivery review as usual.
    wrote the code, in which case it uses Qwen 3.8 Flash and the control that
    sends high reasoning effort. `--effort high` is OCR review depth and is
    recorded separately.
-   A named DeepSeek request still uses OCR, not direct host-model dispatch.
+   A named DeepSeek request still uses OCR, not direct host-model dispatch,
+   except in `choose-design` design scoring, which follows its
+   [named fallback](../../choose-design/references/scoring.md).
    Hydrogen's separate role as the required visual companion keeps standing
    authority; it adds a second visual review rather than replacing the primary's.
 4. Record each chosen score with its basis, the gates applied and every lineage

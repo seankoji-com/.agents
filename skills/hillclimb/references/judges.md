@@ -29,8 +29,9 @@
 
 ## Route scoring and delivery review
 
-Direct DeepSeek Flash at verified high effort is allowed solely for
-`hillclimb` scoring under the confirmed roster. Verify the host's exact
+Direct DeepSeek Flash at verified high effort is allowed for
+`hillclimb` scoring and the `choose-design` scoring fallback under their
+confirmed rosters. Verify the host's exact
 model and high-effort option before dispatch and the execution metadata
 before accepting its score. Apply the same identity and settings checks to
 all judges. For a T3 OpenCode route, apply T3 preflight's permission rule.

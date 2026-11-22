@@ -25,9 +25,9 @@ unavailable or also incomplete, use DeepSeek Flash high on the OpenCode route
 (`litellm/deepseek-v4.1-flash`). Record every substitution. If either seat is
 incomplete after its fallbacks, present the options with the gap marked and
 report the run as incompletely scored; the user must accept that gap before the
-comparison counts as complete. Do not silently substitute another model. Treat
-direct DeepSeek Flash dispatch here as an explicit exception to the review
-skill's removal of it from direct review.
+comparison counts as complete. Do not silently substitute another model. This
+is the design-scoring exception named in
+[reviewer selection](../../review/references/model-selection.md).
 
 ## Sharing
 

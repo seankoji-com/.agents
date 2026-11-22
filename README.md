@@ -301,8 +301,10 @@ a job, especially one that can publish or merge changes.
   deferred-bug issues, and proposing workflow improvements as issues in your
   explicitly configured skill repository. These skills do not bypass protections.
 - **Sharing.** Invoking `choose-design` permits sending the minimal design
-  brief to the selected providers, subject to your sharing limits. Broader raw-file
-  sharing needs separate authority. Where OCR's lane applies, it sends the selected
+  brief, the option HTML and the rendered captures to the selected designers and
+  the Neon/Sol scoring roster, subject to your sharing limits. Redact secrets and
+  unrelated private data; broader raw-file sharing needs separate authority.
+  Where OCR's lane applies, it sends the selected
   diff and context to its configured provider; use existing authority for that scope
   and exclude secrets and unrelated files. Covered authorization needs no repeated question.
 - **Review.** Written-code review uses a different model family from the code
@@ -312,8 +314,9 @@ a job, especially one that can publish or merge changes.
   runs alongside it according to the scope.
 - **Hillclimb scoring.** Confirm the models, effort and any shared lineage before
   a run. Choose whether to upgrade the primary before the full panel scores its
-  first candidate. Direct DeepSeek Flash high is available for this scoring role
-  when the route and settings can be verified.
+  first candidate. Direct DeepSeek Flash high is available for Hillclimb scoring
+  and the `choose-design` scoring fallback when the route and settings can be
+  verified.
 - **Evidence.** The agent reports checks against the revision it actually tested.
   Missing access, unavailable reviewers, and unverified behavior remain visible gaps.
 - **Stopped scoring loops.** A failed `review-loop` or `hillclimb` run gets one
@@ -617,7 +620,7 @@ installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: f3e77410d87a0a954b8ac763663873a7f6d2e6370d3ec0ee4b9f922dde570938 -->
+<!-- skills-review: c0fcb072181ad43af46f403e613e2fcc9549cdd63fdc1cde66dfefdc6c351a2f -->
 
 ### Owner maintenance
 
