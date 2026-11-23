@@ -63,9 +63,10 @@ stop. Do not invent options.
 3. **Write one packet** as a JSON file in a Git-ignored directory of your
    worktree:
    - `invokerThread`: your T3 thread ID, from `printenv T3CODE_THREAD_ID`.
-   - `project` and `maxRuntimeMode`: your thread's `projectId` and
-     `runtimeMode`, as `t3_thread_read` shows them for that thread. Voters
-     open in that project and never run in a broader mode.
+   - `maxRuntimeMode`: your thread's `runtimeMode`, as `t3_thread_read`
+     shows it. No voter runs in a broader mode. Voters open in T3's scratch
+     project, not your repository; set `project` only when this host's
+     scratch project is not `~/.t3/scratch`.
    - `kind`: `closed` or `open`, and `question` in neutral wording.
    - `options`: verbatim, in order, closed votes only. Add none, including a
      status quo, unless the operator asks for one.

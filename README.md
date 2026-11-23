@@ -442,11 +442,12 @@ needs three things on each host where you vote:
    mv -f "$tmp" ~/.config/t3-workflows/vote.curl
    ```
 
-Voter threads open in the invoking thread's T3 project, and no voter runs in a
-broader runtime mode than the invoker's. Antigravity voters need
-`auto-accept-edits` to submit a ballot, so from a stricter invoker the Neon seat
-falls back to the DeepSeek substitute. Without any of these, `vote` reports what
-is missing and stops.
+Voter threads open in T3's scratch project (`~/.t3/scratch`), not your
+repository, and no voter runs in a broader runtime mode than the invoker states.
+The workflow cannot check that statement, so treat the hook config as an
+operator credential. Antigravity voters need `auto-accept-edits` to submit a
+ballot, so from a stricter invoker the Neon seat falls back to the DeepSeek
+substitute. Without any of these, `vote` reports what is missing and stops.
 
 Older releases through v0.13.2 contain archives from the previous package.
 Use the current `skills` tree for the library described here.
@@ -668,7 +669,7 @@ installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 259fb7e5e10379f8c58b7eb6d77ea31d20c96e6ca7c213283ac8c4a158264fcb -->
+<!-- skills-review: ea03d479a3ec818f2d3653ea619c22d0e8d831103f03f12cf55e122d2cb26c1b -->
 
 ### Owner maintenance
 

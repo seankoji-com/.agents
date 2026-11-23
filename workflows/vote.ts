@@ -125,9 +125,11 @@ const Packet = Schema.Struct({
   authorises: Schema.String,
   deadlineMinutes: Schema.optional(Schema.Number),
   paidRoutes: Schema.optional(Schema.Boolean),
-  // The invoker's T3 project ID or registered path; voter threads open there.
-  project: Schema.String,
-  // The invoker's own runtime mode: no voter runs in a broader one.
+  // A T3 project for voter and grouper threads. Defaults to T3's scratch project, so a
+  // voter that may edit files cannot touch the invoker's repository.
+  project: Schema.optional(Schema.String),
+  // The invoker's own runtime mode: no voter runs in a broader one. The hook config is an
+  // operator credential: the workflow cannot check this claim, so voters stay contained.
   maxRuntimeMode: Schema.Literals(["approval-required", "auto-accept-edits", "auto", "full-access"]),
   invokerSeat: Schema.optional(InvokerSeat),
   test: Schema.optional(Test),
@@ -434,7 +436,7 @@ function resultText(p, r) {
 
 export default T3.workflow(
   "vote",
-  { version: 4, payload: T3.WebhookRequest, triggers: [T3.webhook("ballot")] },
+  { version: 5, payload: T3.WebhookRequest, triggers: [T3.webhook("ballot")] },
   (input, { id }) =>
     Effect.gen(function* () {
       const parsed = yield* T3.step.try("packet", { returns: Packet }, Effect.try(() => decodePacket(JSON.parse(input.body))));
@@ -480,7 +482,7 @@ export default T3.workflow(
       const limitMs = Math.round(minutes * 60000);
       const brief = voterBrief(p, minutes);
       const returns = ballotSchema(p);
-      const project = p.project;
+      const project = p.project ?? `${process.env.HOME}/.t3/scratch`;
       const now = (name) => T3.step(name, { returns: Schema.Number }, Effect.sync(() => Date.now()));
       const budget = (name, deadline) => T3.step(name, { returns: Schema.Number }, Effect.sync(() => deadline - Date.now()));
 
