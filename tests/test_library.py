@@ -871,8 +871,17 @@ class Workflows(unittest.TestCase):
             return '\n'.join(checker.workflow_errors(root, paths))
 
     def test_current_workflows_and_a_minimal_definition_pass(self):
-        self.assertEqual(checker.workflow_errors(ROOT, set((ROOT / 'workflows').iterdir())), [])
+        # Git drops an empty workflows/ folder, so a library with none left must still pass.
+        folder = ROOT / 'workflows'
+        self.assertEqual(checker.workflow_errors(ROOT, set(folder.iterdir()) if folder.is_dir() else set()), [])
         self.assertEqual(self.lint({'workflows/sample.ts': self.GOOD}), '')
+
+    def test_a_library_without_a_workflows_folder_passes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            library_fixture(root)  # Copies skills and docs only: no workflows/ folder.
+            self.assertFalse((root / 'workflows').exists())
+            self.assertEqual(checker.check(root), [])
 
     def test_bad_names_and_nested_files_are_rejected(self):
         for relative in ('workflows/-sample.ts', 'workflows/sample.tsx', 'workflows/notes.md',

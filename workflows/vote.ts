@@ -82,7 +82,10 @@ const GROUPERS = [
 // A voter never runs in a broader mode than its invoker allowed.
 const MODE_RANK = { "approval-required": 0, "auto-accept-edits": 1, auto: 2, "full-access": 3 };
 
+// The action and label must not hedge at all. A rationale may discuss what an option
+// lacks, so only the voter abstaining or declining to choose counts there.
 const HEDGE = /\b(abstain|abstaining|no preference|need(?:s)? more (?:info|information|context)|insufficient (?:info|information)|cannot (?:decide|choose|determine)|can't (?:decide|choose)|either (?:option|one) (?:is|would be) fine)\b/i;
+const SELF_HEDGE = /\b(?:i|we) (?:abstain|cannot (?:decide|choose)|can't (?:decide|choose)|have no preference|need more (?:info|information|context) (?:to|before))\b|\bno preference\b|\beither (?:option|one) (?:is|would be) fine\b/i;
 // An imperative starts with a bare verb: not a pronoun, an article or a gerund.
 // Code rejects only the clear cases; the grouping step judges the rest.
 const NOT_IMPERATIVE = /^(?:i|we|you|it|this|that|these|those|the|a|an|my|our|there)\b/i;
@@ -223,8 +226,10 @@ function ballotProblems(p, seat, b) {
   }
   if (typeof b.rationale !== "string" || !b.rationale.trim()) problems.push("rationale is empty");
   if (typeof b.assumption !== "string" || !b.assumption.trim()) problems.push("assumption is empty");
-  const said = [b.action, b.label, b.rationale].filter((t) => typeof t === "string").join(" ");
-  if (HEDGE.test(said)) problems.push("the ballot hedges, abstains or asks for more information");
+  const stated = [b.action, b.label].filter((t) => typeof t === "string").join(" ");
+  if (HEDGE.test(stated) || (typeof b.rationale === "string" && SELF_HEDGE.test(b.rationale))) {
+    problems.push("the ballot hedges, abstains or asks for more information");
+  }
   if (modelConflict(seat, b.model)) problems.push(`the voter's model claim "${b.model}" conflicts with the ${seat} seat`);
   return problems;
 }
@@ -438,7 +443,7 @@ function resultText(p, r) {
 
 export default T3.workflow(
   "vote",
-  { version: 6, payload: T3.WebhookRequest, triggers: [T3.webhook("ballot")] },
+  { version: 7, payload: T3.WebhookRequest, triggers: [T3.webhook("ballot")] },
   (input, { id }) =>
     Effect.gen(function* () {
       const parsed = yield* T3.step.try("packet", { returns: Packet }, Effect.try(() => decodePacket(JSON.parse(input.body))));
