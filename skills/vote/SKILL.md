@@ -20,7 +20,8 @@ invoker seat and what to do with the result.
 
 Before anything else, confirm all three:
 
-- The host is T3 Code with Workflows turned on.
+- The host is T3 Code with Workflows turned on, and its scratch project
+  (`~/.t3/scratch`) exists; `t3_project_list` shows it.
 - `~/.t3/workflows/vote.ts` exists.
 - `~/.config/t3-workflows/vote.curl` exists. The operator creates it once per
   host; it holds the hook URL and token. The README's "Use vote on T3

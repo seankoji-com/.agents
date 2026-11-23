@@ -190,15 +190,17 @@ function modelConflict(seat, claim) {
   let glued = false;
   const rest = text.replace(mention, (match, offset) => {
     exact = true;
-    // A suffix glued to the exact name, such as "-preview", names a different model.
-    if (/^[A-Za-z0-9_]|^-[A-Za-z0-9]/.test(text.slice(offset + match.length))) glued = true;
+    // A suffix glued to the exact name, such as "-preview" or ".1", names a different model.
+    if (/^[A-Za-z0-9_]|^[-.][A-Za-z0-9]/.test(text.slice(offset + match.length))) glued = true;
     return " ";
   });
   if (glued) return true;
   const named = (rest.match(MODEL_WORDS) ?? []).map((w) => w.toLowerCase());
   if (named.some((w) => !FAMILY_WORDS[seat].includes(w))) return true;
-  // Another versioned name beside the exact one, as in "Opus 5.5 or Opus 4.6", conflicts.
+  // Another versioned name beside the exact one, as in "Opus 5.5 or Opus 4.6", conflicts,
+  // as does any dotted version next to a family word, as in "(Gemini version 3.1 Pro)".
   if (exact && new RegExp(`${MODEL_WORDS.source}[\\s-]*v?\\d`, "i").test(rest)) return true;
+  if (exact && named.length > 0 && /\b\d+(?:\.\d+)+\b/.test(rest)) return true;
   // Family words alone are unverified, not a conflict; a family word with another version conflicts.
   return !exact && named.length > 0 && /\d/.test(rest);
 }
@@ -436,7 +438,7 @@ function resultText(p, r) {
 
 export default T3.workflow(
   "vote",
-  { version: 5, payload: T3.WebhookRequest, triggers: [T3.webhook("ballot")] },
+  { version: 6, payload: T3.WebhookRequest, triggers: [T3.webhook("ballot")] },
   (input, { id }) =>
     Effect.gen(function* () {
       const parsed = yield* T3.step.try("packet", { returns: Packet }, Effect.try(() => decodePacket(JSON.parse(input.body))));

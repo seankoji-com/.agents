@@ -427,7 +427,9 @@ maintaining this repository, not for using skills from a clone.
 `vote` runs through the `workflows/vote.ts` T3 workflow, so a fresh install
 needs three things on each host where you vote:
 
-1. Turn on Workflows in T3 Code.
+1. Turn on Workflows in T3 Code, and check that T3's scratch project ("No
+   project", at `~/.t3/scratch`) exists. T3 creates it the first time you start
+   a thread without a project; voters open their threads there.
 2. Put `workflows/vote.ts` in `~/.t3/workflows`. The owner's
    [host delivery](#t3-workflow-delivery) does this; from a clone, copy the
    file there yourself.
@@ -669,7 +671,7 @@ installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: ea03d479a3ec818f2d3653ea619c22d0e8d831103f03f12cf55e122d2cb26c1b -->
+<!-- skills-review: 95cb122be0a70582ea001bebf5daa7cea46f2736e6a343623cb789db5787b0c9 -->
 
 ### Owner maintenance
 
