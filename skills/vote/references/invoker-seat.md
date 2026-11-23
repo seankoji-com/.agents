@@ -27,16 +27,18 @@ All of these must hold:
    as the packet. A recommendation made before a material option or constraint
    was added does not count.
 
-If any condition fails, treat the seat as having no recommendation and dispatch
-a fresh non-fork voter. Do not ask the invoker to restate or defend its view.
+If any condition fails, leave `invokerSeat` out of the packet so the workflow
+starts a fresh voter. Do not ask the invoker to restate or defend its view.
 
 ## Mark and disclose
 
-- Dispatch no voter for that seat. Count the recommendation as its ballot.
-- Mark the seat `invoker-existing` and `not blind` in the result, with the
-  model, route and the thread message or excerpt that supplies it.
-- Say the vote had two blind seats and one invoker seat. If the majority depends
-  on the invoker seat, say so in the result line.
+- Put the recommendation in the packet's `invokerSeat`, with `source` naming
+  the thread message that supplies it. The workflow then starts no voter for
+  that seat and counts the recommendation as its ballot.
+- The workflow marks the seat `invoker-existing` and `not blind`, checks the
+  recommendation turn's recorded model against the seat, and names the seat in
+  the result line when the majority rests on it. Keep those labels when you
+  report the vote, and say it had two blind seats and one invoker seat.
 - Never call the invoker seat blind. The invoker framed the packet and may have
   seen other opinions.
 

@@ -43,10 +43,10 @@ delivery review as usual.
    A named DeepSeek request still uses OCR, not direct host-model dispatch,
    except in `choose-design` design scoring, which follows its
    [named fallback](../../choose-design/references/scoring.md).
-   `vote` ballot seats are not reviewers or judges: they follow that skill's
-   fixed roster and fallback, and this reference does not apply to them. When a
-   vote seat is unavailable, its [ballot rules](../../vote/SKILL.md) govern the
-   single DeepSeek substitution.
+   `vote` ballot seats are not reviewers or judges: they follow the fixed roster
+   and fallback in its T3 workflow, and this reference does not apply to them.
+   When a vote seat is unavailable, that workflow makes the single DeepSeek
+   substitution; read the [vote skill](../../vote/SKILL.md) for how to start it.
    Hydrogen's separate role as the required visual companion keeps standing
    authority; it adds a second visual review rather than replacing the primary's.
 4. Record each chosen score with its basis, the gates applied and every lineage

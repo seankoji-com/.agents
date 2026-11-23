@@ -59,10 +59,12 @@ one app. They use what T3 provides:
   from the code authors. A model checking its own code tends to share the blind spots that produced it
   ([research](#why-a-different-model-family-reviews-the-work)). T3 can start that
   reviewer on another provider from inside the same conversation.
-- **Three-model votes.** `vote` starts one delegate per model family, or counts
-  the invoker's existing recommendation when the invoker is on the panel, then
-  returns the 2/3 choice or the split. It needs three reachable lineages;
-  otherwise it reports the gap instead of inventing a vote.
+- **Three-model votes on T3 Workflows.** `vote` posts a packet to the
+  `workflows/vote.ts` T3 workflow. The workflow starts one voter per model
+  family, or counts the invoker's existing recommendation when the invoker is on
+  the panel. Its code keeps the seat deadline, checks each ballot and each
+  seat's recorded model, and tallies the 2/3 choice or the split. Without T3
+  Workflows, `vote` reports what is missing and stops.
 - **Separate workspaces.** `implement` runs coding in its own T3 worktree, so the
   main conversation stays free for decisions and reviews.
 - **Background tasks.** `raise-issue` files issues in a background T3 task while
@@ -85,11 +87,11 @@ one app. They use what T3 provides:
 Most skills still work in Claude Code, Codex or another host that supports
 skills, using what that host offers instead. Outside T3, `babysitter` waits with
 its bundled `scripts/pr-wait` helper, and `ship` posts status lists in the
-conversation. `implement` and asynchronous `raise-issue` need T3. Cross-family code
-review needs a host that can reach a second model family; without one, the agent
-reports the review as unavailable instead of reviewing its own work. A `vote`
-likewise needs three reachable lineages; without them, it reports the gap instead
-of simulating a ballot.
+conversation. `implement` and asynchronous `raise-issue` need T3, and `vote`
+needs T3 with Workflows turned on. Cross-family code review needs a host that
+can reach a second model family; without one, the agent reports the review as
+unavailable instead of reviewing its own work. `vote` never simulates a ballot:
+without its workflow it reports the gap and stops.
 
 ## Why a different model family reviews the work
 
@@ -131,9 +133,9 @@ The [review](skills/review/SKILL.md) skill applies this in a few rules:
   OpenCode reviewers, and the paid CLI uses DeepSeek Flash V4.1 unless DeepSeek
   wrote the code, in which case it uses Qwen 3.8 Flash and the control that
   sends high reasoning effort. `--effort high` is OCR review depth and is
-  recorded separately. `vote` is separate: its ballot seats follow that skill's
-  fixed roster, and one unavailable seat may be filled by DeepSeek Flash. A
-  vote is not formal review. Other models require
+  recorded separately. `vote` is separate: its ballot seats follow the fixed
+  roster in `workflows/vote.ts`, and one unavailable seat may be filled by
+  DeepSeek Flash. A vote is not formal review. Other models require
   your explicit selection. The [selection rules](skills/review/references/model-selection.md)
   apply inside `implement` too. If no eligible authorised route remains, review
   stays pending.
@@ -640,7 +642,7 @@ installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 976f2b3d4c6231e3a16662cf5df5c96cdb66962d12375abc1328b2b04aa1fc99 -->
+<!-- skills-review: 4a4c26283ffdcfaf36c7eb24cdb389ff623e877bd31af6923afb52cd66c00b12 -->
 
 ### Owner maintenance
 
