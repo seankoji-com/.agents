@@ -7,8 +7,8 @@ description: "Settle a framed binary, multi-option or open decision by 2/3 vote 
 
 Use this for a framed choice that needs three independent models. It does not
 frame the question: when the question or constraints are unclear, use
-[think](../think/SKILL.md) first. For findings, use challenge; for visual
-options, use choose-design.
+[think](../think/SKILL.md) first. For findings or visual options, use challenge
+or choose-design.
 
 ## Inputs
 
@@ -16,7 +16,7 @@ options, use choose-design.
 - For binary and multi-option votes, the options verbatim, in the operator's order.
 - Constraints, evidence and the action a majority authorises.
 - The invoker's authority for that action.
-- A deadline or urgency limit, when the request has one.
+- Any deadline or urgency limit.
 
 If the decision or, for a closed vote, the options are missing, ask for them and
 stop. Do not invent options.
@@ -50,8 +50,10 @@ stop. Do not invent options.
    invocation treats a paid alias as unavailable unless the operator already
    authorised it. Record whether a route is subscription or API credit, and do
    not use paid overage for any other model.
-   Use a fresh Opus delegate or non-fork agent; never reuse the parent context
-   or a fork, which breaks blindness.
+   If the invoker is Opus, Sol or Neon and the thread already contains its
+   recommendation, apply the [invoker-seat rule](references/invoker-seat.md)
+   before dispatching that seat. Otherwise use a fresh non-fork delegate; never
+   use a fork as a voter.
    Done when each seat has a startable route, or the vote is held.
 
 3. **Write one packet.**
@@ -65,14 +67,14 @@ stop. Do not invent options.
    Do not state the invoker's preference, the expected answer or another voter's
    answer. Done when every seat can answer from the packet alone.
 
-4. **Dispatch three blind voters in parallel.**
+4. **Dispatch the blind voters in parallel.**
    Use the host's model-addressable task tool. In T3 Code that is
-   `delegate_task`; use one fresh delegate per seat and keep each `taskId`.
-   Dispatch all three before reading any result. Voters use only the packet: no
-   file reads, no tools, no delegation and no invoking `vote`. Blind means
-   separate sessions that receive only the packet; it does not require a
-   filesystem sandbox. Do not poll; follow the host's completion wake. Done when
-   three ballots or seat failures are recorded.
+   `delegate_task`; use one fresh delegate per seat that still needs a voter and
+   keep each `taskId`. Dispatch them all before reading any result. Voters use
+   only the packet: no file reads, no tools, no delegation and no invoking
+   `vote`. Blind means separate sessions that receive only the packet; it does
+   not require a filesystem sandbox. Do not poll; follow the host's completion
+   wake. Done when every seat has a ballot or a failure is recorded.
 
    Ballot format:
    - Closed vote: exactly one listed option label.
@@ -85,10 +87,10 @@ stop. Do not invent options.
    seat one blind re-ask with a format correction and the same packet.
 
 5. **Validate and bound each seat.**
-   A seat has a five-minute deadline from dispatch, or the request's shorter
+   A dispatched seat has a five-minute deadline, or the request's shorter
    deadline, including the route retry and one re-ask. Record the target model,
-   any `executedModel`, the requested effort, whether effort was confirmed, the
-   route type, and any substitution.
+   any `executedModel`, requested effort and confirmation, route type, and any
+   substitution.
    A non-null `executedModel` that conflicts with the target invalidates the
    seat. A null `executedModel` is target-confirmed and execution-unverified; it
    does not by itself invalidate the ballot. A voter's own conflicting model
@@ -128,6 +130,7 @@ stop. Do not invent options.
 | A voter returns a non-ballot | One blind re-ask, then treat the seat as failed. |
 | No 2/3 | Return the tally, rationales and crux; add no recommendation. |
 | Agent-invoked | Ballot only actions within the agent's authority; return reserved decisions to the operator. |
+| Invoker is a panel model with a qualifying recommendation | Count it as that seat; mark `invoker-existing`, `not blind`; dispatch the rest. |
 | Host cannot reach three lineages | Hold and report; do not simulate a vote. |
 | Explicit operator voter override | Allow only from the operator; still require three distinct lineages and record it. An unavailable named voter holds the vote. |
 
@@ -152,7 +155,8 @@ Grouping (open only): <matched sentences side by side, or "not needed">
 Action: <executed | returned to operator | blocked: reason>
 ```
 
-On a split, replace `Result` with `No majority`, add
+Mark an invoker seat `invoker-existing, not blind`. On a split, replace
+`Result` with `No majority`, add
 `Crux: <the point the disagreement turns on>`, and give each seat's choice and
 rationale. Do not add the orchestrator's preference. If a majority depends on an
 execution-unverified seat, say so in the result line.

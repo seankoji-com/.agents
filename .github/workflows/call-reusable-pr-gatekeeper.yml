@@ -143,6 +143,17 @@ jobs:
     #     would burn workflow_run's three-level chain cap.
     #   - `pull_requests` is empty on fork runs, so the event allowlist is what
     #     keeps fork PRs gated rather than ignored.
+    #   - `dynamic` is GitHub's default-setup automation (CodeQL, Dependabot).
+    #     Its PR runs report head_branch `refs/pull/<n>/head` and an EMPTY
+    #     `pull_requests`, so that branch prefix is the only PR signal they
+    #     carry; its main-branch runs (a push) are not a gate target. Admitting
+    #     every `dynamic` run gate-evaluated main pushes: on 23 Nov 2026 CodeQL
+    #     run 45098808011 gated 6de8686, the evaluator's `--require-ci` PR
+    #     lookup hit GET /repos/seankoji-com/.agents/pulls, and that endpoint
+    #     returns 404 because this repo has the Pull Requests feature disabled
+    #     (has_pull_requests: false), failing run 45098902431. Dropping
+    #     `dynamic` outright would un-gate CodeQL PR heads in repos that do take
+    #     PRs, so the prefix check keeps that route and only removes push heads.
     #   - On `pull_request_target` the job's own queued composite check run is
     #     the pending seed: it carries the required name with no runner needed.
     if: >-
@@ -152,7 +163,9 @@ jobs:
        (github.event.workflow_run.name != 'PR Gatekeeper' ||
         github.event.workflow_run.event == 'pull_request_review') &&
        (github.event.workflow_run.pull_requests[0] != null ||
-        contains(fromJSON('["pull_request", "pull_request_target", "pull_request_review", "dynamic"]'), github.event.workflow_run.event)))
+        contains(fromJSON('["pull_request", "pull_request_target", "pull_request_review"]'), github.event.workflow_run.event) ||
+        (github.event.workflow_run.event == 'dynamic' &&
+         startsWith(github.event.workflow_run.head_branch, 'refs/pull/'))))
     uses: seankoji-com/.github/.github/workflows/reusable-pr-gatekeeper.yml@main
     with:
       head_sha: ${{ github.event.workflow_run.pull_requests[0].head.sha || github.event.workflow_run.head_sha || github.event.pull_request.head.sha || inputs.head_sha }}

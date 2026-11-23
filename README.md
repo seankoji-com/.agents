@@ -59,8 +59,9 @@ one app. They use what T3 provides:
   from the code authors. A model checking its own code tends to share the blind spots that produced it
   ([research](#why-a-different-model-family-reviews-the-work)). T3 can start that
   reviewer on another provider from inside the same conversation.
-- **Three-model votes.** `vote` starts one blind delegate per model family,
-  then returns the 2/3 choice or the split. It needs three reachable lineages;
+- **Three-model votes.** `vote` starts one delegate per model family, or counts
+  the invoker's existing recommendation when the invoker is on the panel, then
+  returns the 2/3 choice or the split. It needs three reachable lineages;
   otherwise it reports the gap instead of inventing a vote.
 - **Separate workspaces.** `implement` runs coding in its own T3 worktree, so the
   main conversation stays free for decisions and reviews.
@@ -178,7 +179,7 @@ agent will follow.
 Settle what to build and how people will use it before implementation.
 
 - [think](skills/think/SKILL.md): Turn an idea into a buildable brief through focused questions and a check for unresolved decisions.
-- [vote](skills/vote/SKILL.md): Settle a framed binary, multi-option or open decision with three blind voters from different model families. A 2/3 majority decides; a split comes back to you.
+- [vote](skills/vote/SKILL.md): Settle a framed binary, multi-option or open decision with three voters from different model families. A 2/3 majority decides; a split comes back to you. A panel model's existing recommendation can fill its seat.
 - [challenge](skills/challenge/SKILL.md): Get an independent critique of a proposal, a simpler alternative, and evidence that would help you choose. No implementation.
 - [choose-design](skills/choose-design/SKILL.md): Compare visual options for a new interface or a material interaction change, then choose before building.
 - [focus-group](skills/focus-group/SKILL.md): Explore a product through fictional participants in a clearly labelled synthetic study. Model responses are not human research.
@@ -633,7 +634,7 @@ installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 69fe5d267e958f6a27c5ab58df8d6d46011a0a9615798a8ae886edfd75ad3678 -->
+<!-- skills-review: 976f2b3d4c6231e3a16662cf5df5c96cdb66962d12375abc1328b2b04aa1fc99 -->
 
 ### Owner maintenance
 

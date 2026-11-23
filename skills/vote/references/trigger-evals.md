@@ -7,7 +7,7 @@ Run each in a fresh session; record which skill fires.
 
 1. I can't decide between Postgres and SQLite for this service; put it to a vote.
 2. We're at a deadlock on the cache design. Poll three models and pick by 2/3.
-3. Run a majority vote on whether to keep the feature flag.
+3. I already recommended Postgres; put it to a vote with Sol and Neon.
 4. I'm stuck on how to sequence the launch; let the models vote on it.
 5. Break the tie between rewriting the parser and patching it with a three-model vote.
 
