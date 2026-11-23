@@ -742,13 +742,16 @@ installer refuses a change while any run is unfinished. T3 keeps serving the
 previous good revision when a new one fails to load or is held back, and its
 log of registered workflows names only `name@version`. So a changed workflow
 body must raise its `version`, and the installer refuses one that does not.
-After the copy it requires no load error for an installed file in T3's server
-trace, and a registration entry that lists each installed `name@version` and no
-removed name. Without that evidence the receiver's delivery fails and the next
-sync retries it. A host without T3's boot-service log reports delivery as
-unverified, because the trace alone does not name the definitions that took
-effect. Dotfiles documents the installer and the one-time hook
-provisioning step in `docs/t3-workflow-delivery.md`.
+A workflow that leaves the source, or should stop on a host, is retired by a
+trigger-free stub at the next version rather than deleted, so T3 can register
+the retirement. After each write the installer requires no load error for a
+written file in T3's server trace, and a registration entry that lists each
+written `name@version`. Without that evidence the receiver's delivery fails and
+the next sync retries it. A host without T3's boot-service log reports delivery
+as unverified, because the trace alone does not name the definitions that took
+effect. Moving the trigger host takes two syncs: first with no trigger host,
+then with the new one. Dotfiles documents the installer, the trigger-host move
+and the one-time hook provisioning step in `docs/t3-workflow-delivery.md`.
 
 A skill that starts a workflow posts to the workflow's webhook with
 `curl --noproxy '' -K ~/.config/t3-workflows/<workflow>.curl`. That private

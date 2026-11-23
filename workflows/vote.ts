@@ -174,13 +174,25 @@ function oneLine(text) {
   return typeof text === "string" && text.trim() !== "" && !/[\r\n]/.test(text.trim());
 }
 
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function modelConflict(seat, claim) {
   const text = (claim ?? "").trim();
   if (!text || !SEAT_NAMES.includes(seat)) return false;
-  const exact = text.match(EXACT_CLAIM[seat]);
-  // A suffix glued to the exact name, such as "-preview", names a different model.
-  if (exact && /^[\w-]/.test(text.slice(exact.index + exact[0].length))) return true;
-  const rest = exact ? text.slice(0, exact.index) + " " + text.slice(exact.index + exact[0].length) : text;
+  // Every mention of the seat's model, by name or by any recorded ID, is removed first.
+  const forms = [EXACT_CLAIM[seat].source, ...EXECUTED[seat].map(escapeRegExp)];
+  const mention = new RegExp(`(?:${forms.join("|")})`, "gi");
+  let exact = false;
+  let glued = false;
+  const rest = text.replace(mention, (match, offset) => {
+    exact = true;
+    // A suffix glued to the exact name, such as "-preview", names a different model.
+    if (/^[A-Za-z0-9_]|^-[A-Za-z0-9]/.test(text.slice(offset + match.length))) glued = true;
+    return " ";
+  });
+  if (glued) return true;
   const named = (rest.match(MODEL_WORDS) ?? []).map((w) => w.toLowerCase());
   if (named.some((w) => !FAMILY_WORDS[seat].includes(w))) return true;
   // Another versioned name beside the exact one, as in "Opus 5.5 or Opus 4.6", conflicts.
@@ -422,7 +434,7 @@ function resultText(p, r) {
 
 export default T3.workflow(
   "vote",
-  { version: 3, payload: T3.WebhookRequest, triggers: [T3.webhook("ballot")] },
+  { version: 4, payload: T3.WebhookRequest, triggers: [T3.webhook("ballot")] },
   (input, { id }) =>
     Effect.gen(function* () {
       const parsed = yield* T3.step.try("packet", { returns: Packet }, Effect.try(() => decodePacket(JSON.parse(input.body))));
@@ -669,9 +681,13 @@ export default T3.workflow(
                 "Two actions match only when the verb, the object and every material parameter agree,",
                 "and neither omits or rules out a step the other has. A material parameter is any",
                 "parameter either sentence states. Wording does not matter. If matching needs argument,",
-                "or one action is a superset of another, they do not match.",
+                "or one action is a superset of another, they do not match. Use the definitions and",
+                "constraints below to tell whether two names refer to the same thing.",
                 "",
                 `Question: ${p.question}`,
+                "",
+                "Constraints, evidence, definitions and authority:",
+                p.context,
                 "",
                 listed,
                 "",
@@ -686,7 +702,9 @@ export default T3.workflow(
             const shape = [...groupProblems(r.value.groups, LETTERS),
               ...(r.value.notActions.every((l) => LETTERS.includes(l)) ? [] : ["notActions names an unknown ballot"])];
             if (shape.length === 0) {
-              return { ok: true, value: r.value, by: `${g.instanceId}/${g.model}`, thread: r.thread?.threadId ?? null };
+              // A repeated letter names one ballot once.
+              const value = { ...r.value, notActions: [...new Set(r.value.notActions)] };
+              return { ok: true, value, by: `${g.instanceId}/${g.model}`, thread: r.thread?.threadId ?? null };
             }
             failures.push(`${g.instanceId}/${g.model}: ${shape.join("; ")}`);
           }
