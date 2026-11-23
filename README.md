@@ -709,11 +709,13 @@ python3 ~/.dotfiles/scripts/t3-workflows.py install --source ~/.agents/workflows
 It copies changed workflow files to `~/.t3/workflows`. Manual-start workflows go
 to every receiver. Workflows with automated triggers go only to the designated
 trigger host, so each event starts one run. Any write in that folder makes T3
-reload and interrupts running workflows, so the installer refuses a change while
-an affected workflow has an unfinished run. T3 keeps serving the previous good
-revision when a new one fails to load, so the installer reads T3's server trace
-after copying. A load error for an installed file, or no reload at all, fails
-that receiver's delivery. Dotfiles documents the installer and the one-time hook
+rebuild its workflow engine and interrupts every running workflow, so the
+installer refuses a change while any run is unfinished. T3 keeps serving the
+previous good revision when a new one fails to load or is held back, so the
+installer requires evidence after the copy: no load error for an installed file
+in T3's server trace, and T3's log of the registered workflows listing each
+installed name and version. Without that evidence the receiver's delivery fails
+and the next sync retries it. Dotfiles documents the installer and the one-time hook
 provisioning step in `docs/t3-workflow-delivery.md`.
 
 A skill that starts a workflow posts to the workflow's webhook with

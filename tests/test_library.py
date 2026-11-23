@@ -882,6 +882,9 @@ class Workflows(unittest.TestCase):
                 self.assertRegex(errors, 'file name must match|directly in workflows/')
 
     def test_missing_version_and_headers_are_rejected(self):
+        nested = self.GOOD.replace('version: 2, ', '').replace(
+            'triggers: [T3.webhook("start")]', 'triggers: [T3.webhook("start")], onEnd: () => ({ version: 3 })')
+        self.assertIn('exactly one T3.workflow', self.lint({'workflows/sample.ts': nested}))
         cases = {
             'version': self.GOOD.replace('version: 2, ', ''),
             'tested': self.GOOD.replace('// @tested-t3 0.1.12-nightly.20991231.1\n', ''),
@@ -898,6 +901,12 @@ class Workflows(unittest.TestCase):
         automated = self.GOOD.replace('T3.webhook("start")', 'T3.daily("09:00")')
         self.assertIn('manual workflow declares an automated trigger',
                       self.lint({'workflows/sample.ts': automated}))
+        for trigger in ('T3.issues.opened({ project: "p" })', 'T3.pullRequests.opened({ project: "p" })',
+                        'T3.every("1 hour")'):
+            with self.subTest(trigger=trigger):
+                forge = self.GOOD.replace('T3.webhook("start")', trigger)
+                self.assertIn('manual workflow declares an automated trigger',
+                              self.lint({'workflows/sample.ts': forge}))
         self.assertIn('automated workflow declares no automated trigger',
                       self.lint({'workflows/sample.ts': self.GOOD.replace('@start manual', '@start automated')}))
         self.assertEqual(self.lint({'workflows/sample.ts': automated.replace('@start manual', '@start automated')}), '')
@@ -911,9 +920,12 @@ class Workflows(unittest.TestCase):
             'http://127.0.0.1:3773/api/hooks/wf-sample.start/x': 'hook URL or token',
             '"123e4567-e89b-42d3-a456-426614174000"': 'hook URL or token',
         }
+        cases['{ effort: "max" }'] = 'above the xhigh ceiling'
         for snippet, expected in cases.items():
             with self.subTest(snippet=snippet):
                 self.assertIn(expected, self.lint({'workflows/sample.ts': self.GOOD + f'// {snippet}\n'}))
+        # A quoted "max" that is not an effort setting, such as a ballot option, is fine.
+        self.assertEqual(self.lint({'workflows/sample.ts': self.GOOD + 'const options = ["min", "max"];\n'}), '')
 
 
 class Discovery(unittest.TestCase):

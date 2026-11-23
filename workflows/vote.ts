@@ -2,19 +2,26 @@
 // @start manual
 //
 // Durable bookkeeping for skills/vote/SKILL.md: seat routes, the shared seat
-// deadline, ballot validation, the one blind re-ask, the DeepSeek substitute and
-// the 2/3 tally. Judgment stays in the skill (framing, authority, the
-// invoker-seat qualification) and in agent steps (ballots, open-vote grouping).
+// deadline, ballot validation, the one blind re-ask, the DeepSeek substitute,
+// executed-model checks and the 2/3 tally. Judgment stays in the skill (framing,
+// authority, the invoker-seat qualification) and in agent steps (ballots and
+// open-vote grouping).
 //
-// Start: POST a JSON packet to this workflow's webhook with an `idempotency-key`
-// header; the same key returns the same run. The result comes back as one turn
-// in the invoking thread. The hook URL lives in a private curl config; never
-// put it in a command line, a transcript or this file.
+// Start: POST a JSON packet to this workflow's `ballot` webhook with an
+// `idempotency-key` header; the same key returns the same run. The invoking
+// thread gets up to two turns: one asking it to report each seat thread's
+// executedModel, then the result. The hook URL lives in a private curl config;
+// never put it in a command line, a transcript or this file.
+//
+// Known host limit (T3 0.1.12 nightly): when a voter's turn dies, T3 relaunches
+// it once with a fresh timeout. A ballot that lands after the shared deadline is
+// discarded as late, so the deadline bounds what counts, not the wall clock.
 
 const SEATS = ["opus", "sol", "neon"];
 const LETTERS = ["A", "B", "C"];
 const DEADLINE_MS = 5 * 60 * 1000;
-const GRACE_MS = 15 * 1000;
+// Covers stopping a turn and recording its result; not extra voting time.
+const GRACE_MS = 5 * 1000;
 const RUNTIME_MODE = "approval-required";
 const INTERACTION_MODE = "default";
 
@@ -38,19 +45,20 @@ const ROUTES = {
   ],
 };
 
-// A voter's own model claim conflicts when it names another family and not its own.
-const FAMILY = {
-  opus: ["claude", "opus", "anthropic"],
-  sol: ["gpt", "sol", "openai", "codex"],
-  neon: ["gemini", "neon", "google"],
-  deepseek: ["deepseek"],
+// The exact model each seat stands for. A claim or executed model naming a
+// different model, in the same family or another, conflicts with the seat.
+const SEAT_MODEL = { opus: "opus-5-5", sol: "gpt-6.2-sol", neon: "gemini-4-neon", deepseek: "deepseek-v4.1-flash" };
+const CONFLICTS = {
+  opus: ["sonnet", "haiku", "fable", "gpt", "gemini", "deepseek", "opus 5 ", "opus-5 ", "opus-4", "opus 4"],
+  sol: ["luna", "astra", "terra", "claude", "gemini", "deepseek", "gpt-6.1", "gpt-5"],
+  neon: ["argon", "hydrogen", "carbon", "flash", "claude", "gpt", "deepseek", "gemini-3"],
+  deepseek: ["claude", "gpt", "gemini", "v4.0"],
 };
 
-const GROUPER = {
-  instanceId: "claudeAgent",
-  model: "claude-opus-5-5",
-  effort: { id: "effort", value: "high" },
-};
+const GROUPER = { instanceId: "claudeAgent", model: "claude-opus-5-5", effort: { id: "effort", value: "high" } };
+
+const HEDGE = /\b(abstain|abstaining|no preference|need(?:s)? more (?:info|information|context)|insufficient (?:info|information)|cannot (?:decide|choose|determine)|can't (?:decide|choose)|either (?:option|one) (?:is|would be) fine)\b/i;
+const NOT_IMPERATIVE = /^(?:i|we|you|it|this|that|the|my|our|there)\b/i;
 
 const InvokerSeat = Schema.Struct({
   seat: Schema.String,
@@ -58,13 +66,13 @@ const InvokerSeat = Schema.Struct({
   action: Schema.optional(Schema.String),
   label: Schema.optional(Schema.String),
   rationale: Schema.String,
-  assumption: Schema.optional(Schema.String),
+  assumption: Schema.String,
   source: Schema.String,
 });
 
 const SyntheticBallot = Schema.Struct({
   seat: Schema.String,
-  status: Schema.optional(Schema.String),
+  status: Schema.optional(Schema.Literals(["valid", "unavailable", "invalid", "late"])),
   choice: Schema.optional(Schema.String),
   action: Schema.optional(Schema.String),
   label: Schema.optional(Schema.String),
@@ -118,11 +126,15 @@ function packetProblems(p) {
   if (inv !== undefined) {
     if (!SEATS.includes(inv.seat)) problems.push("invokerSeat.seat must be opus, sol or neon");
     if (!inv.source.trim()) problems.push("invokerSeat.source is empty");
-    const shaped = ballotProblems(p, inv.seat, { ...inv, model: "" });
-    for (const problem of shaped) problems.push(`invokerSeat: ${problem}`);
+    for (const problem of ballotProblems(p, inv.seat, { ...inv, model: "" })) problems.push(`invokerSeat: ${problem}`);
   }
-  if (p.test?.ballots !== undefined && p.invokerSeat !== undefined) {
-    problems.push("test.ballots replaces every seat; drop invokerSeat");
+  const fixtures = p.test?.ballots;
+  if (fixtures !== undefined) {
+    if (p.invokerSeat !== undefined) problems.push("test.ballots replaces every seat; drop invokerSeat");
+    const seats = fixtures.map((b) => b.seat);
+    if (seats.length !== 3 || new Set(seats).size !== 3 || seats.some((s) => !(s in ROUTES))) {
+      problems.push("test.ballots needs three distinct seats from opus, sol, neon and deepseek");
+    }
   }
   return problems;
 }
@@ -131,22 +143,29 @@ function oneLine(text) {
   return typeof text === "string" && text.trim() !== "" && !/[\r\n]/.test(text.trim());
 }
 
+function modelConflict(seat, name) {
+  const text = ` ${(name ?? "").toLowerCase()} `;
+  if (!text.trim()) return false;
+  return CONFLICTS[seat].some((word) => text.includes(word));
+}
+
 function ballotProblems(p, seat, b) {
   const problems = [];
   if (p.kind === "closed") {
     if (!(p.options ?? []).includes(b.choice)) problems.push("choice is not exactly one listed option");
   } else {
-    if (!oneLine(b.action)) problems.push("action must be one non-empty sentence on one line");
-    else if (b.action.trim().length > 600) problems.push("action is longer than 600 characters");
+    const action = typeof b.action === "string" ? b.action.trim() : "";
+    if (!oneLine(action)) problems.push("action must be one non-empty sentence on one line");
+    else if (/[.!?;]\s+\S/.test(action)) problems.push("action must be a single sentence");
+    else if (NOT_IMPERATIVE.test(action)) problems.push("action must be an imperative sentence");
+    else if (action.length > 600) problems.push("action is longer than 600 characters");
     if (!oneLine(b.label) || b.label.trim().length > 80) problems.push("label must be one short line");
   }
   if (typeof b.rationale !== "string" || !b.rationale.trim()) problems.push("rationale is empty");
-  const claim = (b.model ?? "").toLowerCase();
-  const own = FAMILY[seat] ?? [];
-  const other = Object.entries(FAMILY).filter(([name]) => name !== seat).flatMap(([, words]) => words);
-  if (claim && !own.some((w) => claim.includes(w)) && other.some((w) => claim.includes(w))) {
-    problems.push(`the voter's model claim "${b.model}" conflicts with the ${seat} seat`);
-  }
+  if (typeof b.assumption !== "string" || !b.assumption.trim()) problems.push("assumption is empty");
+  const said = [b.action, b.label, b.rationale].filter((t) => typeof t === "string").join(" ");
+  if (HEDGE.test(said)) problems.push("the ballot hedges, abstains or asks for more information");
+  if (modelConflict(seat, b.model)) problems.push(`the voter's model claim "${b.model}" conflicts with the ${seat} seat`);
   return problems;
 }
 
@@ -154,7 +173,6 @@ function choiceOf(p, b) {
   return p.kind === "closed" ? b.choice : b.action.trim();
 }
 
-// Groups for an open vote are letters; a closed vote groups identical labels.
 function groupProblems(groups, letters) {
   const seen = groups.flat();
   if (groups.some((g) => g.length === 0)) return ["a group is empty"];
@@ -163,17 +181,15 @@ function groupProblems(groups, letters) {
   return [];
 }
 
+function counts(s) {
+  return s.status === "valid" || s.status === "invoker-existing";
+}
+
 function tally(p, seats, groups) {
-  const valid = seats.filter((s) => s.status === "valid" || s.status === "invoker-existing");
-  const unverified = valid.filter((s) => s.blind === false).map((s) => s.seat);
+  const valid = seats.filter(counts);
+  const unverified = valid.filter((s) => s.blind === false || s.executed?.verified === false).map((s) => s.seat);
   if (valid.length < 3) {
-    return {
-      outcome: "incomplete",
-      choice: null,
-      reason: `${valid.length} valid ballot(s); a 2/3 majority needs three valid ballots`,
-      dependsOn: [],
-      unverified,
-    };
+    return { outcome: "incomplete", choice: null, reason: `${valid.length} valid ballot(s); a 2/3 majority needs three valid ballots`, dependsOn: [] };
   }
   let buckets;
   if (p.kind === "closed") {
@@ -184,17 +200,36 @@ function tally(p, seats, groups) {
     buckets = groups.map((g) => g.map((letter) => valid[LETTERS.indexOf(letter)]));
   }
   const winner = buckets.find((b) => b.length >= 2);
-  if (winner === undefined) {
-    return { outcome: "split", choice: null, reason: "no two valid ballots match", dependsOn: [], unverified };
-  }
+  if (winner === undefined) return { outcome: "split", choice: null, reason: "no two valid ballots match", dependsOn: [] };
   return {
     outcome: "majority",
     choice: choiceOf(p, winner[0].ballot),
     matched: winner.map((s) => ({ seat: s.seat, choice: choiceOf(p, s.ballot) })),
     reason: `${winner.length} of 3 valid ballots match`,
-    dependsOn: winner.filter((s) => s.blind === false).map((s) => s.seat),
-    unverified,
+    // Seats the majority rests on that are not blind or not execution-verified.
+    dependsOn: winner.map((s) => s.seat).filter((seat) => unverified.includes(seat)),
   };
+}
+
+// The seat's executed model, as the invoker read it from the host. A non-null
+// model that is not the seat's model invalidates the seat.
+function applyExecuted(seats, reports) {
+  return seats.map((s) => {
+    if (s.thread === null || s.status === "invoker-existing" || s.requested === null) return s;
+    const report = reports.find((r) => r.thread === s.thread);
+    if (report === undefined || report.executedModel === null || report.executedModel === "") {
+      return { ...s, executed: { model: report?.executedModel ?? null, verified: false } };
+    }
+    const exec = report.executedModel.toLowerCase();
+    const ok = exec.includes(SEAT_MODEL[s.routeSeat ?? s.seat]) && !modelConflict(s.routeSeat ?? s.seat, exec);
+    if (ok) return { ...s, executed: { model: report.executedModel, verified: true } };
+    return {
+      ...s,
+      executed: { model: report.executedModel, verified: true },
+      status: counts(s) ? "invalid" : s.status,
+      problems: [...s.problems, `host executedModel ${report.executedModel} is not the seat's model`],
+    };
+  });
 }
 
 function packetText(p, deadlineMinutes) {
@@ -233,7 +268,7 @@ function voterBrief(p, deadlineMinutes) {
       : "- action: one imperative sentence with verb, object and every material parameter.\n- label: a few words.",
     "- rationale: two to four sentences.",
     "- assumption: the key assumption your choice rests on.",
-    "- model: your own model name as you know it.",
+    "- model: your own model name and version as you know it.",
   ].join("\n");
 }
 
@@ -245,18 +280,14 @@ function ballotSchema(p) {
 }
 
 function modelSelection(route) {
-  return {
-    instanceId: route.instanceId,
-    model: route.model,
-    ...(route.effort === null ? {} : { options: [route.effort] }),
-  };
+  return { instanceId: route.instanceId, model: route.model, ...(route.effort === null ? {} : { options: [route.effort] }) };
 }
 
 function requested(route) {
   return {
     provider: route.instanceId,
     model: route.model,
-    effort: route.effort === null ? "not applicable (route exposes no effort option)" : `${route.effort.id}=${route.effort.value}`,
+    effort: route.effort === null ? "not applicable (route exposes no effort option)" : `${route.effort.id}=${route.effort.value}, unverified`,
     billing: route.billing,
   };
 }
@@ -268,20 +299,27 @@ function isNonBallot(reason) {
 }
 
 function resultText(p, r) {
-  const head = r.test ? "TEST RUN with synthetic or injected input; not a vote." : null;
-  const result = r.tally.outcome === "majority"
-    ? `${r.tally.choice} — 2/3 majority${r.tally.dependsOn.length ? ` (depends on ${r.tally.dependsOn.join(", ")}: invoker-existing, not blind)` : ""}`
-    : r.tally.outcome === "split" ? "No majority (complete split)" : `No majority (incomplete: ${r.tally.reason})`;
+  const t = r.tally;
+  const result = t.outcome === "majority"
+    ? `${t.choice} — 2/3 majority${t.dependsOn.length ? ` (rests on ${t.dependsOn.join(", ")}: not blind or execution-unverified)` : ""}`
+    : t.outcome === "split" ? "No majority (complete split)" : `No majority (incomplete: ${t.reason})`;
   const seatLines = r.seats.map((s) => {
     const req = s.requested ? `${s.requested.provider}/${s.requested.model}, ${s.requested.effort}, ${s.requested.billing}` : "no route";
     const what = s.ballot ? choiceOf(p, s.ballot) : "-";
     const why = s.ballot?.rationale ?? s.problems.join("; ");
-    const marks = [s.status, s.blind === false ? "not blind" : null, s.reasked ? "re-asked once" : null, s.thread ? `thread ${s.thread}` : null]
-      .filter(Boolean).join(", ");
+    const exec = s.executed ? `executedModel ${s.executed.model ?? "null"} ${s.executed.verified ? "verified" : "unverified"}` : null;
+    const marks = [
+      s.status,
+      s.blind === false ? "not blind" : null,
+      s.substitutes ? `substitute for ${s.substitutes}` : null,
+      s.reasked ? "re-asked once" : null,
+      exec,
+      s.thread ? `thread ${s.thread}` : null,
+    ].filter(Boolean).join(", ");
     return `- ${s.seat} (${req}): ${what} — ${why} [${marks}]`;
   });
   return [
-    head,
+    r.test ? "TEST RUN with synthetic or injected input. This is not a vote: do not act on it." : null,
     `Vote: ${p.question}`,
     `Result: ${result}`,
     "Seats:",
@@ -294,36 +332,26 @@ function resultText(p, r) {
 
 export default T3.workflow(
   "vote",
-  { version: 1, payload: T3.WebhookRequest, triggers: [T3.webhook("start")] },
+  { version: 1, payload: T3.WebhookRequest, triggers: [T3.webhook("ballot")] },
   (input, { id }) =>
     Effect.gen(function* () {
-      const parsed = yield* T3.step.try(
-        "packet",
-        { returns: Packet },
-        Effect.try(() => decodePacket(JSON.parse(input.body))),
-      );
-      if (parsed.outcome === "failed") {
-        return yield* T3.stop(`packet rejected: ${parsed.reason}`);
-      }
+      const parsed = yield* T3.step.try("packet", { returns: Packet }, Effect.try(() => decodePacket(JSON.parse(input.body))));
+      if (parsed.outcome === "failed") return yield* T3.stop(`packet rejected: ${parsed.reason}`);
       const p = parsed.value;
-      const problems = packetProblems(p);
       const test = p.test !== undefined;
       yield* T3.title(`${test ? "[test] " : ""}vote: ${p.question.slice(0, 80)}`);
 
-      const callback = (text) =>
-        T3.agent.try("callback", {
-          thread: { threadId: p.invokerThread },
-          brief: [
-            `[T3 workflow vote, run ${id}]`,
-            text,
-            "",
-            "Continue with skills/vote/SKILL.md from 'Act or return'. Read each seat thread",
-            "with t3_thread_read to record executedModel; label any null or missing value unverified.",
-          ].join("\n"),
-        });
+      // The pausing form: a failed delivery pauses the run and retries under the same step key.
+      const tell = (name, lines) =>
+        T3.agent(name, { thread: { threadId: p.invokerThread }, brief: [`[T3 workflow vote, run ${id}]`, ...lines].join("\n") });
 
+      const problems = packetProblems(p);
       if (problems.length > 0) {
-        yield* callback(`Packet rejected; no voter was dispatched:\n- ${problems.join("\n- ")}`);
+        yield* tell("callback", [
+          "Packet rejected; no voter was dispatched. Nothing was decided: do not act on this.",
+          ...problems.map((x) => `- ${x}`),
+          "Fix the packet and start a new vote with a new idempotency key.",
+        ]);
         return { run: id, outcome: "rejected", problems };
       }
 
@@ -333,16 +361,16 @@ export default T3.workflow(
       const returns = ballotSchema(p);
       const project = p.project ?? `${process.env.HOME}/.agents`;
       const now = (name) => T3.step(name, { returns: Schema.Number }, Effect.sync(() => Date.now()));
-      const opened = yield* now("clock/open");
+      const budget = (name, deadline) => T3.step(name, { returns: Schema.Number }, Effect.sync(() => deadline - Date.now()));
 
-      // Run one seat through its routes, a shared deadline and one blind re-ask.
+      // One dispatched voter through its routes, with one blind re-ask, inside `deadline`.
       const runSeat = (seat, routeSeat, tag, deadline) =>
         Effect.gen(function* () {
           const attempts = [];
           const routes = ROUTES[routeSeat].filter((r) => !r.paid || p.paidRoutes === true);
           for (const [index, route] of routes.entries()) {
             const key = `seat/${tag}/${index}`;
-            const left = yield* T3.step(`${key}/budget`, { returns: Schema.Number }, Effect.sync(() => deadline - Date.now()));
+            const left = yield* budget(`${key}/budget`, deadline);
             if (left <= 0) {
               attempts.push({ route: requested(route), outcome: "skipped", reason: "the seat deadline passed" });
               break;
@@ -364,39 +392,38 @@ export default T3.workflow(
             const reaskable = (first.outcome === "done" && problems.length > 0)
               || (first.outcome === "failed" && thread !== null && isNonBallot(first.reason));
             if (reaskable) {
-              const leftAgain = yield* T3.step(`${key}/reask/budget`, { returns: Schema.Number }, Effect.sync(() => deadline - Date.now()));
-              if (leftAgain > 0) {
+              const again = yield* budget(`${key}/reask/budget`, deadline);
+              if (again > 0) {
                 reasked = true;
                 const why = first.outcome === "done" ? problems.join("; ") : first.reason;
                 answer = yield* T3.agent.try(`${key}/reask`, {
                   thread: { threadId: thread },
-                  brief: [
-                    `Your answer was not a valid ballot: ${why}`,
-                    "This is your one re-ask. Use the same packet and submit exactly one ballot with `t3_submit_output`.",
-                    "",
-                    brief,
-                  ].join("\n"),
+                  brief: [`Your answer was not a valid ballot: ${why}`,
+                    "This is your one re-ask. Use the same packet and submit exactly one ballot with `t3_submit_output`.", "", brief].join("\n"),
                   returns,
-                  timeout: `${leftAgain} millis`,
+                  timeout: `${again} millis`,
                 });
                 problems = answer.outcome === "done" ? ballotProblems(p, routeSeat, answer.value) : [];
               }
             }
             const ended = yield* now(`${key}/ended`);
             const late = ended > deadline + GRACE_MS;
+            const base = { seat, routeSeat, requested: requested(route), reasked, thread, blind: true };
             if (answer.outcome === "done") {
               const status = late ? "late" : problems.length > 0 ? "invalid" : "valid";
               attempts.push({ route: requested(route), outcome: status, thread });
-              return { seat, status, ballot: status === "valid" ? answer.value : null, problems: late ? ["the ballot came after the seat deadline"] : problems, requested: requested(route), reasked, thread, blind: true, attempts };
+              return { ...base, status, ballot: status === "valid" ? answer.value : null,
+                problems: late ? ["the ballot came after the seat deadline"] : problems, attempts };
             }
             attempts.push({ route: requested(route), outcome: "failed", reason: answer.reason, thread });
             if (reaskable || late) {
-              // The voter answered but never gave a ballot, or the deadline passed: the seat failed.
-              return { seat, status: late ? "late" : "invalid", ballot: null, problems: [answer.reason], requested: requested(route), reasked, thread, blind: true, attempts };
+              // The voter answered without a ballot, or time ran out: the seat failed.
+              return { ...base, status: late ? "late" : "invalid", ballot: null, problems: [answer.reason], attempts };
             }
-            // Could not start, died or timed out: try the next eligible route.
+            // Could not start, died or timed out before answering: try the next eligible route.
           }
-          return { seat, status: "unavailable", ballot: null, problems: attempts.map((a) => a.reason ?? a.outcome), requested: null, reasked: false, thread: null, blind: true, attempts };
+          return { seat, routeSeat, status: "unavailable", ballot: null, problems: attempts.map((a) => a.reason ?? a.outcome),
+            requested: null, reasked: false, thread: null, blind: true, attempts };
         });
 
       let seats;
@@ -404,78 +431,76 @@ export default T3.workflow(
         seats = p.test.ballots.map((b) => {
           const status = b.status ?? "valid";
           const shaped = status === "valid" ? ballotProblems(p, b.seat, b) : [];
-          return {
-            seat: b.seat,
-            status: shaped.length ? "invalid" : status,
-            ballot: status === "valid" && !shaped.length ? b : null,
-            problems: shaped,
-            requested: null,
-            reasked: false,
-            thread: null,
-            blind: true,
-            attempts: [],
-            synthetic: true,
-          };
+          return { seat: b.seat, routeSeat: b.seat, status: shaped.length ? "invalid" : status,
+            ballot: status === "valid" && !shaped.length ? b : null, problems: shaped, requested: null,
+            reasked: false, thread: null, blind: true, attempts: [], synthetic: true };
         });
       } else {
-        const deadline = opened + limitMs;
+        const opened = yield* now("clock/open");
         seats = yield* Effect.all(
           SEATS.map((seat) => {
             const inv = p.invokerSeat;
             if (inv !== undefined && inv.seat === seat) {
-              return Effect.succeed({
-                seat,
-                status: "invoker-existing",
-                ballot: { ...inv, model: "" },
-                problems: [],
-                requested: null,
-                reasked: false,
-                thread: p.invokerThread,
-                blind: false,
-                source: inv.source,
-                attempts: [],
-              });
+              return Effect.succeed({ seat, routeSeat: seat, status: "invoker-existing", ballot: { ...inv, model: "" },
+                problems: [], requested: null, reasked: false, thread: p.invokerThread, blind: false, source: inv.source, attempts: [] });
             }
-            return runSeat(seat, seat, seat, deadline);
+            return runSeat(seat, seat, seat, opened + limitMs);
           }),
           { concurrency: "unbounded" },
         );
         const unavailable = seats.filter((s) => s.status === "unavailable");
         if (unavailable.length === 1) {
-          // One substitute, retried once; it gets its own deadline as a newly dispatched seat.
+          // One substitute seat with one deadline; a failed first try gets one retry inside it.
           const gone = unavailable[0];
-          let sub = null;
+          const subOpened = yield* now("clock/substitute");
+          const tries = [];
           for (const attempt of [0, 1]) {
-            const subOpened = yield* now(`clock/substitute/${attempt}`);
-            sub = yield* runSeat("deepseek", "deepseek", `deepseek/${attempt}`, subOpened + limitMs);
-            if (sub.status !== "unavailable") break;
+            const sub = yield* runSeat("deepseek", "deepseek", `deepseek/${attempt}`, subOpened + limitMs);
+            tries.push(sub);
+            if (sub.status === "valid") break;
           }
-          seats = seats.map((s) => (s === gone ? { ...sub, substitutes: gone.seat, replaced: gone } : s));
+          const chosen = tries[tries.length - 1];
+          seats = seats.map((s) => (s === gone
+            ? { ...chosen, substitutes: gone.seat, replaced: gone, attempts: tries.flatMap((t) => t.attempts) }
+            : s));
+        }
+
+        // The invoker reads each seat thread's host record; code then checks it.
+        const threads = seats.filter((s) => s.thread !== null && s.status !== "invoker-existing");
+        if (threads.length > 0) {
+          const verified = yield* T3.agent.try("verify-models", {
+            thread: { threadId: p.invokerThread },
+            timeout: "10 minutes",
+            returns: Schema.Struct({ seats: Schema.Array(Schema.Struct({ thread: Schema.String, executedModel: Schema.NullOr(Schema.String) })) }),
+            brief: [
+              `[T3 workflow vote, run ${id}] Model check before the tally. Do not act on the vote yet.`,
+              "For each thread below, read it with t3_thread_read and report its host-recorded executedModel",
+              "(null when the host shows none). Do nothing else, then submit with t3_submit_output.",
+              ...threads.map((s) => `- ${s.thread} (seat ${s.seat}, requested ${s.requested?.model ?? "?"})`),
+            ].join("\n"),
+          });
+          seats = applyExecuted(seats, verified.outcome === "done" ? verified.value.seats : []);
         }
       }
 
       if (p.test?.pauseSeconds !== undefined) {
         // Test hook: pause the run before the tally so an operator can resume it.
         const armed = yield* now("test/armed");
-        yield* T3.step(
-          "test/pause",
-          { returns: Schema.Number },
-          Effect.suspend(() => {
-            const wait = armed + p.test.pauseSeconds * 1000 - Date.now();
-            return wait > 0
-              ? Effect.fail(new Error(`test pause: resume after ${Math.ceil(wait / 1000)} more second(s)`))
-              : Effect.succeed(Date.now());
-          }),
-        );
+        yield* T3.step("test/pause", { returns: Schema.Number }, Effect.suspend(() => {
+          const wait = armed + p.test.pauseSeconds * 1000 - Date.now();
+          return wait > 0
+            ? Effect.fail(new Error(`test pause: resume after ${Math.ceil(wait / 1000)} more second(s)`))
+            : Effect.succeed(Date.now());
+        }));
       }
 
       // Open votes: one judgment step groups equivalent ballots; code counts the groups.
       let groups = [];
       let grouping = null;
-      const counted = seats.filter((s) => s.status === "valid" || s.status === "invoker-existing");
+      let verdict = null;
+      const counted = seats.filter(counts);
       if (p.kind === "open" && counted.length === 3) {
-        const letters = LETTERS.slice(0, counted.length);
-        const listed = counted.map((s, i) => `${letters[i]}. ${s.ballot.action.trim()}`).join("\n");
+        const listed = counted.map((s, i) => `${LETTERS[i]}. ${s.ballot.action.trim()}`).join("\n");
         const grouped = yield* T3.agent.try("group", {
           project,
           model: modelSelection(GROUPER),
@@ -499,24 +524,25 @@ export default T3.workflow(
             "Submit `reasoning`: one line per group.",
           ].join("\n"),
         });
-        const shapeProblems = grouped.outcome === "done" ? groupProblems(grouped.value.groups, letters) : [grouped.reason];
-        if (shapeProblems.length === 0) {
+        const shape = grouped.outcome === "done" ? groupProblems(grouped.value.groups, LETTERS) : [grouped.reason];
+        if (shape.length === 0) {
           groups = grouped.value.groups;
           grouping = `${JSON.stringify(groups)} — ${grouped.value.reasoning}${grouped.thread ? ` (thread ${grouped.thread.threadId})` : ""}`;
         } else {
-          grouping = `failed: ${shapeProblems.join("; ")}`;
+          grouping = `failed: ${shape.join("; ")}`;
+          verdict = { outcome: "incomplete", choice: null, reason: `open-vote grouping failed: ${shape.join("; ")}`, dependsOn: [] };
         }
-        const verdict = shapeProblems.length === 0
-          ? tally(p, seats, groups)
-          : { outcome: "incomplete", choice: null, reason: `open-vote grouping failed: ${shapeProblems.join("; ")}`, dependsOn: [], unverified: [] };
-        const result = { run: id, test, packet: packetText(p, minutes), seats, grouping, tally: verdict };
-        const told = yield* callback(resultText(p, result));
-        return { ...result, callback: told.outcome === "done" ? "delivered" : `failed: ${told.reason}` };
       }
+      verdict = verdict ?? tally(p, seats, groups);
 
-      const verdict = tally(p, seats, groups);
       const result = { run: id, test, packet: packetText(p, minutes), seats, grouping, tally: verdict };
-      const told = yield* callback(resultText(p, result));
-      return { ...result, callback: told.outcome === "done" ? "delivered" : `failed: ${told.reason}` };
+      yield* tell("callback", [
+        resultText(p, result),
+        "",
+        test
+          ? "Report this test result only."
+          : "Continue with skills/vote/SKILL.md from 'Act or return', using this result and its labels.",
+      ]);
+      return result;
     }),
 );
