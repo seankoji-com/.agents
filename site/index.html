@@ -529,7 +529,7 @@
             <li>Reviewers and judges start on another provider from the same conversation; <code>choose-design</code> runs its designers on Opus and has Neon and Sol score every option. Code review needs a second model family; without one, the agent reports the review as unavailable.</li>
             <li><code>babysitter</code> uses T3's pull request watch to wake when checks or reviews change. Elsewhere it waits with its bundled <code>pr-wait</code> helper.</li>
             <li><code>settle</code> calls T3's thread tool to close a finished thread. Without it, it reports the gap instead of claiming the thread is settled.</li>
-            <li><code>ship</code>, <code>implement</code> and <code>review-loop</code> show their phases in T3's Tasks row. <code>choose-design</code> shows mockups side by side in preview frames.</li>
+            <li><code>ship</code>, <code>implement</code> and <code>review-loop</code> show their phases in T3's Tasks row. <code>review-loop</code> and <code>hillclimb</code> render an inline HTML score line graph across rounds. <code>choose-design</code> shows mockups side by side in preview frames.</li>
           </ul>
         </div>
         <div class="tier tier-any">
@@ -579,7 +579,7 @@
           <div class="term" data-copy><pre class="cmd" id="cmd-brew-tools">brew install node python gh</pre></div>
           <ul>
             <li><strong>Node.js 22.20+</strong> runs <code>npx skills</code>.</li>
-            <li><strong>Python 3.10+</strong> runs bundled helpers, such as the plan-report renderer and babysitter's <code>pr-wait</code>.</li>
+            <li><strong>Python 3.10+</strong> runs bundled helpers, such as the plan-report renderer, the iterative review score-chart renderer and babysitter's <code>pr-wait</code>.</li>
             <li><strong>GitHub CLI</strong> lets the pull request skills read checks and post. Sign in once with <code>gh auth login</code>.</li>
           </ul>
         </div>

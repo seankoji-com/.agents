@@ -1,0 +1,304 @@
+{
+  "version": 1,
+  "run": {
+    "title": "Checkout Flow Hillclimb",
+    "id": "hc-04",
+    "skill": "hillclimb",
+    "status": "passed-revised",
+    "scale": {
+      "min": 1,
+      "max": 10,
+      "precision": 1
+    }
+  },
+  "reviewers": [
+    { "id": "opus", "label": "Opus 5.5", "role": "Primary" },
+    { "id": "sol", "label": "Sol 6.2", "role": "Panel" },
+    { "id": "hydrogen", "label": "Hydrogen 4", "role": "Visual" }
+  ],
+  "eras": [
+    {
+      "id": "v1",
+      "label": "Rubric v1",
+      "target": 9.0,
+      "historical": true,
+      "comparable_to_prev": false,
+      "note": "Original rubric and target"
+    },
+    {
+      "id": "v2",
+      "label": "Rubric v2",
+      "target": 8.5,
+      "original_target": 9.0,
+      "historical": false,
+      "comparable_to_prev": false,
+      "recovery": {
+        "kind": "automatic",
+        "label": "Recovery · 9.0 → 8.5",
+        "trigger": "Panel blocked after Hydrogen 4 retry timeout on P1",
+        "diagnosis": "Dark-mode capture harness hung waiting on theme toggle transition",
+        "fix": "Stabilized harness wait and revised target 9.0 → 8.5 (flagged vs original 9.0)"
+      }
+    }
+  ],
+  "rounds": [
+    {
+      "id": "B0",
+      "label": "Baseline",
+      "candidate": "c0",
+      "era": "v1",
+      "phase": "primary",
+      "expected_reviewers": ["opus"],
+      "status": "scored",
+      "scores": [
+        {
+          "reviewer": "opus",
+          "score": 6.8,
+          "retried": false,
+          "bullets": [
+            "Core checkout completes end-to-end but lacks inline card validation.",
+            "Mobile hierarchy pushes order summary below the fold without a sticky total.",
+            "Validation errors clear address fields instead of preserving input.",
+            "Keyboard focus ring is invisible on the primary Pay button."
+          ],
+          "dimensions": [
+            { "name": "Task value", "score": 7, "weight": 15 },
+            { "name": "Clarity", "score": 6, "weight": 15 },
+            { "name": "Efficiency", "score": 7, "weight": 15 },
+            { "name": "Control", "score": 6, "weight": 15 },
+            { "name": "Visual craft", "score": 7, "weight": 20 },
+            { "name": "Emotional appeal", "score": 7, "weight": 10 },
+            { "name": "Brand fit", "score": 8, "weight": 10 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "R1",
+      "label": "Retry",
+      "candidate": "c1",
+      "era": "v1",
+      "phase": "primary",
+      "expected_reviewers": ["opus"],
+      "status": "scored",
+      "scores": [
+        {
+          "reviewer": "opus",
+          "score": 8.1,
+          "retried": true,
+          "retry_note": "Initial Opus attempt timed out at 180s; retried once on frozen c1 and succeeded.",
+          "bullets": [
+            "Added inline validation and preserved form values on error (+2 Control).",
+            "Sticky mobile total keeps price visible during address entry.",
+            "Visible focus rings restored across interactive controls.",
+            "Coupon input spacing remains cramped at 390px."
+          ],
+          "dimensions": [
+            { "name": "Task value", "score": 8, "weight": 15 },
+            { "name": "Clarity", "score": 8, "weight": 15 },
+            { "name": "Efficiency", "score": 8, "weight": 15 },
+            { "name": "Control", "score": 8, "weight": 15 },
+            { "name": "Visual craft", "score": 8, "weight": 20 },
+            { "name": "Emotional appeal", "score": 8, "weight": 10 },
+            { "name": "Brand fit", "score": 9, "weight": 10 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "R2",
+      "label": "Build Fail",
+      "candidate": "c2",
+      "era": "v1",
+      "phase": "primary",
+      "expected_reviewers": ["opus"],
+      "status": "unscored",
+      "failure_note": "Candidate c2 failed to build after one in-round repair (CSS token syntax error). No score assigned; stagnation counter incremented to 1.",
+      "scores": []
+    },
+    {
+      "id": "P0",
+      "label": "Panel Entry",
+      "candidate": "c3",
+      "era": "v1",
+      "phase": "panel",
+      "expected_reviewers": ["opus", "sol", "hydrogen"],
+      "status": "scored",
+      "scores": [
+        {
+          "reviewer": "opus",
+          "score": 9.1,
+          "bullets": [
+            "Cleared 9.0 primary gate with clean responsive spacing.",
+            "Inline error recovery feels immediate and predictable.",
+            "Dark-mode elevation tokens read cleanly across cards."
+          ],
+          "dimensions": [
+            { "name": "Task value", "score": 9, "weight": 15 },
+            { "name": "Clarity", "score": 9, "weight": 15 },
+            { "name": "Efficiency", "score": 9, "weight": 15 },
+            { "name": "Control", "score": 9, "weight": 15 },
+            { "name": "Visual craft", "score": 9, "weight": 20 },
+            { "name": "Emotional appeal", "score": 9, "weight": 10 },
+            { "name": "Brand fit", "score": 10, "weight": 10 }
+          ]
+        },
+        {
+          "reviewer": "sol",
+          "score": 8.4,
+          "bullets": [
+            "Drawer transition lacks prefers-reduced-motion fallback.",
+            "Muted helper text fails 4.5:1 contrast in dark mode.",
+            "Keyboard tab order skips the promo-code remove button."
+          ],
+          "dimensions": [
+            { "name": "Task value", "score": 9, "weight": 15 },
+            { "name": "Clarity", "score": 8, "weight": 15 },
+            { "name": "Efficiency", "score": 8, "weight": 15 },
+            { "name": "Control", "score": 8, "weight": 15 },
+            { "name": "Visual craft", "score": 8, "weight": 20 },
+            { "name": "Emotional appeal", "score": 9, "weight": 10 },
+            { "name": "Brand fit", "score": 9, "weight": 10 }
+          ]
+        },
+        {
+          "reviewer": "hydrogen",
+          "score": 8.7,
+          "bullets": [
+            "Strong visual hierarchy and balanced typographic scale.",
+            "Dark-mode card border alignment drifts 2px on narrow viewports.",
+            "Checkout summary badge adds reassuring clarity."
+          ],
+          "dimensions": [
+            { "name": "Task value", "score": 9, "weight": 15 },
+            { "name": "Clarity", "score": 9, "weight": 15 },
+            { "name": "Efficiency", "score": 9, "weight": 15 },
+            { "name": "Control", "score": 8, "weight": 15 },
+            { "name": "Visual craft", "score": 8, "weight": 20 },
+            { "name": "Emotional appeal", "score": 9, "weight": 10 },
+            { "name": "Brand fit", "score": 9, "weight": 10 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "P1",
+      "label": "Incomplete",
+      "candidate": "c4",
+      "era": "v1",
+      "phase": "panel",
+      "expected_reviewers": ["opus", "sol", "hydrogen"],
+      "status": "incomplete",
+      "failure_note": "Hydrogen 4 timed out after its in-round retry; panel incomplete so gating minimum is unavailable.",
+      "scores": [
+        {
+          "reviewer": "opus",
+          "score": 9.3,
+          "bullets": [
+            "Reduced-motion media query applied cleanly to drawer.",
+            "Dark-mode helper contrast now passes 4.5:1.",
+            "Promo-code remove button restored to tab order."
+          ],
+          "dimensions": [
+            { "name": "Task value", "score": 9, "weight": 15 },
+            { "name": "Clarity", "score": 9, "weight": 15 },
+            { "name": "Efficiency", "score": 9, "weight": 15 },
+            { "name": "Control", "score": 10, "weight": 15 },
+            { "name": "Visual craft", "score": 9, "weight": 20 },
+            { "name": "Emotional appeal", "score": 9, "weight": 10 },
+            { "name": "Brand fit", "score": 10, "weight": 10 }
+          ]
+        },
+        {
+          "reviewer": "sol",
+          "score": 8.8,
+          "bullets": [
+            "Contrast and reduced-motion defects verified fixed.",
+            "Tab order works end-to-end without traps.",
+            "Minor jitter remains when toggling shipping speed."
+          ],
+          "dimensions": [
+            { "name": "Task value", "score": 9, "weight": 15 },
+            { "name": "Clarity", "score": 9, "weight": 15 },
+            { "name": "Efficiency", "score": 9, "weight": 15 },
+            { "name": "Control", "score": 9, "weight": 15 },
+            { "name": "Visual craft", "score": 8, "weight": 20 },
+            { "name": "Emotional appeal", "score": 9, "weight": 10 },
+            { "name": "Brand fit", "score": 9, "weight": 10 }
+          ]
+        },
+        {
+          "reviewer": "hydrogen",
+          "score": null,
+          "status": "timeout",
+          "failure_note": "Timed out after in-round retry on dark-mode capture."
+        }
+      ]
+    },
+    {
+      "id": "P2",
+      "label": "Pass",
+      "candidate": "c5",
+      "era": "v2",
+      "phase": "panel",
+      "expected_reviewers": ["opus", "sol", "hydrogen"],
+      "status": "scored",
+      "scores": [
+        {
+          "reviewer": "opus",
+          "score": 9.0,
+          "bullets": [
+            "Shipping-speed toggle now transitions without layout shift.",
+            "All required checks and accessibility gates pass.",
+            "Consistent visual polish across desktop and mobile."
+          ],
+          "dimensions": [
+            { "name": "Task value", "score": 9, "weight": 15 },
+            { "name": "Clarity", "score": 9, "weight": 15 },
+            { "name": "Efficiency", "score": 9, "weight": 15 },
+            { "name": "Control", "score": 9, "weight": 15 },
+            { "name": "Visual craft", "score": 9, "weight": 20 },
+            { "name": "Emotional appeal", "score": 9, "weight": 10 },
+            { "name": "Brand fit", "score": 9, "weight": 10 }
+          ]
+        },
+        {
+          "reviewer": "sol",
+          "score": 8.7,
+          "bullets": [
+            "Layout jitter fixed; zero console or runtime errors.",
+            "Error recovery and keyboard flows verified end-to-end.",
+            "Minor verbosity in billing-address helper copy."
+          ],
+          "dimensions": [
+            { "name": "Task value", "score": 9, "weight": 15 },
+            { "name": "Clarity", "score": 8, "weight": 15 },
+            { "name": "Efficiency", "score": 9, "weight": 15 },
+            { "name": "Control", "score": 9, "weight": 15 },
+            { "name": "Visual craft", "score": 8, "weight": 20 },
+            { "name": "Emotional appeal", "score": 9, "weight": 10 },
+            { "name": "Brand fit", "score": 9, "weight": 10 }
+          ]
+        },
+        {
+          "reviewer": "hydrogen",
+          "score": 8.9,
+          "bullets": [
+            "2px dark-mode border alignment drift resolved.",
+            "Visual balance and contrast hold at 390px and 728px.",
+            "Clean, trustworthy finish with no visual regressions."
+          ],
+          "dimensions": [
+            { "name": "Task value", "score": 9, "weight": 15 },
+            { "name": "Clarity", "score": 9, "weight": 15 },
+            { "name": "Efficiency", "score": 9, "weight": 15 },
+            { "name": "Control", "score": 9, "weight": 15 },
+            { "name": "Visual craft", "score": 9, "weight": 20 },
+            { "name": "Emotional appeal", "score": 9, "weight": 10 },
+            { "name": "Brand fit", "score": 8, "weight": 10 }
+          ]
+        }
+      ]
+    }
+  ]
+}

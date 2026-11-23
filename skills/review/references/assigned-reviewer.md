@@ -58,7 +58,8 @@ in a visualisation or child thread. Include:
 - Scope, revision, checks run, checks omitted with reasons, flows reviewed and
   coverage gaps. Include these even when you found no bugs.
 - Your model identity, effort and lineage, expected settings, and verification gaps.
-- A score with its evidence when your brief supplies a rubric.
+- When your brief supplies a rubric: a score, a 3–5 bullet rationale of how it
+  was reached, and any component dimension scores and weights.
 - For each finding: a stable ID, SEV level and rationale, location, expected
   and observed behaviour, user impact, reproduction or evidence, and evidence
   IDs with artifact paths the parent can open.

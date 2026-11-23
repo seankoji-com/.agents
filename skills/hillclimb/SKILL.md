@@ -56,8 +56,10 @@ reports before settling the next repair.
    checks. Save each owned revision when authorised, or preserve an exact patch
    or snapshot. Obtain fresh evaluation.
 3. After each round, append results, findings and evidence to the
-   [rolling report](references/reports.md) and give the user a short update.
-   Include failed and incomplete rounds.
+   [rolling report](references/reports.md), update the JSON score ledger and
+   render the [score line graph](../review/references/score-chart.md) inline
+   (after every completed scoring round, recovery and final handback) with a
+   short update. Include failed and incomplete rounds.
 4. When the primary reaches target and required checks and coverage pass, or
    when an earlier confirmed trigger fires, confirm any pending primary upgrade
    choice. Run the full confirmed panel on that frozen candidate. The lowest

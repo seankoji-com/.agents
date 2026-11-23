@@ -44,8 +44,12 @@ with inline CSS and embedded or portable local images. Escape product text and
 exclude secrets, personal data and product scripts.
 
 The coordinator presents the initial report and gives a short update after each
-round with the score, changes, outstanding checks and a link to its section.
-In T3 use `html_preview` then `html_render` to present the rolling report.
+round with the score, changes, outstanding checks, a link to its section and
+the updated inline [score line graph](../../review/references/score-chart.md)
+rendered via `skills/review/scripts/render_score_chart.py` (showing reviewer
+lines, gating minimum, dotted target, failure/recovery annotations and 3–5
+bullet rationales with component dimensions).
+In T3 use `html_preview` then `html_render` to present the chart and rolling report.
 Provide an accessible HTML link if native presentation is unavailable. Delegates
 return findings and evidence paths to the coordinator. Keep the combined report
 out of judge briefs so prior judgments remain independent.

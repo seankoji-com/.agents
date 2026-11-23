@@ -73,8 +73,10 @@ one app. They use what T3 provides:
 - **Progress and previews you can see.** `ship`, `implement` and `review-loop` show
   their phases in T3's Tasks row when the host exposes a todo tool; the list is
   best-effort and can vanish when the turn settles. `plan-report` shows estimates
-  and progress on a timeline, and `choose-design` shows mockups side by side in
-  T3's preview frames.
+  and progress on a timeline, `review-loop` and `hillclimb` render an inline HTML
+  score line graph of reviewer scores, targets, failure/recovery annotations and
+  3–5 bullet + dimension rationales on hover, and `choose-design` shows mockups
+  side by side in T3's preview frames.
 
 Most skills still work in Claude Code, Codex or another host that supports
 skills, using what that host offers instead. Outside T3, `babysitter` waits with
@@ -622,7 +624,7 @@ installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: c80b9469a283e0a3daf19d8686695b512007c3f17aa721658d2c7ad06681aac3 -->
+<!-- skills-review: 63349a4b56994b36d686af49ef509b4c2f430ae82f29103f9dbac6ee7dfe22f7 -->
 
 ### Owner maintenance
 

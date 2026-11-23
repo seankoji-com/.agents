@@ -76,8 +76,9 @@ does not automatically need this loop.
      merge base and owned paths, including untracked source.
    - For round one, give a fresh read-only evaluator the full scoped diff,
      callers and acceptance criteria. Include intent, exclusions, revision,
-     check results, rubric and target. Ask for a score with evidence, material
-     bugs, broken callers and unnecessary code, guards, tests or procedure.
+     check results, rubric and target. Ask for a score with a 3–5 bullet
+     rationale (plus any component dimension scores), material bugs, broken
+     callers and unnecessary code, guards, tests or procedure.
    - Require screenshots of key visible states and findings. Require a
      plain-text report to the parent with stable IDs, SEV1–SEV3 severity,
      location, evidence and impact. Delegates may not use `html_render`.
@@ -163,16 +164,16 @@ new baseline. On cancellation, stop only owned work and confirm it stopped.
 
 ## Outputs
 
-Keep updates brief: result, material findings and next action. Final handoff includes
-revision, implementation attempts, rounds used, target/best/current scores,
-non-improvement counter, explicit limits, exact work and
-review models, checks, finding dispositions, deferrals and endpoint evidence or
-remaining blockers. Report usage only when exposed. Separate local validation,
-hosted checks, independent review, merge and deployment. Delegated coordinators
-return complete plain-text reports; only the main thread presents them. In T3
-Code, the main-thread coordinator uses `html_preview` then `html_render` for
-user-facing substantive findings and disposition reports;
-use readable text when native HTML is unavailable or the result is brief.
+Keep updates brief: result, material findings and next action. After each
+completed scoring round, recovery and final handback, update the JSON score
+ledger and follow [score line graph](../review/references/score-chart.md) to
+render it inline (`html_preview` then `html_render` in T3, text/link fallback
+elsewhere). Final handoff includes revision, attempts, rounds, target/best/current
+scores, counter, limits, models, checks, dispositions, deferrals and endpoint
+evidence. Report usage only when exposed. Separate local validation, hosted
+checks, independent review, merge and deployment. Delegates return plain-text
+reports and the score ledger path; only the main thread renders charts and
+substantive findings reports.
 
 ## Boundaries
 

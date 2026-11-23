@@ -186,7 +186,9 @@ loop-required checks and a roster seat, but not scope or a hard gate.
    contract both match. A roster or criteria change seeds a new baseline under
    the frozen revised contract.
 6. Start a fresh non-improvement counter. Preserve prior scores, findings,
-   candidates and consumed limits as history. A pass under a revised
+   candidates and consumed limits as history, and append a new era to the score
+   ledger for the [score line graph](score-chart.md) with `comparable_to_prev: false`
+   whenever criteria or roster changed. A pass under a revised
    evaluation contract, whether criteria or roster, delivers normally, with the
    report and PR naming the original target, the revised one, the reason and
    the score history. It never claims the original target was met.

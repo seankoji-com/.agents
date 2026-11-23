@@ -151,7 +151,8 @@ Return a compact plain-text handoff containing:
 - Implemented scope, checks and evidence, findings and dispositions, remaining
   limitations and the next integration action.
 - Models/lineages, selection reasons, upgrade use, scores, stagnation counter,
-  explicit limits and exposed usage/cost.
+  score-ledger path (for main-thread chart rendering), explicit limits and
+  exposed usage/cost.
 - Code-author eligibility and scope for reuse, and any integration/base changes
   that would require affected behavior to be reviewed again.
 - Task/thread manifest including descendants, failures and cancellations; worker
