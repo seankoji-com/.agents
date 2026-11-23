@@ -128,7 +128,7 @@ stop. Do not invent options.
 | Incomplete (fewer than three valid ballots) | Return it as held; never claim 2/3. |
 | A majority rests on a not-blind or unverified seat | Keep that label in your report. |
 | A route needs a broader runtime mode than yours | The workflow skips it and reports why; the seat may go to the substitute. |
-| Explicit operator voter override | Not supported by the workflow; report and ask the operator. |
+| Request to swap a named voter | Retired by owner decision on 23 November 2026: the roster is fixed in the workflow. Say so; do not hand-dispatch a voter. |
 | A majority action is blocked | Report the blocker and stop; do not re-vote. |
 
 ## Output
