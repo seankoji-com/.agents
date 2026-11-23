@@ -887,8 +887,10 @@ class Workflows(unittest.TestCase):
         self.assertIn('exactly one T3.workflow', self.lint({'workflows/sample.ts': nested}))
         commented = self.GOOD.replace('version: 2, ', '/* version: 9 */ ')
         self.assertIn('exactly one T3.workflow', self.lint({'workflows/sample.ts': commented}))
-        self.assertIn('exactly one T3.workflow',
-                      self.lint({'workflows/sample.ts': self.GOOD.replace('version: 2,', 'version: 2.5,')}))
+        for version in ('version: 2.5,', 'version: 1 + 0.5,', 'version: two,'):
+            with self.subTest(version=version):
+                self.assertIn('exactly one T3.workflow',
+                              self.lint({'workflows/sample.ts': self.GOOD.replace('version: 2,', version)}))
         cases = {
             'version': self.GOOD.replace('version: 2, ', ''),
             'tested': self.GOOD.replace('// @tested-t3 0.1.12-nightly.20991231.1\n', ''),
@@ -912,6 +914,10 @@ class Workflows(unittest.TestCase):
                 forge = self.GOOD.replace('T3.webhook("start")', trigger)
                 self.assertIn('manual workflow declares an automated trigger',
                               self.lint({'workflows/sample.ts': forge}))
+        self.assertIn('computed or optional access',
+                      self.lint({'workflows/sample.ts': self.GOOD.replace('T3.webhook("start")', 'T3["daily"]("09:00")')}))
+        # A string that merely mentions a trigger is not a trigger.
+        self.assertEqual(self.lint({'workflows/sample.ts': self.GOOD + 'const note = "T3.daily runs elsewhere";\n'}), '')
         self.assertIn('automated workflow declares no automated trigger',
                       self.lint({'workflows/sample.ts': self.GOOD.replace('@start manual', '@start automated')}))
         self.assertEqual(self.lint({'workflows/sample.ts': automated.replace('@start manual', '@start automated')}), '')

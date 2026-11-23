@@ -51,7 +51,10 @@ WORKFLOW_FILE = re.compile(r'^[A-Za-z0-9_][\w.-]*\.(ts|mts|js|mjs)$')
 WORKFLOW_TESTED = re.compile(r'^// @tested-t3 (\d+\.\d+\.\d+[\w.+-]*)$', re.M)
 WORKFLOW_START = re.compile(r'^// @start (manual|automated)$', re.M)
 WORKFLOW_DEFINITION = re.compile(r'\bT3\s*\.\s*workflow\s*\(\s*(["\'])([A-Za-z0-9_.-]+)\1\s*,\s*\{')
-WORKFLOW_VERSION = re.compile(r'version\s*:\s*([1-9]\d*)(?![\w.])')
+# The version is a bare integer literal ending its property: `version: 3,` or `version: 3 }`.
+WORKFLOW_VERSION = re.compile(r'version\s*:\s*([1-9]\d*)\s*(?=[,}])')
+# Computed or optional access to T3 hides which API a file calls; the checks refuse it.
+OPAQUE_T3 = re.compile(r'\bT3\s*(?:\[|\?\.)')
 # Triggers that start runs without a person; only the designated trigger host installs them.
 # These run on code with comments removed, and allow spacing around each dot.
 AUTOMATED_TRIGGER = re.compile(r'\bT3\s*\.\s*(?:daily|every)\b|\bT3\s*\.\s*(?:issues|pullRequests)\s*\.\s*opened\b')
@@ -356,17 +359,21 @@ def site_contract(root):
     return errors
 
 
-def strip_js_comments(text):
-    """JavaScript with // and /* */ comments blanked, leaving string contents and offsets intact."""
+def strip_js_comments(text, strings=False):
+    """JavaScript with comments blanked, and string contents too when `strings`; offsets kept."""
     out, quote, i = list(text), None, 0
     while i < len(text):
         char = text[i]
         if quote:
             if char == '\\':
+                if strings:
+                    out[i:i + 2] = '  '[:len(text[i:i + 2])]
                 i += 2
                 continue
             if char == quote:
                 quote = None
+            elif strings and char != '\n':
+                out[i] = ' '
         elif char in '"\'`':
             quote = char
         elif text.startswith('//', i):
@@ -435,7 +442,10 @@ def workflow_errors(root, paths):
             errors.append(f'{relative}: needs exactly one T3.workflow("<name>", {{ version: <n>, ... }})')
         elif definitions[0].group(2) != path.name.rsplit('.', 1)[0]:
             errors.append(f'{relative}: workflow name must match the file name')
-        automated = bool(AUTOMATED_TRIGGER.search(code))
+        bare = strip_js_comments(text, strings=True)
+        if OPAQUE_T3.search(bare):
+            errors.append(f'{relative}: use plain T3.name access; computed or optional access cannot be checked')
+        automated = bool(AUTOMATED_TRIGGER.search(bare))
         if starts == ['manual'] and automated:
             errors.append(f'{relative}: manual workflow declares an automated trigger')
         if starts == ['automated'] and not automated:

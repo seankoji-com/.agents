@@ -23,7 +23,8 @@ Before anything else, confirm all three:
 - The host is T3 Code with Workflows turned on.
 - `~/.t3/workflows/vote.ts` exists.
 - `~/.config/t3-workflows/vote.curl` exists. The operator creates it once per
-  host; it holds the hook URL and token.
+  host; it holds the hook URL and token. The README's "Use vote on T3
+  Workflows" section has the setup steps.
 
 If any is missing, report `vote needs T3 Workflows: <what is missing>` and stop.
 Do not dispatch voters yourself, simulate a vote, read hook tokens or run the
@@ -62,6 +63,9 @@ stop. Do not invent options.
 3. **Write one packet** as a JSON file in a Git-ignored directory of your
    worktree:
    - `invokerThread`: your T3 thread ID, from `printenv T3CODE_THREAD_ID`.
+   - `project` and `maxRuntimeMode`: your thread's `projectId` and
+     `runtimeMode`, as `t3_thread_read` shows them for that thread. Voters
+     open in that project and never run in a broader mode.
    - `kind`: `closed` or `open`, and `question` in neutral wording.
    - `options`: verbatim, in order, closed votes only. Add none, including a
      status quo, unless the operator asks for one.
@@ -69,7 +73,8 @@ stop. Do not invent options.
    - `authorises`: what a 2/3 majority authorises.
    - Optional `deadlineMinutes` (at most 5) for the request's shorter limit.
    - `paidRoutes: true` only when the operator authorised the API-credit
-     aliases. An agent invocation leaves it out.
+     aliases: in this request for a user invocation, or already, before an
+     agent invocation. Otherwise leave it out.
    - `invokerSeat` from step 2: `seat`, `choice` (or `action` and `label`),
      `rationale`, `assumption` and `source` naming the message.
 
@@ -96,7 +101,8 @@ stop. Do not invent options.
 5. **Answer the receipt turn.**
    The workflow asks for host receipts before it tallies. For each listed
    thread, read it with `t3_thread_read` and report, from `recentRuns`, the
-   ballot turn's ID, `executedModel` and `completedAt`. For an invoker seat,
+   ballot turn's ID, `executedModel` and `completedAt`, and the thread's run
+   count as `turns`. For an invoker seat,
    report the `executedModel` of the turn that made the recommendation. Submit
    exactly what the host shows, with null where it shows nothing. Do nothing
    else in that turn; the vote is not decided yet.
@@ -121,6 +127,7 @@ stop. Do not invent options.
 | Packet rejected | Fix the packet; start again with a new idempotency key. |
 | Incomplete (fewer than three valid ballots) | Return it as held; never claim 2/3. |
 | A majority rests on a not-blind or unverified seat | Keep that label in your report. |
+| A route needs a broader runtime mode than yours | The workflow skips it and reports why; the seat may go to the substitute. |
 | Explicit operator voter override | Not supported by the workflow; report and ask the operator. |
 | A majority action is blocked | Report the blocker and stop; do not re-vote. |
 

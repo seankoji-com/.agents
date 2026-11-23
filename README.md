@@ -422,6 +422,32 @@ Hydrogen high.
 Owner host-delivery configuration is only for
 maintaining this repository, not for using skills from a clone.
 
+### Use vote on T3 Workflows
+
+`vote` runs through the `workflows/vote.ts` T3 workflow, so a fresh install
+needs three things on each host where you vote:
+
+1. Turn on Workflows in T3 Code.
+2. Put `workflows/vote.ts` in `~/.t3/workflows`. The owner's
+   [host delivery](#t3-workflow-delivery) does this; from a clone, copy the
+   file there yourself.
+3. Save the hook URL once, in your own terminal rather than an agent thread:
+
+   ```sh
+   t3 workflow hooks                       # the URL for "vote  ballot"
+   install -d -m 700 ~/.config/t3-workflows
+   read -rs 'URL?Hook URL: '               # zsh; in bash: read -rsp 'Hook URL: ' URL
+   tmp=$(mktemp ~/.config/t3-workflows/.hook.XXXXXX)
+   printf 'url = "http://127.0.0.1:3773%s"\n' "$URL" > "$tmp"; unset URL
+   mv -f "$tmp" ~/.config/t3-workflows/vote.curl
+   ```
+
+Voter threads open in the invoking thread's T3 project, and no voter runs in a
+broader runtime mode than the invoker's. Antigravity voters need
+`auto-accept-edits` to submit a ballot, so from a stricter invoker the Neon seat
+falls back to the DeepSeek substitute. Without any of these, `vote` reports what
+is missing and stops.
+
 Older releases through v0.13.2 contain archives from the previous package.
 Use the current `skills` tree for the library described here.
 
@@ -642,7 +668,7 @@ installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 4a4c26283ffdcfaf36c7eb24cdb389ff623e877bd31af6923afb52cd66c00b12 -->
+<!-- skills-review: 3918e898b68574b0ea9042310f968611aae12cc9131f59595d61456852aaca59 -->
 
 ### Owner maintenance
 
@@ -713,11 +739,15 @@ to every receiver. Workflows with automated triggers go only to the designated
 trigger host, so each event starts one run. Any write in that folder makes T3
 rebuild its workflow engine and interrupts every running workflow, so the
 installer refuses a change while any run is unfinished. T3 keeps serving the
-previous good revision when a new one fails to load or is held back, so the
-installer requires evidence after the copy: no load error for an installed file
-in T3's server trace, and T3's log of the registered workflows listing each
-installed name and version. Without that evidence the receiver's delivery fails
-and the next sync retries it. Dotfiles documents the installer and the one-time hook
+previous good revision when a new one fails to load or is held back, and its
+log of registered workflows names only `name@version`. So a changed workflow
+body must raise its `version`, and the installer refuses one that does not.
+After the copy it requires no load error for an installed file in T3's server
+trace, and a registration entry that lists each installed `name@version` and no
+removed name. Without that evidence the receiver's delivery fails and the next
+sync retries it. A host without T3's boot-service log reports delivery as
+unverified, because the trace alone does not name the definitions that took
+effect. Dotfiles documents the installer and the one-time hook
 provisioning step in `docs/t3-workflow-delivery.md`.
 
 A skill that starts a workflow posts to the workflow's webhook with

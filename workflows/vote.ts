@@ -73,11 +73,19 @@ const EXACT_CLAIM = {
 };
 const MODEL_WORDS = /\b(claude|opus|sonnet|haiku|fable|anthropic|gpt|chatgpt|sol|luna|astra|terra|codex|openai|gemini|neon|argon|hydrogen|carbon|google|deepseek|grok|qwen|glm|llama|mistral)\b/gi;
 
-const GROUPER = { instanceId: "claudeAgent", model: "claude-opus-5-5", effort: { id: "effort", value: "high" } };
+// The open-vote grouping step tries these in order.
+const GROUPERS = [
+  { instanceId: "claudeAgent", model: "claude-opus-5-5", effort: { id: "effort", value: "high" } },
+  { instanceId: "codex", model: "gpt-6.2-sol", effort: { id: "reasoningEffort", value: "high" } },
+  { instanceId: "antigravity", model: "claude-opus-5-5", effort: { id: "thought_level", value: "high" }, mode: ANTIGRAVITY_MODE },
+];
+// A voter never runs in a broader mode than its invoker allowed.
+const MODE_RANK = { "approval-required": 0, "auto-accept-edits": 1, auto: 2, "full-access": 3 };
 
 const HEDGE = /\b(abstain|abstaining|no preference|need(?:s)? more (?:info|information|context)|insufficient (?:info|information)|cannot (?:decide|choose|determine)|can't (?:decide|choose)|either (?:option|one) (?:is|would be) fine)\b/i;
 // An imperative starts with a bare verb: not a pronoun, an article or a gerund.
-const NOT_IMPERATIVE = /^(?:i|we|you|it|this|that|these|those|the|a|an|my|our|there|[a-z]+ing)\b/i;
+// Code rejects only the clear cases; the grouping step judges the rest.
+const NOT_IMPERATIVE = /^(?:i|we|you|it|this|that|these|those|the|a|an|my|our|there)\b/i;
 const SEAT_NAMES = ["opus", "sol", "neon", "deepseek"];
 
 const InvokerSeat = Schema.Struct({
@@ -117,7 +125,10 @@ const Packet = Schema.Struct({
   authorises: Schema.String,
   deadlineMinutes: Schema.optional(Schema.Number),
   paidRoutes: Schema.optional(Schema.Boolean),
-  project: Schema.optional(Schema.String),
+  // The invoker's T3 project ID or registered path; voter threads open there.
+  project: Schema.String,
+  // The invoker's own runtime mode: no voter runs in a broader one.
+  maxRuntimeMode: Schema.Literals(["approval-required", "auto-accept-edits", "auto", "full-access"]),
   invokerSeat: Schema.optional(InvokerSeat),
   test: Schema.optional(Test),
 });
@@ -166,10 +177,14 @@ function oneLine(text) {
 function modelConflict(seat, claim) {
   const text = (claim ?? "").trim();
   if (!text || !SEAT_NAMES.includes(seat)) return false;
-  if (EXACT_CLAIM[seat].test(text)) return false;
-  const named = (text.match(MODEL_WORDS) ?? []).map((w) => w.toLowerCase());
-  if (named.length === 0) return false; // Not a model claim at all.
-  return named.some((w) => !FAMILY_WORDS[seat].includes(w)) || /\d/.test(text);
+  const exact = text.match(EXACT_CLAIM[seat]);
+  // A suffix glued to the exact name, such as "-preview", names a different model.
+  if (exact && /^[\w-]/.test(text.slice(exact.index + exact[0].length))) return true;
+  const rest = exact ? text.slice(0, exact.index) + " " + text.slice(exact.index + exact[0].length) : text;
+  const named = (rest.match(MODEL_WORDS) ?? []).map((w) => w.toLowerCase());
+  if (named.some((w) => !FAMILY_WORDS[seat].includes(w))) return true;
+  // Family words alone are unverified, not a conflict; a family word with another version conflicts.
+  return !exact && named.length > 0 && /\d/.test(rest);
 }
 
 function executedMatches(seat, model) {
@@ -245,6 +260,9 @@ function tally(p, seats, groups) {
 // for the invoker's own recommendation turn. A recorded model other than the
 // seat's, or a recorded completion after the seat deadline, invalidates the
 // seat. A missing receipt leaves the seat counted but execution-unverified.
+// T3 gives workflow code no turn IDs, so which turn a receipt describes rests
+// on the invoker's report; the result says so. The thread's run count, less the
+// first turn and the workflow's re-ask, is T3's automatic format corrections.
 function applyReceipts(seats, receipts, invokerModel) {
   return seats.map((s) => {
     if (s.status === "invoker-existing") {
@@ -257,7 +275,16 @@ function applyReceipts(seats, receipts, invokerModel) {
     if (s.thread === null || s.requested === null) return s;
     const r = receipts.find((x) => x.thread === s.thread);
     if (r === undefined) return { ...s, executed: { model: null, turn: null, completedAt: null, verified: false } };
-    const executed = { model: r.executedModel, turn: r.turnId, completedAt: r.completedAt, verified: Boolean(r.executedModel) };
+    const corrections = typeof r.turns === "number" ? Math.max(0, r.turns - 1 - (s.reasked ? 1 : 0)) : null;
+    const executed = {
+      model: r.executedModel,
+      turn: r.turnId,
+      completedAt: r.completedAt,
+      verified: Boolean(r.executedModel),
+      turnBinding: "reported by the invoker",
+      timing: r.completedAt ? "host" : "workflow clock only",
+      corrections,
+    };
     const finished = Date.parse(r.completedAt ?? "");
     const wrongModel = Boolean(r.executedModel) && !executedMatches(s.routeSeat, r.executedModel);
     const late = Number.isFinite(finished) && s.deadline !== undefined && finished > s.deadline;
@@ -327,6 +354,14 @@ function modelSelection(route) {
   return { instanceId: route.instanceId, model: route.model, ...(route.effort === null ? {} : { options: [route.effort] }) };
 }
 
+function modeOf(route) {
+  return route.mode ?? RUNTIME_MODE;
+}
+
+function allowed(route, ceiling) {
+  return MODE_RANK[modeOf(route)] <= MODE_RANK[ceiling];
+}
+
 function requested(route) {
   return {
     provider: route.instanceId,
@@ -349,18 +384,23 @@ function resultText(p, r) {
     ? `${t.choice} — 2/3 majority${t.dependsOn.length ? ` (rests on ${t.dependsOn.join(", ")}: not blind or execution-unverified)` : ""}`
     : t.outcome === "split" ? "No majority (complete split)" : `No majority (incomplete: ${t.reason})`;
   const seatLines = r.seats.map((s) => {
-    const req = s.requested ? `${s.requested.provider}/${s.requested.model}, ${s.requested.effort}, ${s.requested.billing}` : "no route";
+    const req = s.requested
+      ? `${s.requested.provider}/${s.requested.model}, ${s.requested.effort}, ${s.requested.billing}, ${s.requested.runtimeMode}`
+      : s.status === "invoker-existing" ? `invoker's own thread; source: ${s.source}`
+      : s.synthetic ? "synthetic" : "no route";
     const what = s.ballot ? choiceOf(p, s.ballot) : "-";
     const why = s.ballot?.rationale ?? s.problems.join("; ");
-    const exec = s.executed
-      ? `executedModel ${s.executed.model ?? "null"} ${s.executed.verified ? "verified" : "unverified"}`
-        + (s.executed.turn ? ` (turn ${s.executed.turn}, completed ${s.executed.completedAt ?? "unknown"})` : "")
+    const e = s.executed;
+    const exec = e
+      ? `executedModel ${e.model ?? "null"} ${e.verified ? "verified" : "unverified"}`
+        + (e.turn ? ` (turn ${e.turn}, ${e.turnBinding}; completed ${e.completedAt ?? "unknown"}, timing from ${e.timing})` : "")
       : s.receiptProblem ? `no host receipt: ${s.receiptProblem}` : null;
     const marks = [
       s.status,
       s.blind === false ? "not blind" : null,
       s.substitutes ? `substitute for ${s.substitutes}` : null,
       s.reasked ? "re-asked once" : null,
+      e && e.corrections !== null && e.corrections !== undefined ? `T3 format corrections: ${e.corrections}` : null,
       exec,
       s.thread ? `thread ${s.thread}` : null,
     ].filter(Boolean).join(", ");
@@ -380,7 +420,7 @@ function resultText(p, r) {
 
 export default T3.workflow(
   "vote",
-  { version: 1, payload: T3.WebhookRequest, triggers: [T3.webhook("ballot")] },
+  { version: 2, payload: T3.WebhookRequest, triggers: [T3.webhook("ballot")] },
   (input, { id }) =>
     Effect.gen(function* () {
       const parsed = yield* T3.step.try("packet", { returns: Packet }, Effect.try(() => decodePacket(JSON.parse(input.body))));
@@ -426,7 +466,7 @@ export default T3.workflow(
       const limitMs = Math.round(minutes * 60000);
       const brief = voterBrief(p, minutes);
       const returns = ballotSchema(p);
-      const project = p.project ?? `${process.env.HOME}/.agents`;
+      const project = p.project;
       const now = (name) => T3.step(name, { returns: Schema.Number }, Effect.sync(() => Date.now()));
       const budget = (name, deadline) => T3.step(name, { returns: Schema.Number }, Effect.sync(() => deadline - Date.now()));
 
@@ -435,7 +475,13 @@ export default T3.workflow(
         Effect.gen(function* () {
           const attempts = [];
           const routes = ROUTES[routeSeat].filter((r) => !r.paid || p.paidRoutes === true);
+          for (const route of ROUTES[routeSeat].filter((r) => !routes.includes(r) || !allowed(r, p.maxRuntimeMode))) {
+            attempts.push({ route: requested(route), outcome: "skipped",
+              reason: routes.includes(route) ? `needs ${modeOf(route)}, above the invoker's ${p.maxRuntimeMode}`
+                : "paid route without operator authorisation" });
+          }
           for (const [index, route] of routes.entries()) {
+            if (!allowed(route, p.maxRuntimeMode)) continue;
             const key = `seat/${tag}/${index}`;
             const left = yield* budget(`${key}/budget`, deadline);
             if (left <= 0) {
@@ -449,7 +495,7 @@ export default T3.workflow(
               brief,
               returns,
               timeout: `${left} millis`,
-              runtimeMode: route.mode ?? RUNTIME_MODE,
+              runtimeMode: modeOf(route),
               interactionMode: INTERACTION_MODE,
             });
             const thread = first.thread?.threadId ?? null;
@@ -501,6 +547,7 @@ export default T3.workflow(
           turnId: Schema.NullOr(Schema.String),
           executedModel: Schema.NullOr(Schema.String),
           completedAt: Schema.NullOr(Schema.String),
+          turns: Schema.NullOr(Schema.Number),
         })),
         invokerModel: Schema.NullOr(Schema.String),
       });
@@ -515,7 +562,8 @@ export default T3.workflow(
               `[T3 workflow vote, run ${id}] Host receipts before the tally. Do not act on the vote; do nothing else.`,
               "For each thread below, read its activity with t3_thread_read and find the turn that submitted the",
               "ballot with t3_submit_output (the last such turn). Report that turn's ID, the executedModel the host",
-              "recorded for it, and when it completed as an ISO 8601 time. Use null for anything the host does not show.",
+              "recorded for it, when it completed as an ISO 8601 time, and as turns the number of runs the thread has.",
+              "Use null for anything the host does not show.",
               ...listed.map((s) => `- ${s.thread} (seat ${s.seat}, requested ${s.requested?.model ?? "?"})`),
               askInvoker
                 ? `Also report as invokerModel the executedModel of your own turn that made the recommendation cited as: ${p.invokerSeat.source}`
@@ -589,60 +637,105 @@ export default T3.workflow(
         }));
       }
 
-      // Open votes: one judgment step groups equivalent ballots; code counts the groups.
+      // Open votes: a judgment step groups equivalent ballots; code counts the groups.
+      const Grouped = Schema.Struct({
+        groups: Schema.Array(Schema.Array(Schema.String)),
+        notActions: Schema.Array(Schema.String),
+        reasoning: Schema.String,
+      });
+      const groupOnce = (tag, ballots) =>
+        Effect.gen(function* () {
+          const listed = ballots.map((s, i) => `${LETTERS[i]}. ${s.ballot.action.trim()}`).join("\n");
+          const failures = [];
+          for (const [index, g] of GROUPERS.entries()) {
+            if (!allowed(g, p.maxRuntimeMode)) {
+              failures.push(`${g.instanceId}/${g.model}: needs ${modeOf(g)}`);
+              continue;
+            }
+            const r = yield* T3.agent.try(`${tag}/${index}`, {
+              project,
+              model: modelSelection(g),
+              title: `vote grouping: ${p.question.slice(0, 60)}`,
+              runtimeMode: modeOf(g),
+              interactionMode: INTERACTION_MODE,
+              timeout: "5 minutes",
+              returns: Grouped,
+              brief: [
+                "Group these proposed actions. Use no tool except `t3_submit_output`.",
+                "First list in `notActions` every letter that is not one concrete imperative action, such as a",
+                "judgment, a description or a statement of what is safe. Group every letter, including those.",
+                "Two actions match only when the verb, the object and every material parameter agree,",
+                "and neither omits or rules out a step the other has. A material parameter is any",
+                "parameter either sentence states. Wording does not matter. If matching needs argument,",
+                "or one action is a superset of another, they do not match.",
+                "",
+                `Question: ${p.question}`,
+                "",
+                listed,
+                "",
+                "Submit `groups`: every letter exactly once, matching letters together, for example [[\"A\",\"C\"],[\"B\"]].",
+                "Submit `reasoning`: one line per group.",
+              ].join("\n"),
+            });
+            if (r.outcome !== "done") {
+              failures.push(`${g.instanceId}/${g.model}: ${r.reason}`);
+              continue;
+            }
+            const shape = [...groupProblems(r.value.groups, LETTERS),
+              ...(r.value.notActions.every((l) => LETTERS.includes(l)) ? [] : ["notActions names an unknown ballot"])];
+            if (shape.length === 0) {
+              return { ok: true, value: r.value, by: `${g.instanceId}/${g.model}`, thread: r.thread?.threadId ?? null };
+            }
+            failures.push(`${g.instanceId}/${g.model}: ${shape.join("; ")}`);
+          }
+          return { ok: false, failures };
+        });
+
       let groups = [];
       let grouping = null;
       let verdict = null;
-      const counted = seats.filter(counts);
-      if (p.kind === "open" && counted.length === 3) {
-        const listed = counted.map((s, i) => `${LETTERS[i]}. ${s.ballot.action.trim()}`).join("\n");
-        const grouped = yield* T3.agent.try("group", {
-          project,
-          model: modelSelection(GROUPER),
-          title: `vote grouping: ${p.question.slice(0, 60)}`,
-          runtimeMode: RUNTIME_MODE,
-          interactionMode: INTERACTION_MODE,
-          timeout: "5 minutes",
-          returns: Schema.Struct({
-            groups: Schema.Array(Schema.Array(Schema.String)),
-            notActions: Schema.Array(Schema.String),
-            reasoning: Schema.String,
-          }),
-          brief: [
-            "Group these proposed actions. Use no tool except `t3_submit_output`.",
-            "First list in `notActions` every letter that is not one concrete imperative action, such as a judgment,",
-            "a description or a statement of what is safe. Group every letter, including those.",
-            "Two actions match only when the verb, the object and every material parameter agree,",
-            "and neither omits or rules out a step the other has. A material parameter is any",
-            "parameter either sentence states. Wording does not matter. If matching needs argument,",
-            "or one action is a superset of another, they do not match.",
-            "",
-            `Question: ${p.question}`,
-            "",
-            listed,
-            "",
-            "Submit `groups`: every letter exactly once, matching letters together, for example [[\"A\",\"C\"],[\"B\"]].",
-            "Submit `reasoning`: one line per group.",
-          ].join("\n"),
-        });
-        const shape = grouped.outcome === "done"
-          ? [...groupProblems(grouped.value.groups, LETTERS),
-            ...(grouped.value.notActions.every((l) => LETTERS.includes(l)) ? [] : ["notActions names an unknown ballot"])]
-          : [grouped.reason];
-        if (shape.length === 0) {
-          groups = grouped.value.groups;
-          grouping = `${JSON.stringify(groups)} — ${grouped.value.reasoning}${grouped.thread ? ` (thread ${grouped.thread.threadId})` : ""}`;
-          // A ballot judged not to be an action is invalid; the vote is then incomplete.
-          const rejected = new Set(grouped.value.notActions.map((l) => counted[LETTERS.indexOf(l)]));
-          if (rejected.size > 0) {
-            seats = seats.map((s) => (rejected.has(s)
-              ? { ...s, status: "invalid", ballot: null, problems: [...s.problems, "the grouping step found no concrete imperative action"] }
-              : s));
-            grouping += ` — not actions: ${grouped.value.notActions.join(", ")}`;
+      if (p.kind === "open" && seats.filter(counts).length === 3) {
+        let pass = yield* groupOnce("group", seats.filter(counts));
+        const flagged = pass.ok ? pass.value.notActions.map((l) => seats.filter(counts)[LETTERS.indexOf(l)]) : [];
+        if (flagged.length > 0) {
+          // A ballot judged not to be an action gets the seat's one re-ask, inside its deadline.
+          for (const s of flagged) {
+            const left = s.reasked || s.thread === null || s.status !== "valid" ? 0
+              : yield* budget(`seat/${s.seat}/action-reask/budget`, s.deadline);
+            let fixed = null;
+            if (left > 0) {
+              const again = yield* T3.agent.try(`seat/${s.seat}/action-reask`, {
+                thread: { threadId: s.thread },
+                brief: ["Your action was judged not to be one concrete imperative action. This is your one re-ask.",
+                  "Use the same packet and submit exactly one ballot with `t3_submit_output`.", "", brief].join("\n"),
+                returns,
+                timeout: `${left} millis`,
+              });
+              const ended = yield* now(`seat/${s.seat}/action-reask/ended`);
+              if (again.outcome === "done" && ballotProblems(p, s.routeSeat, again.value).length === 0 && ended <= s.deadline + GRACE_MS) {
+                fixed = again.value;
+              }
+            }
+            seats = seats.map((x) => (x !== s ? x : fixed
+              ? { ...x, ballot: fixed, reasked: true }
+              : { ...x, status: "invalid", ballot: null, reasked: x.reasked || left > 0,
+                problems: [...x.problems, "the grouping step found no concrete imperative action"] }));
           }
-        } else {
-          grouping = `failed: ${shape.join("; ")}`;
-          verdict = { outcome: "incomplete", choice: null, reason: `open-vote grouping failed: ${shape.join("; ")}`, dependsOn: [] };
+          if (seats.filter(counts).length === 3) {
+            pass = yield* groupOnce("group/again", seats.filter(counts));
+            const still = pass.ok ? new Set(pass.value.notActions.map((l) => seats.filter(counts)[LETTERS.indexOf(l)])) : new Set();
+            seats = seats.map((x) => (still.has(x)
+              ? { ...x, status: "invalid", ballot: null, problems: [...x.problems, "the grouping step found no concrete imperative action"] }
+              : x));
+          }
+        }
+        if (pass.ok) {
+          groups = pass.value.groups;
+          grouping = `${JSON.stringify(groups)} — ${pass.value.reasoning} (by ${pass.by}${pass.thread ? `, thread ${pass.thread}` : ""})`
+            + (pass.value.notActions.length ? ` — not actions: ${pass.value.notActions.join(", ")}` : "");
+        } else if (seats.filter(counts).length === 3) {
+          grouping = `failed: ${pass.failures.join("; ")}`;
+          verdict = { outcome: "incomplete", choice: null, reason: `open-vote grouping failed: ${pass.failures.join("; ")}`, dependsOn: [] };
         }
       }
       verdict = verdict ?? tally(p, seats, groups);
