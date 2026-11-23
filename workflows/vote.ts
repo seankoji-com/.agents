@@ -20,8 +20,6 @@
 const SEATS = ["opus", "sol", "neon"];
 const LETTERS = ["A", "B", "C"];
 const DEADLINE_MS = 5 * 60 * 1000;
-// Covers stopping a turn and recording its result; not extra voting time.
-const GRACE_MS = 5 * 1000;
 // Voters run in the narrowest mode in which their provider can submit a ballot
 // without a person approving it. Claude, Codex and OpenCode submit under
 // approval-required. Antigravity asks for approval before t3_submit_output
@@ -85,7 +83,7 @@ const MODE_RANK = { "approval-required": 0, "auto-accept-edits": 1, auto: 2, "fu
 // The action and label must not hedge at all. A rationale may discuss what an option
 // lacks, so only the voter abstaining or declining to choose counts there.
 const HEDGE = /\b(abstain|abstaining|no preference|need(?:s)? more (?:info|information|context)|insufficient (?:info|information)|cannot (?:decide|choose|determine)|can't (?:decide|choose)|either (?:option|one) (?:is|would be) fine)\b/i;
-const SELF_HEDGE = /\b(?:i|we) (?:abstain|cannot (?:decide|choose)|can't (?:decide|choose)|have no preference|need more (?:info|information|context) (?:to|before))\b|\bno preference\b|\beither (?:option|one) (?:is|would be) fine\b/i;
+const SELF_HEDGE = /\b(?:i|we) (?:abstain|cannot (?:decide|choose)|can't (?:decide|choose)|have no preference)\b|\bneed more (?:info|information|context) before (?:deciding|choosing|voting)\b|\bno preference\b|\beither (?:option|one) (?:is|would be) fine\b/i;
 // An imperative starts with a bare verb: not a pronoun, an article or a gerund.
 // Code rejects only the clear cases; the grouping step judges the rest.
 const NOT_IMPERATIVE = /^(?:i|we|you|it|this|that|these|those|the|a|an|my|our|there)\b/i;
@@ -296,21 +294,23 @@ function applyReceipts(seats, receipts, invokerModel) {
         : { ...s, executed, status: "invalid", problems: [`the recommendation turn ran ${invokerModel}, not the ${s.seat} seat's model`] };
     }
     if (s.thread === null || s.requested === null) return s;
-    const r = receipts.find((x) => x.thread === s.thread);
-    if (r === undefined) return { ...s, executed: { model: null, turn: null, completedAt: null, verified: false } };
+    const r = receipts.find((x) => x.thread === s.thread) ?? {};
     const corrections = typeof r.turns === "number" ? Math.max(0, r.turns - 1 - (s.reasked ? 1 : 0)) : null;
+    const finished = Date.parse(r.completedAt ?? "");
+    const hostTime = Number.isFinite(finished);
     const executed = {
-      model: r.executedModel,
-      turn: r.turnId,
-      completedAt: r.completedAt,
+      model: r.executedModel ?? null,
+      turn: r.turnId ?? null,
+      completedAt: r.completedAt ?? null,
       verified: Boolean(r.executedModel),
-      turnBinding: "reported by the invoker",
-      timing: r.completedAt ? "host" : "workflow clock only",
+      turnBinding: r.turnId ? "reported by the invoker" : "no receipt",
+      timing: hostTime ? "host" : "workflow observation",
       corrections,
     };
-    const finished = Date.parse(r.completedAt ?? "");
     const wrongModel = Boolean(r.executedModel) && !executedMatches(s.routeSeat, r.executedModel);
-    const late = Number.isFinite(finished) && s.deadline !== undefined && finished > s.deadline;
+    // Timing: the host's completion time when it has one; otherwise the ballot must have been
+    // seen by the deadline. No grace either way.
+    const late = s.deadline !== undefined && (hostTime ? finished > s.deadline : (s.observedAt ?? 0) > s.deadline);
     if (!counts(s) || (!wrongModel && !late)) return { ...s, executed };
     return {
       ...s,
@@ -320,7 +320,8 @@ function applyReceipts(seats, receipts, invokerModel) {
       problems: [
         ...s.problems,
         ...(wrongModel ? [`host executedModel ${r.executedModel} is not the seat's model`] : []),
-        ...(late ? ["the host records the ballot turn finishing after the seat deadline"] : []),
+        ...(late ? [hostTime ? "the host records the ballot turn finishing after the seat deadline"
+          : "the ballot was first seen after the seat deadline and the host shows no completion time"] : []),
       ],
     };
   });
@@ -443,7 +444,7 @@ function resultText(p, r) {
 
 export default T3.workflow(
   "vote",
-  { version: 7, payload: T3.WebhookRequest, triggers: [T3.webhook("ballot")] },
+  { version: 8, payload: T3.WebhookRequest, triggers: [T3.webhook("ballot")] },
   (input, { id }) =>
     Effect.gen(function* () {
       const parsed = yield* T3.step.try("packet", { returns: Packet }, Effect.try(() => decodePacket(JSON.parse(input.body))));
@@ -542,15 +543,15 @@ export default T3.workflow(
                 problems = answer.outcome === "done" ? ballotProblems(p, routeSeat, answer.value) : [];
               }
             }
-            // A first check on the workflow's clock; the host's turn completion time decides later.
-            const ended = yield* now(`${key}/ended`);
-            const late = ended > deadline + GRACE_MS;
-            const base = { seat, routeSeat, requested: requested(route), reasked, thread, blind: true, deadline };
+            // When the workflow saw the answer. Timing is settled later from the host receipt
+            // (see applyReceipts), so a ballot is kept here even when this time is past the deadline.
+            const observedAt = yield* now(`${key}/ended`);
+            const late = observedAt > deadline;
+            const base = { seat, routeSeat, requested: requested(route), reasked, thread, blind: true, deadline, observedAt };
             if (answer.outcome === "done") {
-              const status = late ? "late" : problems.length > 0 ? "invalid" : "valid";
+              const status = problems.length > 0 ? "invalid" : "valid";
               attempts.push({ route: requested(route), outcome: status, thread });
-              return { ...base, status, ballot: status === "valid" ? answer.value : null,
-                problems: late ? ["the ballot came after the seat deadline"] : problems, attempts };
+              return { ...base, status, ballot: status === "valid" ? answer.value : null, problems, attempts };
             }
             attempts.push({ route: requested(route), outcome: "failed", reason: answer.reason, thread });
             if (reaskable || late) {
@@ -732,6 +733,7 @@ export default T3.workflow(
             const left = s.reasked || s.thread === null || s.status !== "valid" ? 0
               : yield* budget(`seat/${s.seat}/action-reask/budget`, s.deadline);
             let fixed = null;
+            let observed = null;
             if (left > 0) {
               const again = yield* T3.agent.try(`seat/${s.seat}/action-reask`, {
                 thread: { threadId: s.thread },
@@ -740,13 +742,14 @@ export default T3.workflow(
                 returns,
                 timeout: `${left} millis`,
               });
-              const ended = yield* now(`seat/${s.seat}/action-reask/ended`);
-              if (again.outcome === "done" && ballotProblems(p, s.routeSeat, again.value).length === 0 && ended <= s.deadline + GRACE_MS) {
+              observed = yield* now(`seat/${s.seat}/action-reask/ended`);
+              // Timing is settled by the fresh receipt below, as for a first ballot.
+              if (again.outcome === "done" && ballotProblems(p, s.routeSeat, again.value).length === 0) {
                 fixed = again.value;
               }
             }
             seats = seats.map((x) => (x !== s ? x : fixed
-              ? { ...x, ballot: fixed, reasked: true, actionReasked: true }
+              ? { ...x, ballot: fixed, reasked: true, actionReasked: true, observedAt: observed }
               : { ...x, status: "invalid", ballot: null, reasked: x.reasked || left > 0,
                 problems: [...x.problems, "the grouping step found no concrete imperative action"] }));
           }

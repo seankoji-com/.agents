@@ -749,10 +749,12 @@ A workflow that leaves the source, or should stop on a host, is retired by a
 trigger-free stub at the next version rather than deleted, so T3 can register
 the retirement. After each write the installer requires no load error for a
 written file in T3's server trace, and a registration entry that lists each
-written `name@version`. Without that evidence the receiver's delivery fails and
-the next sync retries it. A host without T3's boot-service log reports delivery
-as unverified, because the trace alone does not name the definitions that took
-effect. Moving the trigger host takes two syncs: first with no trigger host,
+written `name@version`. A sync with nothing to write still checks that T3 runs
+every expected `name@version` now, so turning Workflows off fails the next sync.
+Without that evidence the receiver's delivery fails and the next sync retries
+it. A host without T3's boot-service log fails delivery unless its installer
+runs with `--allow-unverified`, because the trace alone does not name the
+definitions that took effect. Moving the trigger host takes two syncs: first with no trigger host,
 then with the new one. Dotfiles documents the installer, the trigger-host move
 and the one-time hook provisioning step in `docs/t3-workflow-delivery.md`.
 
