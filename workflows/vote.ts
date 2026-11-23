@@ -444,7 +444,7 @@ function resultText(p, r) {
 
 export default T3.workflow(
   "vote",
-  { version: 8, payload: T3.WebhookRequest, triggers: [T3.webhook("ballot")] },
+  { version: 9, payload: T3.WebhookRequest, triggers: [T3.webhook("ballot")] },
   (input, { id }) =>
     Effect.gen(function* () {
       const parsed = yield* T3.step.try("packet", { returns: Packet }, Effect.try(() => decodePacket(JSON.parse(input.body))));
@@ -546,7 +546,6 @@ export default T3.workflow(
             // When the workflow saw the answer. Timing is settled later from the host receipt
             // (see applyReceipts), so a ballot is kept here even when this time is past the deadline.
             const observedAt = yield* now(`${key}/ended`);
-            const late = observedAt > deadline;
             const base = { seat, routeSeat, requested: requested(route), reasked, thread, blind: true, deadline, observedAt };
             if (answer.outcome === "done") {
               const status = problems.length > 0 ? "invalid" : "valid";
@@ -554,11 +553,13 @@ export default T3.workflow(
               return { ...base, status, ballot: status === "valid" ? answer.value : null, problems, attempts };
             }
             attempts.push({ route: requested(route), outcome: "failed", reason: answer.reason, thread });
-            if (reaskable || late) {
-              // The voter answered without a ballot, or time ran out: the seat failed.
-              return { ...base, status: late ? "late" : "invalid", ballot: null, problems: [answer.reason], attempts };
+            if (reaskable) {
+              // The voter answered without a ballot even after the re-ask: the seat failed.
+              return { ...base, status: "invalid", ballot: null, problems: [answer.reason], attempts };
             }
-            // Could not start, died or timed out before answering: try the next eligible route.
+            // Could not start, died or timed out without a ballot: try the next eligible route. When the
+            // deadline has passed, the next route is skipped and the seat is unavailable, so the one
+            // DeepSeek substitute can still take it. The strict cutoff applies only to returned ballots.
           }
           return { seat, routeSeat, status: "unavailable", ballot: null, problems: attempts.map((a) => a.reason ?? a.outcome),
             requested: null, reasked: false, thread: null, blind: true, deadline, attempts };
