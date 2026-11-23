@@ -233,8 +233,11 @@ function tally(p, seats, groups) {
     choice: choiceOf(p, winner[0].ballot),
     matched: winner.map((s) => ({ seat: s.seat, choice: choiceOf(p, s.ballot) })),
     reason: `${winner.length} of 3 valid ballots match`,
-    // Seats the majority rests on that are not blind or not execution-verified.
-    dependsOn: winner.map((s) => s.seat).filter((seat) => unverified.includes(seat)),
+    // Seats that are not blind or not execution-verified, named only when fewer than two
+    // blind, verified seats back the winning choice on their own.
+    dependsOn: winner.filter((s) => !unverified.includes(s.seat)).length >= 2
+      ? []
+      : winner.map((s) => s.seat).filter((seat) => unverified.includes(seat)),
   };
 }
 
