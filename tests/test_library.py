@@ -914,8 +914,11 @@ class Workflows(unittest.TestCase):
                 forge = self.GOOD.replace('T3.webhook("start")', trigger)
                 self.assertIn('manual workflow declares an automated trigger',
                               self.lint({'workflows/sample.ts': forge}))
-        self.assertIn('computed or optional access',
-                      self.lint({'workflows/sample.ts': self.GOOD.replace('T3.webhook("start")', 'T3["daily"]("09:00")')}))
+        for opaque in ('T3["daily"]("09:00")', 'T3.issues?.opened({ project: "p" })',
+                       'T3.pullRequests["opened"]({ project: "p" })'):
+            with self.subTest(opaque=opaque):
+                self.assertIn('computed or optional access',
+                              self.lint({'workflows/sample.ts': self.GOOD.replace('T3.webhook("start")', opaque)}))
         # A string that merely mentions a trigger is not a trigger.
         self.assertEqual(self.lint({'workflows/sample.ts': self.GOOD + 'const note = "T3.daily runs elsewhere";\n'}), '')
         self.assertIn('automated workflow declares no automated trigger',

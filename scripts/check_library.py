@@ -54,7 +54,7 @@ WORKFLOW_DEFINITION = re.compile(r'\bT3\s*\.\s*workflow\s*\(\s*(["\'])([A-Za-z0-
 # The version is a bare integer literal ending its property: `version: 3,` or `version: 3 }`.
 WORKFLOW_VERSION = re.compile(r'version\s*:\s*([1-9]\d*)\s*(?=[,}])')
 # Computed or optional access to T3 hides which API a file calls; the checks refuse it.
-OPAQUE_T3 = re.compile(r'\bT3\s*(?:\[|\?\.)')
+OPAQUE_T3 = re.compile(r'\bT3(?:\s*\.\s*[A-Za-z_$][\w$]*)*\s*(?:\[|\?\.)')
 # Triggers that start runs without a person; only the designated trigger host installs them.
 # These run on code with comments removed, and allow spacing around each dot.
 AUTOMATED_TRIGGER = re.compile(r'\bT3\s*\.\s*(?:daily|every)\b|\bT3\s*\.\s*(?:issues|pullRequests)\s*\.\s*opened\b')

@@ -183,6 +183,8 @@ function modelConflict(seat, claim) {
   const rest = exact ? text.slice(0, exact.index) + " " + text.slice(exact.index + exact[0].length) : text;
   const named = (rest.match(MODEL_WORDS) ?? []).map((w) => w.toLowerCase());
   if (named.some((w) => !FAMILY_WORDS[seat].includes(w))) return true;
+  // Another versioned name beside the exact one, as in "Opus 5.5 or Opus 4.6", conflicts.
+  if (exact && new RegExp(`${MODEL_WORDS.source}[\\s-]*v?\\d`, "i").test(rest)) return true;
   // Family words alone are unverified, not a conflict; a family word with another version conflicts.
   return !exact && named.length > 0 && /\d/.test(rest);
 }
@@ -420,7 +422,7 @@ function resultText(p, r) {
 
 export default T3.workflow(
   "vote",
-  { version: 2, payload: T3.WebhookRequest, triggers: [T3.webhook("ballot")] },
+  { version: 3, payload: T3.WebhookRequest, triggers: [T3.webhook("ballot")] },
   (input, { id }) =>
     Effect.gen(function* () {
       const parsed = yield* T3.step.try("packet", { returns: Packet }, Effect.try(() => decodePacket(JSON.parse(input.body))));
@@ -717,9 +719,16 @@ export default T3.workflow(
               }
             }
             seats = seats.map((x) => (x !== s ? x : fixed
-              ? { ...x, ballot: fixed, reasked: true }
+              ? { ...x, ballot: fixed, reasked: true, actionReasked: true }
               : { ...x, status: "invalid", ballot: null, reasked: x.reasked || left > 0,
                 problems: [...x.problems, "the grouping step found no concrete imperative action"] }));
+          }
+          // A replacement ballot needs its own host receipt: the earlier one described the first turn.
+          const replaced = seats.filter((x) => x.actionReasked && counts(x));
+          if (replaced.length > 0) {
+            const again = yield* verify("receipts/action-reask", replaced, false);
+            const checked = applyReceipts(replaced.map((x) => ({ ...x, executed: undefined })), again.seats, null);
+            seats = seats.map((x) => checked.find((c) => c.seat === x.seat && c.thread === x.thread) ?? x);
           }
           if (seats.filter(counts).length === 3) {
             pass = yield* groupOnce("group/again", seats.filter(counts));
