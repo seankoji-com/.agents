@@ -22,22 +22,27 @@ const LETTERS = ["A", "B", "C"];
 const DEADLINE_MS = 5 * 60 * 1000;
 // Covers stopping a turn and recording its result; not extra voting time.
 const GRACE_MS = 5 * 1000;
+// Voters run in the narrowest mode in which their provider can submit a ballot
+// without a person approving it. Claude, Codex and OpenCode submit under
+// approval-required. Antigravity asks for approval before t3_submit_output
+// there (seen live on 23 November 2026), so its routes use auto-accept-edits.
 const RUNTIME_MODE = "approval-required";
+const ANTIGRAVITY_MODE = "auto-accept-edits";
 const INTERACTION_MODE = "default";
 
 // Routes in preference order. `paid` routes need the operator's authorisation.
 const ROUTES = {
   opus: [
     { instanceId: "claudeAgent", model: "claude-opus-5-5", effort: { id: "effort", value: "high" }, billing: "subscription" },
-    { instanceId: "antigravity", model: "claude-opus-5-5", effort: { id: "thought_level", value: "high" }, billing: "subscription" },
+    { instanceId: "antigravity", model: "claude-opus-5-5", effort: { id: "thought_level", value: "high" }, billing: "subscription", mode: ANTIGRAVITY_MODE },
   ],
   sol: [
     { instanceId: "codex", model: "gpt-6.2-sol", effort: { id: "reasoningEffort", value: "high" }, billing: "subscription" },
     { instanceId: "pi", model: "litellm-credit/api-gpt-6.2-sol", effort: { id: "thinking", value: "high" }, billing: "api-credit", paid: true },
   ],
   neon: [
-    { instanceId: "antigravity", model: "gemini-4-neon", effort: { id: "thought_level", value: "high" }, billing: "subscription" },
-    { instanceId: "antigravity_burner", model: "agy-gemini-4-neon", effort: null, billing: "subscription" },
+    { instanceId: "antigravity", model: "gemini-4-neon", effort: { id: "thought_level", value: "high" }, billing: "subscription", mode: ANTIGRAVITY_MODE },
+    { instanceId: "antigravity_burner", model: "agy-gemini-4-neon", effort: null, billing: "subscription", mode: ANTIGRAVITY_MODE },
     { instanceId: "pi", model: "litellm-credit/gemini-4-neon", effort: { id: "thinking", value: "high" }, billing: "api-credit", paid: true },
   ],
   deepseek: [
@@ -45,23 +50,38 @@ const ROUTES = {
   ],
 };
 
-// The exact model each seat stands for. A claim or executed model naming a
-// different model, in the same family or another, conflicts with the seat.
-const SEAT_MODEL = { opus: "opus-5-5", sol: "gpt-6.2-sol", neon: "gemini-4-neon", deepseek: "deepseek-v4.1-flash" };
-const CONFLICTS = {
-  opus: ["sonnet", "haiku", "fable", "gpt", "gemini", "deepseek", "opus 5 ", "opus-5 ", "opus-4", "opus 4"],
-  sol: ["luna", "astra", "terra", "claude", "gemini", "deepseek", "gpt-6.1", "gpt-5"],
-  neon: ["argon", "hydrogen", "carbon", "flash", "claude", "gpt", "deepseek", "gemini-3"],
-  deepseek: ["claude", "gpt", "gemini", "v4.0"],
+// The exact model IDs a host may record for each seat. Anything else conflicts.
+const EXECUTED = {
+  opus: ["claude-opus-5-5"],
+  sol: ["gpt-6.2-sol", "litellm-credit/api-gpt-6.2-sol"],
+  neon: ["gemini-4-neon", "agy-gemini-4-neon", "litellm-credit/gemini-4-neon"],
+  deepseek: ["litellm/deepseek-v4.1-flash", "deepseek-v4.1-flash"],
 };
+// A voter's own claim: naming the seat's family alone is unverified, not a conflict.
+// A claim that names another model, or any version other than the seat's, conflicts.
+const FAMILY_WORDS = {
+  opus: ["claude", "opus", "anthropic"],
+  sol: ["gpt", "sol", "openai", "codex", "chatgpt"],
+  neon: ["gemini", "neon", "google"],
+  deepseek: ["deepseek"],
+};
+const EXACT_CLAIM = {
+  opus: /\bopus[\s-]*5[.\s-]5\b/i,
+  sol: /\b(?:gpt[\s-]*6\.2[\s-]*sol|sol[\s-]*6\.2)\b/i,
+  neon: /\b(?:gemini[\s-]*4[\s-]*neon|neon[\s-]*4)\b/i,
+  deepseek: /\bdeepseek[\s-]*v?4\.1[\s-]*flash\b/i,
+};
+const MODEL_WORDS = /\b(claude|opus|sonnet|haiku|fable|anthropic|gpt|chatgpt|sol|luna|astra|terra|codex|openai|gemini|neon|argon|hydrogen|carbon|google|deepseek|grok|qwen|glm|llama|mistral)\b/gi;
 
 const GROUPER = { instanceId: "claudeAgent", model: "claude-opus-5-5", effort: { id: "effort", value: "high" } };
 
 const HEDGE = /\b(abstain|abstaining|no preference|need(?:s)? more (?:info|information|context)|insufficient (?:info|information)|cannot (?:decide|choose|determine)|can't (?:decide|choose)|either (?:option|one) (?:is|would be) fine)\b/i;
-const NOT_IMPERATIVE = /^(?:i|we|you|it|this|that|the|my|our|there)\b/i;
+// An imperative starts with a bare verb: not a pronoun, an article or a gerund.
+const NOT_IMPERATIVE = /^(?:i|we|you|it|this|that|these|those|the|a|an|my|our|there|[a-z]+ing)\b/i;
+const SEAT_NAMES = ["opus", "sol", "neon", "deepseek"];
 
 const InvokerSeat = Schema.Struct({
-  seat: Schema.String,
+  seat: Schema.Literals(SEATS),
   choice: Schema.optional(Schema.String),
   action: Schema.optional(Schema.String),
   label: Schema.optional(Schema.String),
@@ -71,7 +91,7 @@ const InvokerSeat = Schema.Struct({
 });
 
 const SyntheticBallot = Schema.Struct({
-  seat: Schema.String,
+  seat: Schema.Literals(SEAT_NAMES),
   status: Schema.optional(Schema.Literals(["valid", "unavailable", "invalid", "late"])),
   choice: Schema.optional(Schema.String),
   action: Schema.optional(Schema.String),
@@ -132,7 +152,7 @@ function packetProblems(p) {
   if (fixtures !== undefined) {
     if (p.invokerSeat !== undefined) problems.push("test.ballots replaces every seat; drop invokerSeat");
     const seats = fixtures.map((b) => b.seat);
-    if (seats.length !== 3 || new Set(seats).size !== 3 || seats.some((s) => !(s in ROUTES))) {
+    if (seats.length !== 3 || new Set(seats).size !== 3 || seats.some((s) => !SEAT_NAMES.includes(s))) {
       problems.push("test.ballots needs three distinct seats from opus, sol, neon and deepseek");
     }
   }
@@ -143,10 +163,17 @@ function oneLine(text) {
   return typeof text === "string" && text.trim() !== "" && !/[\r\n]/.test(text.trim());
 }
 
-function modelConflict(seat, name) {
-  const text = ` ${(name ?? "").toLowerCase()} `;
-  if (!text.trim()) return false;
-  return CONFLICTS[seat].some((word) => text.includes(word));
+function modelConflict(seat, claim) {
+  const text = (claim ?? "").trim();
+  if (!text || !SEAT_NAMES.includes(seat)) return false;
+  if (EXACT_CLAIM[seat].test(text)) return false;
+  const named = (text.match(MODEL_WORDS) ?? []).map((w) => w.toLowerCase());
+  if (named.length === 0) return false; // Not a model claim at all.
+  return named.some((w) => !FAMILY_WORDS[seat].includes(w)) || /\d/.test(text);
+}
+
+function executedMatches(seat, model) {
+  return EXECUTED[seat].includes(String(model).trim().toLowerCase());
 }
 
 function ballotProblems(p, seat, b) {
@@ -211,23 +238,37 @@ function tally(p, seats, groups) {
   };
 }
 
-// The seat's executed model, as the invoker read it from the host. A non-null
-// model that is not the seat's model invalidates the seat.
-function applyExecuted(seats, reports) {
+// Host receipts, read by the invoker, for the turn that produced each ballot and
+// for the invoker's own recommendation turn. A recorded model other than the
+// seat's, or a recorded completion after the seat deadline, invalidates the
+// seat. A missing receipt leaves the seat counted but execution-unverified.
+function applyReceipts(seats, receipts, invokerModel) {
   return seats.map((s) => {
-    if (s.thread === null || s.status === "invoker-existing" || s.requested === null) return s;
-    const report = reports.find((r) => r.thread === s.thread);
-    if (report === undefined || report.executedModel === null || report.executedModel === "") {
-      return { ...s, executed: { model: report?.executedModel ?? null, verified: false } };
+    if (s.status === "invoker-existing") {
+      if (!invokerModel) return { ...s, executed: { model: null, verified: false } };
+      const executed = { model: invokerModel, verified: true };
+      return executedMatches(s.seat, invokerModel)
+        ? { ...s, executed }
+        : { ...s, executed, status: "invalid", problems: [`the recommendation turn ran ${invokerModel}, not the ${s.seat} seat's model`] };
     }
-    const exec = report.executedModel.toLowerCase();
-    const ok = exec.includes(SEAT_MODEL[s.routeSeat ?? s.seat]) && !modelConflict(s.routeSeat ?? s.seat, exec);
-    if (ok) return { ...s, executed: { model: report.executedModel, verified: true } };
+    if (s.thread === null || s.requested === null) return s;
+    const r = receipts.find((x) => x.thread === s.thread);
+    if (r === undefined) return { ...s, executed: { model: null, turn: null, completedAt: null, verified: false } };
+    const executed = { model: r.executedModel, turn: r.turnId, completedAt: r.completedAt, verified: Boolean(r.executedModel) };
+    const finished = Date.parse(r.completedAt ?? "");
+    const wrongModel = Boolean(r.executedModel) && !executedMatches(s.routeSeat, r.executedModel);
+    const late = Number.isFinite(finished) && s.deadline !== undefined && finished > s.deadline;
+    if (!counts(s) || (!wrongModel && !late)) return { ...s, executed };
     return {
       ...s,
-      executed: { model: report.executedModel, verified: true },
-      status: counts(s) ? "invalid" : s.status,
-      problems: [...s.problems, `host executedModel ${report.executedModel} is not the seat's model`],
+      executed,
+      status: wrongModel ? "invalid" : "late",
+      ballot: null,
+      problems: [
+        ...s.problems,
+        ...(wrongModel ? [`host executedModel ${r.executedModel} is not the seat's model`] : []),
+        ...(late ? ["the host records the ballot turn finishing after the seat deadline"] : []),
+      ],
     };
   });
 }
@@ -289,6 +330,7 @@ function requested(route) {
     model: route.model,
     effort: route.effort === null ? "not applicable (route exposes no effort option)" : `${route.effort.id}=${route.effort.value}, unverified`,
     billing: route.billing,
+    runtimeMode: route.mode ?? RUNTIME_MODE,
   };
 }
 
@@ -307,7 +349,10 @@ function resultText(p, r) {
     const req = s.requested ? `${s.requested.provider}/${s.requested.model}, ${s.requested.effort}, ${s.requested.billing}` : "no route";
     const what = s.ballot ? choiceOf(p, s.ballot) : "-";
     const why = s.ballot?.rationale ?? s.problems.join("; ");
-    const exec = s.executed ? `executedModel ${s.executed.model ?? "null"} ${s.executed.verified ? "verified" : "unverified"}` : null;
+    const exec = s.executed
+      ? `executedModel ${s.executed.model ?? "null"} ${s.executed.verified ? "verified" : "unverified"}`
+        + (s.executed.turn ? ` (turn ${s.executed.turn}, completed ${s.executed.completedAt ?? "unknown"})` : "")
+      : s.receiptProblem ? `no host receipt: ${s.receiptProblem}` : null;
     const marks = [
       s.status,
       s.blind === false ? "not blind" : null,
@@ -336,7 +381,26 @@ export default T3.workflow(
   (input, { id }) =>
     Effect.gen(function* () {
       const parsed = yield* T3.step.try("packet", { returns: Packet }, Effect.try(() => decodePacket(JSON.parse(input.body))));
-      if (parsed.outcome === "failed") return yield* T3.stop(`packet rejected: ${parsed.reason}`);
+      if (parsed.outcome === "failed") {
+        // Tell the invoker when the body names its thread, so a bad packet does not vanish.
+        const thread = (() => {
+          try {
+            const t = JSON.parse(input.body).invokerThread;
+            return typeof t === "string" && t.trim() ? t : null;
+          } catch {
+            return null;
+          }
+        })();
+        if (thread !== null) {
+          yield* T3.agent("callback", { thread: { threadId: thread }, brief: [
+            `[T3 workflow vote, run ${id}]`,
+            "Packet rejected before any voter was dispatched. Nothing was decided: do not act on this.",
+            `- ${parsed.reason.slice(0, 600)}`,
+            "Fix the packet and start a new vote with a new idempotency key.",
+          ].join("\n") });
+        }
+        return yield* T3.stop(`packet rejected: ${parsed.reason}`);
+      }
       const p = parsed.value;
       const test = p.test !== undefined;
       yield* T3.title(`${test ? "[test] " : ""}vote: ${p.question.slice(0, 80)}`);
@@ -382,7 +446,7 @@ export default T3.workflow(
               brief,
               returns,
               timeout: `${left} millis`,
-              runtimeMode: RUNTIME_MODE,
+              runtimeMode: route.mode ?? RUNTIME_MODE,
               interactionMode: INTERACTION_MODE,
             });
             const thread = first.thread?.threadId ?? null;
@@ -406,9 +470,10 @@ export default T3.workflow(
                 problems = answer.outcome === "done" ? ballotProblems(p, routeSeat, answer.value) : [];
               }
             }
+            // A first check on the workflow's clock; the host's turn completion time decides later.
             const ended = yield* now(`${key}/ended`);
             const late = ended > deadline + GRACE_MS;
-            const base = { seat, routeSeat, requested: requested(route), reasked, thread, blind: true };
+            const base = { seat, routeSeat, requested: requested(route), reasked, thread, blind: true, deadline };
             if (answer.outcome === "done") {
               const status = late ? "late" : problems.length > 0 ? "invalid" : "valid";
               attempts.push({ route: requested(route), outcome: status, thread });
@@ -423,7 +488,39 @@ export default T3.workflow(
             // Could not start, died or timed out before answering: try the next eligible route.
           }
           return { seat, routeSeat, status: "unavailable", ballot: null, problems: attempts.map((a) => a.reason ?? a.outcome),
-            requested: null, reasked: false, thread: null, blind: true, attempts };
+            requested: null, reasked: false, thread: null, blind: true, deadline, attempts };
+        });
+
+      // The invoker reads each listed seat thread's host record; code then checks it.
+      const Receipts = Schema.Struct({
+        seats: Schema.Array(Schema.Struct({
+          thread: Schema.String,
+          turnId: Schema.NullOr(Schema.String),
+          executedModel: Schema.NullOr(Schema.String),
+          completedAt: Schema.NullOr(Schema.String),
+        })),
+        invokerModel: Schema.NullOr(Schema.String),
+      });
+      const verify = (name, listed, askInvoker) =>
+        Effect.gen(function* () {
+          if (listed.length === 0 && !askInvoker) return { seats: [], invokerModel: null };
+          const read = yield* T3.agent.try(name, {
+            thread: { threadId: p.invokerThread },
+            timeout: "10 minutes",
+            returns: Receipts,
+            brief: [
+              `[T3 workflow vote, run ${id}] Host receipts before the tally. Do not act on the vote; do nothing else.`,
+              "For each thread below, read its activity with t3_thread_read and find the turn that submitted the",
+              "ballot with t3_submit_output (the last such turn). Report that turn's ID, the executedModel the host",
+              "recorded for it, and when it completed as an ISO 8601 time. Use null for anything the host does not show.",
+              ...listed.map((s) => `- ${s.thread} (seat ${s.seat}, requested ${s.requested?.model ?? "?"})`),
+              askInvoker
+                ? `Also report as invokerModel the executedModel of your own turn that made the recommendation cited as: ${p.invokerSeat.source}`
+                : "Report invokerModel as null.",
+              "Submit with t3_submit_output.",
+            ].join("\n"),
+          });
+          return read.outcome === "done" ? read.value : { seats: [], invokerModel: null, failed: read.reason };
         });
 
       let seats;
@@ -449,38 +546,33 @@ export default T3.workflow(
           { concurrency: "unbounded" },
         );
         const unavailable = seats.filter((s) => s.status === "unavailable");
-        if (unavailable.length === 1) {
+        const gone = unavailable.length === 1 ? unavailable[0] : null;
+        const tries = [];
+        let subDeadline = null;
+        if (gone !== null) {
           // One substitute seat with one deadline; a failed first try gets one retry inside it.
-          const gone = unavailable[0];
-          const subOpened = yield* now("clock/substitute");
-          const tries = [];
-          for (const attempt of [0, 1]) {
-            const sub = yield* runSeat("deepseek", "deepseek", `deepseek/${attempt}`, subOpened + limitMs);
-            tries.push(sub);
-            if (sub.status === "valid") break;
-          }
-          const chosen = tries[tries.length - 1];
-          seats = seats.map((s) => (s === gone
-            ? { ...chosen, substitutes: gone.seat, replaced: gone, attempts: tries.flatMap((t) => t.attempts) }
-            : s));
+          subDeadline = (yield* now("clock/substitute")) + limitMs;
+          tries.push(yield* runSeat("deepseek", "deepseek", "deepseek/0", subDeadline));
         }
-
-        // The invoker reads each seat thread's host record; code then checks it.
-        const threads = seats.filter((s) => s.thread !== null && s.status !== "invoker-existing");
-        if (threads.length > 0) {
-          const verified = yield* T3.agent.try("verify-models", {
-            thread: { threadId: p.invokerThread },
-            timeout: "10 minutes",
-            returns: Schema.Struct({ seats: Schema.Array(Schema.Struct({ thread: Schema.String, executedModel: Schema.NullOr(Schema.String) })) }),
-            brief: [
-              `[T3 workflow vote, run ${id}] Model check before the tally. Do not act on the vote yet.`,
-              "For each thread below, read it with t3_thread_read and report its host-recorded executedModel",
-              "(null when the host shows none). Do nothing else, then submit with t3_submit_output.",
-              ...threads.map((s) => `- ${s.thread} (seat ${s.seat}, requested ${s.requested?.model ?? "?"})`),
-            ].join("\n"),
-          });
-          seats = applyExecuted(seats, verified.outcome === "done" ? verified.value.seats : []);
+        const place = () => (tries.length === 0 ? seats : seats.map((s) => (s === gone
+          ? { ...tries[tries.length - 1], substitutes: gone.seat, replaced: gone, attempts: tries.flatMap((t) => t.attempts) }
+          : s)));
+        let placed = place();
+        const listed = placed.filter((s) => s.thread !== null && s.status !== "invoker-existing");
+        let receipts = yield* verify("receipts", listed, p.invokerSeat !== undefined);
+        placed = applyReceipts(placed, receipts.seats, receipts.invokerModel);
+        const sub = placed.find((s) => s.substitutes !== undefined);
+        if (sub !== undefined && !counts(sub)) {
+          // The first substitute failed, including on its host receipt: one retry, then check it too.
+          tries.push(yield* runSeat("deepseek", "deepseek", "deepseek/1", subDeadline));
+          const retried = place().find((s) => s.substitutes !== undefined);
+          const again = yield* verify("receipts/substitute-retry", retried.thread === null ? [] : [retried], false);
+          const [checked] = applyReceipts([retried], again.seats, null);
+          placed = placed.map((s) => (s.substitutes !== undefined ? checked : s));
+          receipts = { ...receipts, retry: again };
         }
+        seats = placed;
+        if (receipts.failed) seats = seats.map((s) => ({ ...s, receiptProblem: receipts.failed }));
       }
 
       if (p.test?.pauseSeconds !== undefined) {
@@ -508,9 +600,15 @@ export default T3.workflow(
           runtimeMode: RUNTIME_MODE,
           interactionMode: INTERACTION_MODE,
           timeout: "5 minutes",
-          returns: Schema.Struct({ groups: Schema.Array(Schema.Array(Schema.String)), reasoning: Schema.String }),
+          returns: Schema.Struct({
+            groups: Schema.Array(Schema.Array(Schema.String)),
+            notActions: Schema.Array(Schema.String),
+            reasoning: Schema.String,
+          }),
           brief: [
             "Group these proposed actions. Use no tool except `t3_submit_output`.",
+            "First list in `notActions` every letter that is not one concrete imperative action, such as a judgment,",
+            "a description or a statement of what is safe. Group every letter, including those.",
             "Two actions match only when the verb, the object and every material parameter agree,",
             "and neither omits or rules out a step the other has. A material parameter is any",
             "parameter either sentence states. Wording does not matter. If matching needs argument,",
@@ -524,10 +622,21 @@ export default T3.workflow(
             "Submit `reasoning`: one line per group.",
           ].join("\n"),
         });
-        const shape = grouped.outcome === "done" ? groupProblems(grouped.value.groups, LETTERS) : [grouped.reason];
+        const shape = grouped.outcome === "done"
+          ? [...groupProblems(grouped.value.groups, LETTERS),
+            ...(grouped.value.notActions.every((l) => LETTERS.includes(l)) ? [] : ["notActions names an unknown ballot"])]
+          : [grouped.reason];
         if (shape.length === 0) {
           groups = grouped.value.groups;
           grouping = `${JSON.stringify(groups)} — ${grouped.value.reasoning}${grouped.thread ? ` (thread ${grouped.thread.threadId})` : ""}`;
+          // A ballot judged not to be an action is invalid; the vote is then incomplete.
+          const rejected = new Set(grouped.value.notActions.map((l) => counted[LETTERS.indexOf(l)]));
+          if (rejected.size > 0) {
+            seats = seats.map((s) => (rejected.has(s)
+              ? { ...s, status: "invalid", ballot: null, problems: [...s.problems, "the grouping step found no concrete imperative action"] }
+              : s));
+            grouping += ` — not actions: ${grouped.value.notActions.join(", ")}`;
+          }
         } else {
           grouping = `failed: ${shape.join("; ")}`;
           verdict = { outcome: "incomplete", choice: null, reason: `open-vote grouping failed: ${shape.join("; ")}`, dependsOn: [] };
@@ -541,7 +650,11 @@ export default T3.workflow(
         "",
         test
           ? "Report this test result only."
-          : "Continue with skills/vote/SKILL.md from 'Act or return', using this result and its labels.",
+          : [
+            "Continue with skills/vote/SKILL.md from 'Act or return', using this result and its labels.",
+            `Act at most once for vote run ${id}: if this thread already shows an action taken for this run,`,
+            "report that action instead of acting again.",
+          ].join("\n"),
       ]);
       return result;
     }),

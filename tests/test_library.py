@@ -885,6 +885,10 @@ class Workflows(unittest.TestCase):
         nested = self.GOOD.replace('version: 2, ', '').replace(
             'triggers: [T3.webhook("start")]', 'triggers: [T3.webhook("start")], onEnd: () => ({ version: 3 })')
         self.assertIn('exactly one T3.workflow', self.lint({'workflows/sample.ts': nested}))
+        commented = self.GOOD.replace('version: 2, ', '/* version: 9 */ ')
+        self.assertIn('exactly one T3.workflow', self.lint({'workflows/sample.ts': commented}))
+        self.assertIn('exactly one T3.workflow',
+                      self.lint({'workflows/sample.ts': self.GOOD.replace('version: 2,', 'version: 2.5,')}))
         cases = {
             'version': self.GOOD.replace('version: 2, ', ''),
             'tested': self.GOOD.replace('// @tested-t3 0.1.12-nightly.20991231.1\n', ''),
@@ -902,7 +906,8 @@ class Workflows(unittest.TestCase):
         self.assertIn('manual workflow declares an automated trigger',
                       self.lint({'workflows/sample.ts': automated}))
         for trigger in ('T3.issues.opened({ project: "p" })', 'T3.pullRequests.opened({ project: "p" })',
-                        'T3.every("1 hour")'):
+                        'T3.every("1 hour")', 'T3 . issues . opened({ project: "p" })',
+                        'T3./* x */pullRequests.\n  opened({ project: "p" })'):
             with self.subTest(trigger=trigger):
                 forge = self.GOOD.replace('T3.webhook("start")', trigger)
                 self.assertIn('manual workflow declares an automated trigger',
@@ -912,20 +917,23 @@ class Workflows(unittest.TestCase):
         self.assertEqual(self.lint({'workflows/sample.ts': automated.replace('@start manual', '@start automated')}), '')
 
     def test_missing_references_effort_and_secrets_are_rejected(self):
-        cases = {
+        commented = {
             'skills/nope/SKILL.md': 'references missing skills/nope',
             'skills/vote/references/missing-card.md': 'references missing skills/vote/references',
-            '{ id: "effort", value: "max" }': 'above the xhigh ceiling',
-            "{ id: 'reasoningEffort', value: 'ultra' }": 'above the xhigh ceiling',
             'http://127.0.0.1:3773/api/hooks/wf-sample.start/x': 'hook URL or token',
             '"123e4567-e89b-42d3-a456-426614174000"': 'hook URL or token',
         }
-        cases['{ effort: "max" }'] = 'above the xhigh ceiling'
-        for snippet, expected in cases.items():
+        for snippet, expected in commented.items():
             with self.subTest(snippet=snippet):
                 self.assertIn(expected, self.lint({'workflows/sample.ts': self.GOOD + f'// {snippet}\n'}))
-        # A quoted "max" that is not an effort setting, such as a ballot option, is fine.
-        self.assertEqual(self.lint({'workflows/sample.ts': self.GOOD + 'const options = ["min", "max"];\n'}), '')
+        for option in ('{ id: "effort", value: "max" }', "{ id: 'reasoningEffort', value: 'ultra' }",
+                       '{ value: "max", id: "effort" }', '{ effort: "max" }'):
+            with self.subTest(option=option):
+                self.assertIn('above the xhigh ceiling',
+                              self.lint({'workflows/sample.ts': self.GOOD + f'const seat = {option};\n'}))
+        # A quoted "max" that is not an effort setting, or effort only in a comment, is fine.
+        self.assertEqual(self.lint({'workflows/sample.ts': self.GOOD + 'const options = ["min", "max"];\n'
+                                    '// { effort: "max" } was the old default\n'}), '')
 
 
 class Discovery(unittest.TestCase):

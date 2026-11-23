@@ -50,16 +50,19 @@ WORKFLOW_DIR = 'workflows'
 WORKFLOW_FILE = re.compile(r'^[A-Za-z0-9_][\w.-]*\.(ts|mts|js|mjs)$')
 WORKFLOW_TESTED = re.compile(r'^// @tested-t3 (\d+\.\d+\.\d+[\w.+-]*)$', re.M)
 WORKFLOW_START = re.compile(r'^// @start (manual|automated)$', re.M)
-WORKFLOW_DEFINITION = re.compile(r'\bT3\.workflow\(\s*(["\'])([A-Za-z0-9_.-]+)\1\s*,\s*\{')
-WORKFLOW_VERSION = re.compile(r'version\s*:\s*([1-9]\d*)\b')
+WORKFLOW_DEFINITION = re.compile(r'\bT3\s*\.\s*workflow\s*\(\s*(["\'])([A-Za-z0-9_.-]+)\1\s*,\s*\{')
+WORKFLOW_VERSION = re.compile(r'version\s*:\s*([1-9]\d*)(?![\w.])')
 # Triggers that start runs without a person; only the designated trigger host installs them.
-AUTOMATED_TRIGGER = re.compile(r'\bT3\.(?:daily|every)\s*\(|\bT3\.(?:issues|pullRequests)\.opened\s*\(')
+# These run on code with comments removed, and allow spacing around each dot.
+AUTOMATED_TRIGGER = re.compile(r'\bT3\s*\.\s*(?:daily|every)\b|\bT3\s*\.\s*(?:issues|pullRequests)\s*\.\s*opened\b')
 SKILL_PATH = re.compile(r'\bskills/([a-z0-9-]+)((?:/[\w.-]+)*)')
-# Effort above the xhigh ceiling, as a model option or an effort-named setting.
+# Effort above the xhigh ceiling, as a model option (either key order) or an effort-named setting.
 EFFORT_KEYS = r'(?:effort|reasoningEffort|thought_level|thinking|variant)'
+ABOVE = r'(?:max|ultra|ultrathink)'
 ABOVE_CEILING = re.compile(
-    rf'\bid\s*:\s*(["\']){EFFORT_KEYS}\1\s*,\s*value\s*:\s*(["\'`])(?:max|ultra|ultrathink)\2'
-    rf'|\b{EFFORT_KEYS}\s*:\s*(["\'`])(?:max|ultra|ultrathink)\3')
+    rf'\bid\s*:\s*(["\']){EFFORT_KEYS}\1\s*,\s*value\s*:\s*(["\'`]){ABOVE}\2'
+    rf'|\bvalue\s*:\s*(["\'`]){ABOVE}\3\s*,\s*id\s*:\s*(["\']){EFFORT_KEYS}\4'
+    rf'|\b{EFFORT_KEYS}\s*:\s*(["\'`]){ABOVE}\5')
 HOOK_SECRET = re.compile(r'/api/hooks/|\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b',
                          re.I)
 # A paragraph, list item, table row or heading is one block; sentences never span blocks.
@@ -353,6 +356,35 @@ def site_contract(root):
     return errors
 
 
+def strip_js_comments(text):
+    """JavaScript with // and /* */ comments blanked, leaving string contents and offsets intact."""
+    out, quote, i = list(text), None, 0
+    while i < len(text):
+        char = text[i]
+        if quote:
+            if char == '\\':
+                i += 2
+                continue
+            if char == quote:
+                quote = None
+        elif char in '"\'`':
+            quote = char
+        elif text.startswith('//', i):
+            end = text.find('\n', i)
+            end = len(text) if end < 0 else end
+            out[i:end] = ' ' * (end - i)
+            i = end
+            continue
+        elif text.startswith('/*', i):
+            end = text.find('*/', i + 2)
+            end = len(text) if end < 0 else end + 2
+            out[i:end] = [c if c == '\n' else ' ' for c in text[i:end]]
+            i = end
+            continue
+        i += 1
+    return ''.join(out)
+
+
 def workflow_version(text, start):
     """The `version` set directly in the options object opening at `start`, ignoring nested ones."""
     depth, quote, i = 1, None, start
@@ -396,13 +428,14 @@ def workflow_errors(root, paths):
         starts = WORKFLOW_START.findall(text)
         if len(starts) != 1:
             errors.append(f'{relative}: needs one "// @start manual|automated" header')
-        definitions = list(WORKFLOW_DEFINITION.finditer(text))
-        if (len(definitions) != 1 or text.count('T3.workflow(') != 1
-                or workflow_version(text, definitions[0].end()) is None):
+        code = strip_js_comments(text)
+        definitions = list(WORKFLOW_DEFINITION.finditer(code))
+        if (len(definitions) != 1 or len(re.findall(r'\bT3\s*\.\s*workflow\s*\(', code)) != 1
+                or workflow_version(code, definitions[0].end()) is None):
             errors.append(f'{relative}: needs exactly one T3.workflow("<name>", {{ version: <n>, ... }})')
         elif definitions[0].group(2) != path.name.rsplit('.', 1)[0]:
             errors.append(f'{relative}: workflow name must match the file name')
-        automated = bool(AUTOMATED_TRIGGER.search(text))
+        automated = bool(AUTOMATED_TRIGGER.search(code))
         if starts == ['manual'] and automated:
             errors.append(f'{relative}: manual workflow declares an automated trigger')
         if starts == ['automated'] and not automated:
@@ -411,7 +444,7 @@ def workflow_errors(root, paths):
             target = root / 'skills' / name / rest.lstrip('/')
             if name not in SKILLS or not target.exists():
                 errors.append(f'{relative}: references missing skills/{name}{rest}')
-        if ABOVE_CEILING.search(text):
+        if ABOVE_CEILING.search(code):
             errors.append(f'{relative}: effort above the xhigh ceiling')
         if HOOK_SECRET.search(text):
             errors.append(f'{relative}: contains a hook URL or token; keep it in a private curl config')
