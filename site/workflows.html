@@ -40,7 +40,7 @@
       <figure class="workflow-map">
         <figcaption>From decisions to verified merge</figcaption>
         <ol class="workflow-steps" role="list">
-          <li><strong>Settle open decisions</strong><p>Use <a href="./#skill-think">think</a> for the brief and <a href="./#skill-choose-design">choose-design</a> when a UI choice remains.</p></li>
+          <li><strong>Settle open decisions</strong><p>Use <a href="./#skill-think">think</a> for the brief, <a href="./#skill-vote">vote</a> when a framed choice needs a decision, and <a href="./#skill-choose-design">choose-design</a> when a UI choice remains.</p></li>
           <li><strong>Build the change</strong><p><a href="./#skill-ship">ship</a> owns delivery. <a href="./#skill-implement">implement</a> can do the coding in a separate worktree.</p></li>
           <li><strong>Check and repair</strong><p><a href="./#skill-review-loop">review-loop</a> uses independent findings to guide repairs and verify the result.</p></li>
           <li><strong>Open and finish the PR</strong><p><a href="./#skill-raise-pr">raise-pr</a> prepares the evidence. <a href="./#skill-babysitter">babysitter</a> handles checks, reviews and the merge.</p></li>
@@ -51,7 +51,7 @@
       <div class="facts">
         <div>
           <h3>Settle the choices that change the build</h3>
-          <p><a href="https://github.com/seankoji-com/.agents/blob/main/skills/think/SKILL.md">think</a> asks only the questions whose answers would change the next step, then has a separate reviewer confirm nothing important is open. Plans have no model-family restriction. <a href="https://github.com/seankoji-com/.agents/blob/main/skills/choose-design/SKILL.md">choose-design</a> shows mockups from two or three Opus designers, each with a different emphasis; Neon and Sol score every option, and you pick before UI work starts. An existing design that already answers the question needs no chooser.</p>
+          <p><a href="https://github.com/seankoji-com/.agents/blob/main/skills/think/SKILL.md">think</a> asks only the questions whose answers would change the next step, then has a separate reviewer confirm nothing important is open. Plans have no model-family restriction. <a href="https://github.com/seankoji-com/.agents/blob/main/skills/vote/SKILL.md">vote</a> takes a framed choice with the options already on the table, sends one packet to Opus, Sol and Neon, and returns the 2/3 result or the split. <a href="https://github.com/seankoji-com/.agents/blob/main/skills/choose-design/SKILL.md">choose-design</a> shows mockups from two or three Opus designers, each with a different emphasis; Neon and Sol score every option, and you pick before UI work starts. An existing design that already answers the question needs no chooser.</p>
         </div>
         <div>
           <h3>Bring evidence to the review</h3>

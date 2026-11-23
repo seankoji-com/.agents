@@ -59,6 +59,9 @@ one app. They use what T3 provides:
   from the code authors. A model checking its own code tends to share the blind spots that produced it
   ([research](#why-a-different-model-family-reviews-the-work)). T3 can start that
   reviewer on another provider from inside the same conversation.
+- **Three-model votes.** `vote` starts one blind delegate per model family,
+  then returns the 2/3 choice or the split. It needs three reachable lineages;
+  otherwise it reports the gap instead of inventing a vote.
 - **Separate workspaces.** `implement` runs coding in its own T3 worktree, so the
   main conversation stays free for decisions and reviews.
 - **Background tasks.** `raise-issue` files issues in a background T3 task while
@@ -83,7 +86,9 @@ skills, using what that host offers instead. Outside T3, `babysitter` waits with
 its bundled `scripts/pr-wait` helper, and `ship` posts status lists in the
 conversation. `implement` and asynchronous `raise-issue` need T3. Cross-family code
 review needs a host that can reach a second model family; without one, the agent
-reports the review as unavailable instead of reviewing its own work.
+reports the review as unavailable instead of reviewing its own work. A `vote`
+likewise needs three reachable lineages; without them, it reports the gap instead
+of simulating a ballot.
 
 ## Why a different model family reviews the work
 
@@ -125,7 +130,9 @@ The [review](skills/review/SKILL.md) skill applies this in a few rules:
   OpenCode reviewers, and the paid CLI uses DeepSeek Flash V4.1 unless DeepSeek
   wrote the code, in which case it uses Qwen 3.8 Flash and the control that
   sends high reasoning effort. `--effort high` is OCR review depth and is
-  recorded separately. Other models require
+  recorded separately. `vote` is separate: its ballot seats follow that skill's
+  fixed roster, and one unavailable seat may be filled by DeepSeek Flash. A
+  vote is not formal review. Other models require
   your explicit selection. The [selection rules](skills/review/references/model-selection.md)
   apply inside `implement` too. If no eligible authorised route remains, review
   stays pending.
@@ -171,6 +178,7 @@ agent will follow.
 Settle what to build and how people will use it before implementation.
 
 - [think](skills/think/SKILL.md): Turn an idea into a buildable brief through focused questions and a check for unresolved decisions.
+- [vote](skills/vote/SKILL.md): Settle a framed binary, multi-option or open decision with three blind voters from different model families. A 2/3 majority decides; a split comes back to you.
 - [challenge](skills/challenge/SKILL.md): Get an independent critique of a proposal, a simpler alternative, and evidence that would help you choose. No implementation.
 - [choose-design](skills/choose-design/SKILL.md): Compare visual options for a new interface or a material interaction change, then choose before building.
 - [focus-group](skills/focus-group/SKILL.md): Explore a product through fictional participants in a clearly labelled synthetic study. Model responses are not human research.
@@ -554,6 +562,7 @@ for a human introduction, or open a skill here to read its exact instructions.
 | [ship](skills/ship/SKILL.md) | Deliver and verify a change when the user explicitly asks to ship or backlog-burn calls for delivery. Show progress and finish with a retrospective. |
 | [test-writer](skills/test-writer/SKILL.md) | Write or review tests, choose regression coverage, or assess test value, reliability and CI runtime. Use when adding tests or judging a suite. |
 | [think](skills/think/SKILL.md) | Turn an idea, plan or decision into a brief ready to build. Use when asked to think about it, think it through, keep thinking, interrogate or stress-test it, or clarify it through an interview. |
+| [vote](skills/vote/SKILL.md) | Settle a framed binary, multi-option or open decision by 2/3 vote from three blind, distinct model families, or return the split. Use when asked to vote, poll models, or break a deadlock; think frames an unframed decision. |
 
 <!-- skill-catalog:end -->
 
@@ -624,7 +633,7 @@ installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 63349a4b56994b36d686af49ef509b4c2f430ae82f29103f9dbac6ee7dfe22f7 -->
+<!-- skills-review: 69fe5d267e958f6a27c5ab58df8d6d46011a0a9615798a8ae886edfd75ad3678 -->
 
 ### Owner maintenance
 
