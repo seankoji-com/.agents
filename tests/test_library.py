@@ -849,6 +849,73 @@ class Library(unittest.TestCase):
             self.assertIn('retired source container', '\n'.join(checker.check(root)))
 
 
+class Workflows(unittest.TestCase):
+    """T3 workflow lint: names, headers, placement, references and secrets, without Node."""
+
+    GOOD = ('// @tested-t3 0.1.12-nightly.20991231.1\n// @start manual\n'
+            '// Bookkeeping for skills/vote/SKILL.md.\n'
+            'export default T3.workflow("sample", { version: 2, payload: T3.WebhookRequest,\n'
+            '  triggers: [T3.webhook("start")] }, () => Effect.succeed(Math.max(1, 2)));\n')
+
+    def lint(self, files):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'skills/vote').mkdir(parents=True)
+            (root / 'skills/vote/SKILL.md').write_text('---\nname: vote\n---\n')
+            paths = set()
+            for relative, text in files.items():
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(text)
+                paths.add(path)
+            return '\n'.join(checker.workflow_errors(root, paths))
+
+    def test_current_workflows_and_a_minimal_definition_pass(self):
+        self.assertEqual(checker.workflow_errors(ROOT, set((ROOT / 'workflows').iterdir())), [])
+        self.assertEqual(self.lint({'workflows/sample.ts': self.GOOD}), '')
+
+    def test_bad_names_and_nested_files_are_rejected(self):
+        for relative in ('workflows/-sample.ts', 'workflows/sample.tsx', 'workflows/notes.md',
+                         'workflows/sub/sample.ts'):
+            with self.subTest(relative=relative):
+                errors = self.lint({relative: self.GOOD})
+                self.assertRegex(errors, 'file name must match|directly in workflows/')
+
+    def test_missing_version_and_headers_are_rejected(self):
+        cases = {
+            'version': self.GOOD.replace('version: 2, ', ''),
+            'tested': self.GOOD.replace('// @tested-t3 0.1.12-nightly.20991231.1\n', ''),
+            'start': self.GOOD.replace('// @start manual\n', ''),
+            'name': self.GOOD.replace('"sample"', '"other"'),
+        }
+        expected = {'version': 'exactly one T3.workflow', 'tested': '@tested-t3',
+                    'start': '@start', 'name': 'must match the file name'}
+        for case, text in cases.items():
+            with self.subTest(case=case):
+                self.assertIn(expected[case], self.lint({'workflows/sample.ts': text}))
+
+    def test_trigger_placement_must_match_the_start_header(self):
+        automated = self.GOOD.replace('T3.webhook("start")', 'T3.daily("09:00")')
+        self.assertIn('manual workflow declares an automated trigger',
+                      self.lint({'workflows/sample.ts': automated}))
+        self.assertIn('automated workflow declares no automated trigger',
+                      self.lint({'workflows/sample.ts': self.GOOD.replace('@start manual', '@start automated')}))
+        self.assertEqual(self.lint({'workflows/sample.ts': automated.replace('@start manual', '@start automated')}), '')
+
+    def test_missing_references_effort_and_secrets_are_rejected(self):
+        cases = {
+            'skills/nope/SKILL.md': 'references missing skills/nope',
+            'skills/vote/references/missing-card.md': 'references missing skills/vote/references',
+            '{ id: "effort", value: "max" }': 'above the xhigh ceiling',
+            "{ id: 'reasoningEffort', value: 'ultra' }": 'above the xhigh ceiling',
+            'http://127.0.0.1:3773/api/hooks/wf-sample.start/x': 'hook URL or token',
+            '"123e4567-e89b-42d3-a456-426614174000"': 'hook URL or token',
+        }
+        for snippet, expected in cases.items():
+            with self.subTest(snippet=snippet):
+                self.assertIn(expected, self.lint({'workflows/sample.ts': self.GOOD + f'// {snippet}\n'}))
+
+
 class Discovery(unittest.TestCase):
     """Descriptions, link conditions and trigger evals keep selection cheap and predictable."""
 

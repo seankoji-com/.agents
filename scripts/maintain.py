@@ -214,6 +214,8 @@ python3 -B -m unittest discover -s tests -v
 step='discovery refresh; source updated and tests passed'
 python3 "$HOME/.dotfiles/scripts/t3-workflow-skills.py" install
 python3 "$HOME/.dotfiles/scripts/t3-workflow-skills.py" check
+step='T3 workflow delivery; source updated, tests passed and discovery refreshed'
+python3 "$HOME/.dotfiles/scripts/t3-workflows.py" install --source "$HOME/.agents/workflows"
 '''
     failed = []
     for host in hosts:

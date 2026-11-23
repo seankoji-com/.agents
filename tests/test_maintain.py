@@ -51,6 +51,10 @@ class Maintenance(unittest.TestCase):
             registrar.parent.mkdir(parents=True)
             registrar.write_text('from pathlib import Path\nimport sys\n'
                                  'with (Path.home()/"actions").open("a") as out: out.write(sys.argv[1]+"\\n")\n')
+            installer = home / '.dotfiles/scripts/t3-workflows.py'
+            installer.write_text('from pathlib import Path\nimport sys\n'
+                                 'assert sys.argv[2:] == ["--source", str(Path.home()/".agents/workflows")]\n'
+                                 'with (Path.home()/"actions").open("a") as out: out.write("workflows "+sys.argv[1]+"\\n")\n')
         for name, body in {
             'codex': 'assert "diff --git" in sys.stdin.read()\n'
                      'with (Path(os.environ["FIXTURE"])/"messages").open("a") as out: out.write("message\\n")\n'
@@ -96,7 +100,19 @@ class Maintenance(unittest.TestCase):
         self.assertEqual((self.base / 'messages').read_text(), 'message\n')
         for host in ('receiver-a', 'receiver-b'):
             self.assertEqual(self.call(self.base / host / '.agents', 'git', 'rev-parse', 'HEAD'), head)
-            self.assertEqual((self.base / host / 'actions').read_text(), 'install\ncheck\n')
+            self.assertEqual((self.base / host / 'actions').read_text(),
+                             'install\ncheck\nworkflows install\n')
+
+    def test_workflow_delivery_failure_is_labelled_and_other_host_still_updates(self):
+        installer = self.base / 'receiver-a/.dotfiles/scripts/t3-workflows.py'
+        installer.write_text('import sys\nsys.exit("vote.ts: WorkflowDefinitionsLoadError after copy")\n')
+        (self.root / 'new.txt').touch()
+        output = self.publish(expected=1)
+        self.assertIn('FAIL Update receiver-a', output)
+        self.assertIn('T3 workflow delivery; source updated, tests passed and discovery refreshed', output)
+        self.assertIn('WorkflowDefinitionsLoadError after copy', self.log(output))
+        self.assertIn('OK Update receiver-b', output)
+        self.assertEqual((self.base / 'receiver-a/actions').read_text(), 'install\ncheck\n')
 
     def test_failed_validation_does_not_commit_or_generate_a_message(self):
         (self.root / 'fail-check').touch()
@@ -152,7 +168,8 @@ class Maintenance(unittest.TestCase):
                     f'name: {name}\n'.encode(), f'name: {installed_name}\n'.encode()))
         self.call(self.base, sys.executable, '-B', str(self.root / 'scripts/maintain.py'), 'sync')
         for host in ('receiver-a', 'receiver-b'):
-            self.assertEqual((self.base / host / 'actions').read_text(), 'install\ncheck\n')
+            self.assertEqual((self.base / host / 'actions').read_text(),
+                             'install\ncheck\nworkflows install\n')
 
     def test_explicit_log_is_private_relocatable_and_never_overwrites(self):
         log = self.root / 'owned.log'

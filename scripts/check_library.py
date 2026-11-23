@@ -45,6 +45,20 @@ CONDITION = re.compile(r'\b(?:when|whenever|before|after|if|unless|during|once|w
 EVALS = 'references/trigger-evals.md'
 EVAL_PROMPTS = 5
 FENCE_OPEN = re.compile(r'[ \t]*(`{3,}|~{3,})')
+# Host-native T3 workflow definitions: flat files T3 loads by this exact name rule.
+WORKFLOW_DIR = 'workflows'
+WORKFLOW_FILE = re.compile(r'^[A-Za-z0-9_][\w.-]*\.(ts|mts|js|mjs)$')
+WORKFLOW_TESTED = re.compile(r'^// @tested-t3 (\d+\.\d+\.\d+[\w.+-]*)$', re.M)
+WORKFLOW_START = re.compile(r'^// @start (manual|automated)$', re.M)
+WORKFLOW_DEFINITION = re.compile(
+    r'\bT3\.workflow\(\s*(["\'])([A-Za-z0-9_.-]+)\1\s*,\s*\{(.{0,400}?)\bversion:\s*([1-9]\d*)\b', re.S)
+# Triggers that start runs without a person; only the designated trigger host installs them.
+AUTOMATED_TRIGGER = re.compile(r'\bT3\.(?:daily|every|issues|pullRequests)\s*\(')
+SKILL_PATH = re.compile(r'\bskills/([a-z0-9-]+)((?:/[\w.-]+)*)')
+# Effort above the xhigh ceiling, as a quoted option value.
+ABOVE_CEILING = re.compile(r'(["\'`])(?:max|ultra|ultrathink)\1')
+HOOK_SECRET = re.compile(r'/api/hooks/|\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b',
+                         re.I)
 # A paragraph, list item, table row or heading is one block; sentences never span blocks.
 BLOCK = re.compile(r'\n[ \t]*\n|\n(?=[ \t]*(?:[-*+]|\d+[.)]|\||#+)[ \t])')
 
@@ -336,6 +350,45 @@ def site_contract(root):
     return errors
 
 
+def workflow_errors(root, paths):
+    """Lint T3 workflow files without a JavaScript toolchain; T3 checks the code at delivery."""
+    errors = []
+    folder = root / WORKFLOW_DIR
+    for path in sorted(p for p in paths if folder in p.parents):
+        relative = path.relative_to(root).as_posix()
+        if path.parent != folder:
+            errors.append(f'{relative}: workflow files must sit directly in {WORKFLOW_DIR}/')
+            continue
+        if not WORKFLOW_FILE.match(path.name):
+            errors.append(f'{relative}: workflow file name must match {WORKFLOW_FILE.pattern}')
+            continue
+        text = path.read_text(encoding='utf-8')
+        if len(WORKFLOW_TESTED.findall(text)) != 1:
+            errors.append(f'{relative}: needs one "// @tested-t3 <T3 version>" header')
+        starts = WORKFLOW_START.findall(text)
+        if len(starts) != 1:
+            errors.append(f'{relative}: needs one "// @start manual|automated" header')
+        definitions = WORKFLOW_DEFINITION.findall(text)
+        if len(definitions) != 1 or text.count('T3.workflow(') != 1:
+            errors.append(f'{relative}: needs exactly one T3.workflow("<name>", {{ version: <n>, ... }})')
+        elif definitions[0][1] != path.name.rsplit('.', 1)[0]:
+            errors.append(f'{relative}: workflow name must match the file name')
+        automated = bool(AUTOMATED_TRIGGER.search(text))
+        if starts == ['manual'] and automated:
+            errors.append(f'{relative}: manual workflow declares an automated trigger')
+        if starts == ['automated'] and not automated:
+            errors.append(f'{relative}: automated workflow declares no automated trigger')
+        for name, rest in sorted({(n, r.rstrip('.')) for n, r in SKILL_PATH.findall(text)}):
+            target = root / 'skills' / name / rest.lstrip('/')
+            if name not in SKILLS or not target.exists():
+                errors.append(f'{relative}: references missing skills/{name}{rest}')
+        if ABOVE_CEILING.search(text):
+            errors.append(f'{relative}: effort above the xhigh ceiling')
+        if HOOK_SECRET.search(text):
+            errors.append(f'{relative}: contains a hook URL or token; keep it in a private curl config')
+    return errors
+
+
 def check(root, update_readme=False, acknowledge_docs=False):
     errors = []
     try:
@@ -386,6 +439,7 @@ def check(root, update_readme=False, acknowledge_docs=False):
         errors.extend(readme_contract(root, descriptions, paths, update_readme, acknowledge_docs))
     errors.extend(site_contract(root))
     errors.extend(card_contract(root))
+    errors.extend(workflow_errors(root, paths))
     for path in sorted(paths):
         relative = path.relative_to(root).as_posix()
         if Path(relative).parts[0] in RETIRED_ROOTS:
@@ -448,7 +502,8 @@ def main():
     if errors:
         print('\n'.join(errors), file=sys.stderr)
         return 1
-    print(f'{len(SKILLS)} standalone skills: metadata, budgets, links, README and helper imports pass.')
+    print(f'{len(SKILLS)} standalone skills: metadata, budgets, links, README and helper imports pass; '
+          'workflow lint passes.')
     return 0
 
 

@@ -608,6 +608,12 @@ The same checks run in CI and before owner publication. They enforce:
   skill expected instead. `/new-skill` describes how to run them by hand.
 - Skill metadata, entry-point budgets, helper imports and relocation contracts
   continue to pass the existing library checks.
+- Every file in `workflows/` sits directly in that folder under a name T3 loads,
+  defines one versioned `T3.workflow` named after the file, and declares the T3
+  version it was tested on and whether it starts manually or from an automated
+  trigger. Referenced skill files must exist. Effort above `xhigh`, hook URLs and
+  token-shaped values fail the check. The check needs no JavaScript toolchain;
+  delivery proves that T3 loaded the code.
 
 To see what each skill costs to load, in words:
 
@@ -690,6 +696,31 @@ to the other configured destinations. A partial delivery reports failure while
 preserving the source commit, successful push and completed receiver updates.
 Fix the reported receiver problem, then use `maintain.py sync` to retry delivery
 without generating another commit.
+
+#### T3 workflow delivery
+
+After the receiver's tests and discovery refresh pass, sync runs the dotfiles
+installer:
+
+```sh
+python3 ~/.dotfiles/scripts/t3-workflows.py install --source ~/.agents/workflows
+```
+
+It copies changed workflow files to `~/.t3/workflows`. Manual-start workflows go
+to every receiver. Workflows with automated triggers go only to the designated
+trigger host, so each event starts one run. Any write in that folder makes T3
+reload and interrupts running workflows, so the installer refuses a change while
+an affected workflow has an unfinished run. T3 keeps serving the previous good
+revision when a new one fails to load, so the installer reads T3's server trace
+after copying. A load error for an installed file, or no reload at all, fails
+that receiver's delivery. Dotfiles documents the installer and the one-time hook
+provisioning step in `docs/t3-workflow-delivery.md`.
+
+A skill that starts a workflow posts to the workflow's webhook with
+`curl --noproxy '' -K ~/.config/t3-workflows/<workflow>.curl`. That private
+config holds the hook URL and token, so neither appears in command text or
+transcripts. The operator creates it once per host with `t3 workflow hooks` in
+their own terminal; agents never run the `t3 workflow` CLI.
 
 #### One-time external skill migration on receivers
 

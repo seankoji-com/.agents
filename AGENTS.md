@@ -15,6 +15,12 @@ Prefer native tools. Do not introduce a launcher, runtime engine, model registry
 provider SDK or second scheduler. Exceptional helpers must be relocatable, Python
 3.10+ and stdlib-only, with meaningful behavior and relocation tests.
 
+`workflows/` is the one exception: flat, host-native T3 workflow files that the
+T3 server runs. Each file defines one versioned `T3.workflow` named after the file
+and carries `// @tested-t3 <version>` and `// @start manual|automated` headers.
+Keep hook URLs and tokens out. Add no Node toolchain, package file or test harness;
+`check_library.py` lints the files and delivery checks that T3 loaded them.
+
 Inspect the tree and preserve unrelated work. Stage explicit paths and inspect the
 staged diff before committing. Fixtures must use synthetic data, never credentials,
 private transcripts, machine paths or private hostnames.
