@@ -22,13 +22,16 @@ Before anything else, confirm all three:
 
 - The host is T3 Code with Workflows turned on.
 - `~/.t3/workflows/scored-loop.ts` exists.
-- `~/.config/t3-workflows/scored-loop.curl` exists. The operator creates it
-  once per host; the README's "Use the scored loop on T3 Workflows" section
-  has the steps.
+- `~/.config/t3-workflows/scored-loop.curl` exists. Host delivery writes it.
+  If only this file is missing, run
+  `python3 ~/.dotfiles/scripts/t3-workflows.py hooks --source ~/.agents/workflows`
+  once, outside any sandbox, and check again. It writes the file without
+  printing the hook URL. Without that helper, the README's "Use the scored
+  loop on T3 Workflows" section has the manual steps.
 
-If any is missing, report `review-loop needs T3 Workflows: <what is missing>`
-and stop. Do not run the loop by hand, read hook tokens or run the
-`t3 workflow` CLI.
+If any is still missing, report `review-loop needs T3 Workflows: <what is
+missing>` and stop. Do not run the loop by hand, read hook tokens or run the
+`t3 workflow` CLI yourself.
 
 ## Steps
 

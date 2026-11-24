@@ -445,7 +445,12 @@ needs three things on each host where you vote:
 2. Put `workflows/vote.ts` in `~/.t3/workflows`. The owner's
    [host delivery](#t3-workflow-delivery) does this; from a clone, copy the
    file there yourself.
-3. Save the hook URL once, in your own terminal rather than an agent thread:
+3. The hook URL saved in `~/.config/t3-workflows/vote.curl`. The owner's host
+   delivery writes it after each install. On a host that has the dotfiles
+   installer but missed a sync, run
+   `python3 ~/.dotfiles/scripts/t3-workflows.py hooks --source ~/.agents/workflows`.
+   From a clone without it, save the URL once in your own terminal rather than
+   an agent thread:
 
    ```sh
    t3 workflow hooks                       # the URL for "vote  ballot"
@@ -471,8 +476,9 @@ workflow. Each host where you run them needs:
 1. Workflows turned on in T3 Code.
 2. `workflows/scored-loop.ts` in `~/.t3/workflows`, put there by the owner's
    [host delivery](#t3-workflow-delivery) or copied from a clone.
-3. The hook URL saved once in `~/.config/t3-workflows/scored-loop.curl`, from
-   your own terminal. Use the steps in the vote section, with the URL for
+3. The hook URL saved in `~/.config/t3-workflows/scored-loop.curl`. Host
+   delivery and the `hooks` command in the vote section write it. From a clone
+   without the installer, use the vote section's manual steps with the URL for
    "scored-loop  start" and `scored-loop.curl` as the file name.
 
 Judges open fresh threads in the project the packet names. They read the
@@ -706,7 +712,7 @@ installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 21c37051edd0bae275bbf41a470dc3c6c7274d008c11c4f4973820f7a06accff -->
+<!-- skills-review: 6c0ae3fd373cdcc9aa16ba254cdd78d94f5be2ee1897bd8588a572bf0ee5773e -->
 
 ### Owner maintenance
 
@@ -791,13 +797,15 @@ it. A host without T3's boot-service log fails delivery unless its installer
 runs with `--allow-unverified`, because the trace alone does not name the
 definitions that took effect. Moving the trigger host takes two syncs: first with no trigger host,
 then with the new one. Dotfiles documents the installer, the trigger-host move
-and the one-time hook provisioning step in `docs/t3-workflow-delivery.md`.
+and hook provisioning in `docs/t3-workflow-delivery.md`.
 
 A skill that starts a workflow posts to the workflow's webhook with
 `curl --noproxy '' -K ~/.config/t3-workflows/<workflow>.curl`. That private
 config holds the hook URL and token, so neither appears in command text or
-transcripts. The operator creates it once per host with `t3 workflow hooks` in
-their own terminal; agents never run the `t3 workflow` CLI.
+transcripts. After a successful install, the installer reads
+`t3 workflow hooks --json` and writes a mode-600 config for each manual
+webhook workflow, printing only file paths. A rotated token is picked up on the
+next sync. Agents run the `t3 workflow` CLI only through that installer.
 
 #### One-time external skill migration on receivers
 

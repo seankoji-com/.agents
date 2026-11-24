@@ -23,13 +23,16 @@ Before anything else, confirm all three:
 - The host is T3 Code with Workflows turned on, and its scratch project
   (`~/.t3/scratch`) exists; `t3_project_list` shows it.
 - `~/.t3/workflows/vote.ts` exists.
-- `~/.config/t3-workflows/vote.curl` exists. The operator creates it once per
-  host; it holds the hook URL and token. The README's "Use vote on T3
-  Workflows" section has the setup steps.
+- `~/.config/t3-workflows/vote.curl` exists; it holds the hook URL and token.
+  Host delivery writes it. If only this file is missing, run
+  `python3 ~/.dotfiles/scripts/t3-workflows.py hooks --source ~/.agents/workflows`
+  once, outside any sandbox, and check again. It writes the file without
+  printing the hook URL. Without that helper, the README's "Use vote on T3
+  Workflows" section has the manual steps.
 
-If any is missing, report `vote needs T3 Workflows: <what is missing>` and stop.
-Do not dispatch voters yourself, simulate a vote, read hook tokens or run the
-`t3 workflow` CLI.
+If any is still missing, report `vote needs T3 Workflows: <what is missing>` and
+stop. Do not dispatch voters yourself, simulate a vote, read hook tokens or run
+the `t3 workflow` CLI yourself.
 
 ## Inputs
 
