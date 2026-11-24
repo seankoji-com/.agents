@@ -130,6 +130,9 @@ const Packet = Schema.Struct({
     spendCap: Schema.optional(Schema.String),
   })),
   continuation: Schema.optional(Continuation),
+  // The project adopted `review_rounds: 1` (skills/review/references/single-round.md): one scored
+  // review, then coordinator-verified repairs and no recheck.
+  singleRound: Schema.optional(Schema.Boolean),
   judgeMinutes: Schema.optional(Schema.Number),
   repairMinutes: Schema.optional(Schema.Number),
   test: Schema.optional(Test),
@@ -170,6 +173,11 @@ const Repair = Schema.Struct({
   })),
   // Null, or why no repair could be made; `limit` names an exhausted explicit limit.
   stop: Schema.NullOr(Schema.Struct({ reason: Schema.String, limit: Schema.Literals(["none", "spend-cap", "deadline"]) })),
+  // Single-round runs only: whether the coordinator verified every accepted repair, and how.
+  verification: Schema.NullOr(Schema.Struct({ verified: Schema.Boolean, summary: Schema.String })),
+  // Refreshed availability and spend cap: this turn precedes the next judge dispatch.
+  unavailableRoutes: Schema.Array(Schema.String),
+  spendCapReached: Schema.Boolean,
 });
 const Fix = Schema.Struct({
   outcome: Schema.Literals(["fixed", "fix-failed"]),
@@ -280,6 +288,7 @@ function packetProblems(p) {
   if (new Set(panelSeats).size !== panelSeats.length) problems.push("a panel seat repeats; each panel judge is a distinct route");
   if (p.skill === "hillclimb") {
     if (r.primary === undefined) problems.push("hillclimb needs its confirmed roster: roster.primary");
+    if (p.singleRound === true) problems.push("review_rounds: 1 does not replace hillclimb's own scores; leave singleRound out");
   } else {
     // Companions add findings, not a score; visual judgments carry no lineage exclusion.
     for (const key of scoring) {
@@ -320,7 +329,9 @@ const SIBLINGS = {
   "opus-xhigh": ["sonnet", "haiku", "fable"],
   fable: ["opus", "sonnet", "haiku"],
 };
-const EFFORT_WORDS = ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
+const EFFORT_WORDS = ["minimal", "low", "medium", "high", "xhigh", "max", "ultra", "ultrathink"];
+// The version each route's model carries; a claimed version next to a family word must match it.
+const VERSIONS = { sol: "6.2", opus: "5.5", "sonnet-agy": "5.5", neon: "4", hydrogen: "4", deepseek: "4.1", "opus-xhigh": "5.5", fable: "5.2" };
 
 // A judge's own claim conflicts when it names another family and not its own, another model in its
 // family, or an effort other than its route's. Returns the conflicts, or null.
@@ -333,8 +344,14 @@ function identityConflict(key, claim) {
   if (others.length > 0 && !(FAMILY_WORDS[route.lineage] ?? []).some(has)) conflicts.push(`names ${others.join(", ")}`);
   const siblings = (SIBLINGS[key] ?? []).filter(has);
   if (siblings.length > 0) conflicts.push(`names ${siblings.join(", ")}`);
-  const efforts = EFFORT_WORDS.filter((w) => w !== route.effort.value && has(w) && /effort|reasoning|thinking/.test(text));
+  // Any effort word other than the route's, standing alone, is a conflicting setting.
+  const efforts = EFFORT_WORDS.filter((w) => w !== route.effort.value && has(w));
   if (efforts.length > 0) conflicts.push(`reports effort ${efforts.join(", ")}`);
+  // A version written next to a family word, as in "GPT-6.1" or "Opus 4.6", must be the route's.
+  const family = (FAMILY_WORDS[route.lineage] ?? []).join("|");
+  const versions = [...text.matchAll(new RegExp(`(?:${family})[\\s-]*v?(\\d+(?:\\.\\d+)?)`, "g"))].map((m) => m[1]);
+  const wrong = versions.filter((v) => v !== VERSIONS[key]);
+  if (wrong.length > 0 && !versions.includes(VERSIONS[key])) conflicts.push(`reports version ${wrong.join(", ")}`);
   return conflicts.length > 0 ? conflicts : null;
 }
 
@@ -541,7 +558,7 @@ function receiptsText(judges) {
 
 export default T3.workflow(
   "scored-loop",
-  { version: 4, payload: T3.WebhookRequest, triggers: [T3.webhook("start")] },
+  { version: 5, payload: T3.WebhookRequest, triggers: [T3.webhook("start")] },
   (input, { id }) =>
     Effect.gen(function* () {
       const parsed = yield* T3.step.try("packet", { returns: Packet }, Effect.try(() => decodePacket(JSON.parse(input.body))));
@@ -584,8 +601,10 @@ export default T3.workflow(
       const judgeMs = Math.round((p.judgeMinutes ?? 60) * 60000);
       const repairMs = Math.round((p.repairMinutes ?? 240) * 60000);
       // Every agent step's time, capped by the run deadline. Zero or less means the deadline passed.
+      // Read fresh, not journaled: after a restart the time left is measured again, so a dispatch
+      // never runs on an allowance taken before the deadline. `name` labels the call site only.
       const allowance = (name, wanted) =>
-        Effect.map(now(name), (t) => (deadline === NO_DEADLINE ? wanted : Math.min(wanted, deadline - t)));
+        Effect.sync(() => (deadline === NO_DEADLINE ? wanted : Math.min(wanted, deadline - Date.now())));
       const pauses = new Set(p.test?.pauseAt ?? []);
       const pausePoint = (name) => pauses.has(name)
         ? Effect.gen(function* () {
@@ -628,6 +647,18 @@ export default T3.workflow(
         ...ROUTE_KEYS.filter((k) => (providers ?? []).some((x) => !x.available && x.provider === ROUTES[k].instanceId))]);
       let unavailable = offRoutes(pace?.unavailableRoutes, pace?.providers);
       let capReached = pace?.spendCapReached === true;
+      // Judges dispatch only while the latest invoker turn established route availability. A failed
+      // selection, receipts, repair or recovery turn leaves it unknown until the next one succeeds.
+      let availabilityKnown = test || pace !== null;
+      const refresh = (value) => {
+        if (value === null) {
+          availabilityKnown = false;
+          return;
+        }
+        unavailable = offRoutes(value.unavailableRoutes, []);
+        capReached = capReached || value.spendCapReached === true;
+        availabilityKnown = true;
+      };
       const prior = p.continuation?.priorLedger !== undefined ? priorLedgerOf(p.continuation.priorLedger) : null;
       if (capReached) {
         yield* tell("callback", [`Spend cap reached before any judge was dispatched: ${p.limits?.spendCap ?? "as reported"}. Nothing was scored.`]);
@@ -686,6 +717,7 @@ export default T3.workflow(
           const mode = modeOf(route, p.maxRuntimeMode);
           // No dispatch past a reached spend cap or to a route the latest snapshot lists as unavailable.
           if (capReached) return { ...seat, status: "limit", score: null, problems: ["the spend cap is reached"], thread: null, limit: "spend-cap" };
+          if (!availabilityKnown) return { ...seat, status: "unavailable", score: null, problems: ["route availability could not be established"], thread: null };
           if (unavailable.has(seat.key)) return { ...seat, status: "unavailable", score: null, problems: [`${route.instanceId}/${route.model} is unavailable`], thread: null };
           const left = yield* allowance(`${key}/clock`, judgeMs);
           if (left <= 0) return { ...seat, status: "limit", score: null, problems: ["the run deadline passed"], thread: null, limit: "deadline" };
@@ -777,10 +809,7 @@ export default T3.workflow(
               capLine,
               "Submit with t3_submit_output."].join("\n"),
           });
-          if (read.outcome === "done") {
-            unavailable = offRoutes(read.value.unavailableRoutes, []);
-            capReached = capReached || read.value.spendCapReached;
-          }
+          refresh(read.outcome === "done" ? read.value : null);
           const rows = read.outcome === "done" ? read.value.judges : [];
           return judges.map((j) => {
             if (!listed.includes(j)) return j;
@@ -853,6 +882,9 @@ export default T3.workflow(
       const failStop = (ev, what) => (ev.limit === "spend-cap" ? { stop: "spend cap reached", limit: "spend-cap" }
         : ev.limit === "deadline" ? { stop: "run deadline passed", limit: "deadline" }
         : { stop: `${what} failed after its one retry` });
+      const capStop = { stop: "spend cap reached", limit: "spend-cap" };
+      // Every evaluation and repair, in order, for the handback and any continuation.
+      const history = [];
       // The newest candidate any repair or fixing turn committed, even when it was never scored.
       let latestKnown = { candidate: p.candidate, checks: p.checks, source: "baseline", requiredFix: false };
       const known = (candidate, checks, source, requiredFix) => {
@@ -880,6 +912,10 @@ export default T3.workflow(
             rounds.push(roundEntry(p, index - 1, label, rid, candidate, era.phase, ev.judges,
               ev.complete ? null : "evaluation incomplete after one retry"));
             lastEval = { candidate, judges: ev.judges, checks };
+            history.push({ kind: "evaluation", round: rid, era: index, phase: era.phase, candidate, metric: ev.metric,
+              judges: ev.judges.map((j) => ({ key: j.key, status: j.status, score: j.score, thread: j.thread,
+                executedModel: j.executed?.model ?? null, problems: j.problems,
+                findings: (j.findings ?? []).map((f) => `${f.id} ${f.severity} ${f.title}`) })) });
           };
           // Each scored entry keeps its own judges and checks, so a handback never mixes evaluations.
           const score = (ev) => {
@@ -894,8 +930,10 @@ export default T3.workflow(
           yield* pausePoint("after-baseline");
           if (!ev.complete) return failStop(ev, "evaluation");
           if (ev.late) return lateStop;
+          if (capReached) return capStop;
           score(ev);
           era.best = { candidate, metric: ev.metric };
+          const reviewed = { candidate, metric: ev.metric };
 
           for (;;) {
             // Gates first: acceptance, or panel entry.
@@ -911,6 +949,7 @@ export default T3.workflow(
                 record(ev, "Panel entry", `E${index}P0`);
                 if (!ev.complete) return failStop(ev, "panel evaluation");
                 if (ev.late) return lateStop;
+                if (capReached) return capStop;
                 score(ev);
                 era.best = { candidate, metric: ev.metric };
                 continue;
@@ -919,6 +958,9 @@ export default T3.workflow(
             }
             if (era.counter >= 2) return { stop: "two consecutive rounds without a higher score" };
             if (!repairsLeft()) return { stop: `repair-round limit of ${roundCap} reached`, limit: "rounds" };
+            if (capReached) return capStop;
+            // review_rounds: 1 allows one coordinator-verified repair of the first round's findings.
+            const single = p.singleRound === true && index === 1 && roundNo === 0;
 
             // Repair from the phase's best candidate that keeps every required fix. The round counts
             // when it is dispatched, whatever its outcome.
@@ -931,7 +973,8 @@ export default T3.workflow(
               rep = { candidate: resubmit ? base : `test-${index}-${roundNo}`,
                 checks: { passed: !(p.test.failChecks ?? []).includes(n), coverage: true, summary: "synthetic" },
                 buildable: !(p.test.unbuildable ?? []).includes(n), addsRequiredFix: (p.test.requiredFix ?? []).includes(n),
-                summary: "synthetic repair", dispositions: [], stop: null };
+                summary: "synthetic repair", dispositions: [], stop: null, unavailableRoutes: [], spendCapReached: false,
+                verification: single ? { verified: !(p.test.failChecks ?? []).includes(n), summary: "synthetic verification" } : null };
               repairsUsed += 1;
             } else {
               const left = yield* allowance(`e${index}/r${roundNo}/clock`, repairMs);
@@ -954,22 +997,50 @@ export default T3.workflow(
                   contract.checks ? `Required checks under the current contract (run these and name them in checks.summary): ${contract.checks}` : "",
                   `Repair from ${base} under skills/${p.skill}/SKILL.md: decide each finding, fix the selected ones,`,
                   "keep every earlier required fix, commit the result in the checkout and run the required checks on that commit.",
+                  single ? "review_rounds: 1 is adopted: repair only this round's findings, then verify every accepted repair as\n"
+                    + "skills/review/references/single-round.md step 3 requires; there is no independent recheck. Report verification." : "",
                   "Update your score ledger with the score ledger below and render the score chart.",
                   "Submit with t3_submit_output: candidate (the new commit SHA), checks, buildable, addsRequiredFix (true",
-                  "when later candidates must keep a fix this one adds), summary, dispositions for each finding, and",
-                  "stop (null, or { reason, limit: none | spend-cap | deadline } when no repair can be made).",
+                  "when later candidates must keep a fix this one adds), summary, dispositions for each finding,",
+                  `verification (${single ? "{ verified, summary }" : "null"}), stop (null, or { reason, limit: none | spend-cap | deadline }`,
+                  "when no repair can be made), spendCapReached, and unavailableRoutes: call orchestrator_capabilities and list",
+                  "each route key below whose provider is unavailable or lacks its exact model and effort option now:",
+                  ...routeList,
+                  capLine,
                   "You may finish in a later turn of this thread; submit once, when the repair is committed.",
                   "",
                   "Score ledger so far:",
                   JSON.stringify(ledgerNow("in-progress")),
                 ].filter((line) => line !== "").join("\n"),
               });
-              if (ran.outcome !== "done") return { stop: `repair step failed: ${ran.reason.slice(0, 300)}` };
+              if (ran.outcome !== "done") {
+                refresh(null);
+                return { stop: `repair step failed: ${ran.reason.slice(0, 300)}` };
+              }
               rep = ran.value;
+              refresh(rep);
             }
+            history.push({ kind: "repair", round: `E${index}R${roundNo}`, era: index, base, candidate: rep.candidate,
+              checks: rep.checks, buildable: rep.buildable, addsRequiredFix: rep.addsRequiredFix, summary: rep.summary,
+              dispositions: rep.dispositions, stop: rep.stop, verification: rep.verification });
             if (rep.stop !== null) {
               known(rep.candidate, rep.checks, `repair round ${roundNo} (stopped)`, rep.addsRequiredFix);
+              // A stopped repair that committed a required fix still raises the floor: nothing older is handed back.
+              if (rep.addsRequiredFix && rep.candidate !== candidate) {
+                seq += 1;
+                floor = seq;
+                floorCandidate = rep.candidate;
+                era.latest = rep.candidate;
+                era.latestSeq = seq;
+              }
               return { stop: `repair stopped: ${rep.stop.reason}`, ...(rep.stop.limit === "none" ? {} : { limit: rep.stop.limit }) };
+            }
+            if (single) {
+              // No recheck: the score stays bound to the reviewed candidate; verification decides.
+              known(rep.candidate, rep.checks, "single-round repair", rep.addsRequiredFix);
+              const v = rep.verification ?? { verified: false, summary: "no verification reported" };
+              return { single: { reviewed, repaired: rep.candidate, checks: rep.checks, verified: v.verified && rep.checks.passed && rep.buildable,
+                summary: v.summary } };
             }
             seq += 1;
             mySeq = seq;
@@ -1006,6 +1077,7 @@ export default T3.workflow(
               record(ev, `Round ${roundNo}`, `E${index}R${roundNo}`);
               if (!ev.complete) return failStop(ev, "evaluation");
               if (ev.late) return lateStop;
+              if (capReached) return capStop;
               score(ev);
             }
             // Gate before progress: a gate-passing candidate advances even on a tie.
@@ -1021,8 +1093,14 @@ export default T3.workflow(
       const phase0 = p.skill === "hillclimb" && panelKeys.length > 0 && r.panelTrigger === "baseline" ? "panel" : "primary";
       let outcome = yield* runEra(1, { candidate: p.candidate, checks: p.checks, seq: 0 }, contract0, baseRoster, phase0, null);
 
+      let single = null;
       if (outcome.accepted) {
         accepted = outcome.accepted;
+      } else if (outcome.single) {
+        // review_rounds: 1 replaces the recheck and the score gate; the recovery does not apply.
+        single = outcome.single;
+        stopReason = single.verified ? null : `single-round verification incomplete: ${single.summary}`;
+        recovery = { outcome: "not applicable", trigger: "review_rounds: 1", diagnosis: "the adopted one-round exception replaces rechecks", fix: "none", revised: null };
       } else if (p.continuation !== undefined) {
         // An operator-approved continuation: the automatic recovery was spent by the prior run.
         stopReason = outcome.stop;
@@ -1092,8 +1170,8 @@ export default T3.workflow(
         // Text the score chart requires never arrives empty.
         fix = { ...fix, diagnosis: fix.diagnosis.trim() || "(not stated)", fix: fix.fix.trim() || "(not stated)" };
         // The fixing turn's refreshed availability and spend cap replace the older snapshot.
-        if (refreshed) unavailable = offRoutes(fix.unavailableRoutes, []);
-        capReached = capReached || fix.spendCapReached === true;
+        if (refreshed) refresh(fix);
+        else if (!test) availabilityKnown = false;
         // A candidate-changing attempt consumes a repair round, whatever its outcome; record the candidate.
         const changesCandidate = fix.candidate !== lastEra.latest;
         if (changesCandidate && !capSpent) repairsUsed += 1;
@@ -1109,8 +1187,9 @@ export default T3.workflow(
         const nextSeats = seatsFor(eras[0].phase, roster).map((s) => s.key);
         const offSeats = nextSeats.filter((k) => unavailable.has(k));
         const panelSeats = seatsFor("panel", roster).filter((s) => s.scoring).map((s) => s.key);
-        const panelBroken = p.skill === "hillclimb" && panelKeys.length > 0
-          && (roster.panel.length !== panelKeys.length || new Set(panelSeats).size !== panelSeats.length);
+        // A recovery may swap a confirmed panel seat, never add a panel or change its size.
+        const panelBroken = (rv?.panel !== undefined && (p.skill !== "hillclimb" || panelKeys.length === 0))
+          || (panelKeys.length > 0 && (roster.panel.length !== panelKeys.length || new Set(panelSeats).size !== panelSeats.length));
         const blocked = fix.outcome !== "fixed" ? null
           : !fix.buildable ? "the fixing turn marked its candidate unbuildable"
           : capReached ? "the spend cap is reached"
@@ -1151,17 +1230,23 @@ export default T3.workflow(
 
       // ----- hand back -----
       const revisedPass = accepted !== null && eras.length > 1 && !eras[1].comparable;
-      const status = accepted !== null ? (revisedPass ? "passed-revised" : "passed") : "goal-not-met";
+      const status = accepted !== null ? (revisedPass ? "passed-revised" : "passed")
+        : single?.verified ? "passed" : "goal-not-met";
+      const reviewedEntry = single ? eras[0].scored.find((c) => c.candidate === single.reviewed.candidate) : null;
       const final = accepted !== null
         ? { candidate: accepted.candidate, metric: accepted.metric, note: "accepted candidate", entry: { judges: accepted.judges, checks: accepted.checks } }
-        : finalCandidate(eras, floor, floorCandidate);
+        : single
+          ? { candidate: single.repaired, metric: null, entry: { judges: reviewedEntry?.judges ?? [], checks: single.checks },
+            note: `${single.verified ? "fixes coordinator-verified, not independently re-reviewed" : "repairs not verified"}; `
+              + `the score ${single.reviewed.metric} stays bound to the reviewed candidate ${single.reviewed.candidate}` }
+          : finalCandidate(eras, floor, floorCandidate);
       const finalJudges = final.entry?.judges ?? [];
       const ledger = ledgerNow(status);
       const selectionOut = selection ?? { order: [primary], basis: "named roster", gates: [] };
       const result = {
         run: id, test, skill: p.skill, status,
         final: { candidate: final.candidate, metric: final.metric, note: final.note, checks: final.entry?.checks ?? null },
-        stopReason, recovery, repairsUsed, requiredFixFloor: floorCandidate, latestKnown,
+        stopReason, recovery, repairsUsed, requiredFixFloor: floorCandidate, latestKnown, single, history,
         continuation: p.continuation ? { priorRun: p.continuation.priorRun, repairsUsed: p.continuation.repairsUsed, approval: p.continuation.approval } : null,
         selection: selectionOut,
         eras: eras.map((e) => ({ target: e.target, comparable: e.comparable, phase: e.phase, best: e.best, panelEntry: e.panelEntry, counter: e.counter })),
@@ -1185,6 +1270,14 @@ export default T3.workflow(
         `Findings on the final candidate ${final.candidate}:`, finalJudges.length ? findingsText(finalJudges, true) : "- no complete evaluation of this candidate",
         "Judge receipts for the final candidate:", receiptsText(finalJudges),
         lastEval && lastEval.candidate !== final.candidate ? `Latest evaluated candidate ${lastEval.candidate} findings (a different revision):\n${findingsText(lastEval.judges, false)}` : "",
+        "Attempt history (evaluations and repairs, in order):",
+        ...history.map((h) => (h.kind === "evaluation"
+          ? `- ${h.round} ${h.phase} eval of ${h.candidate}: ${h.metric ?? "no score"}; `
+            + h.judges.map((j) => `${j.key} ${j.status}${j.score === null || j.score === undefined ? "" : ` ${j.score}`} (${j.executedModel ?? "model unverified"}; ${j.findings.join(", ") || "no findings"})`).join("; ")
+          : `- ${h.round} repair from ${h.base} to ${h.candidate}: ${h.stop ? `stopped (${h.stop.reason})` : h.summary.slice(0, 200)}; `
+            + `checks ${h.checks.passed ? "pass" : "fail"}${h.addsRequiredFix ? "; adds a required fix" : ""}; `
+            + `dispositions ${h.dispositions.map((d) => `${d.id} ${d.disposition}: ${d.note.slice(0, 120)}`).join(" | ") || "none"}`
+            + (h.verification ? `; verification ${h.verification.verified ? "passed" : "failed"}: ${h.verification.summary.slice(0, 200)}` : ""))),
         "",
         test ? "" : `Continue with skills/${p.skill}/SKILL.md from its delivery step, using this result. Write the ledger below to your score ledger and render the chart.`,
         "Score ledger:",

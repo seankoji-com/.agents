@@ -701,7 +701,7 @@ installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: f114282fa66d793aa8fa7e422e2e3b699fbf2c93f8a85f3bd0fb5685da686be6 -->
+<!-- skills-review: 7512c1ecefe90c2e585f09aca8def2340e101c10d6bae0df4c8c9e8a2a7ca8ac -->
 
 ### Owner maintenance
 

@@ -78,6 +78,11 @@ and stop. Do not run the loop by hand, read hook tokens or run the
    - Optional `roster` (`primary` only when the user named one; `companions`),
      `limits` (`repairRounds`, `deadline`, `spendCap`), `judgeMinutes`,
      `repairMinutes`.
+   - `singleRound: true` only when the project adopted `review_rounds: 1`.
+     Before setting it, read the
+     [one-round exception](../review/references/single-round.md): the run
+     does one scored review, then one repair turn you verify yourself, with
+     no recheck.
    - `continuation` only for an operator-approved continuation (step 7):
      `priorRun`, the prior run's `repairsUsed`, the `approval` message, its
      final ledger as `priorLedger` (JSON text) and `sameContract`.
@@ -116,7 +121,9 @@ and stop. Do not run the loop by hand, read hook tokens or run the
      workflow then never hands back an earlier candidate. After each
      round, update the JSON score ledger from the turn and render the
      [score line graph](../review/references/score-chart.md). Report a blocker
-     or a reached spend cap or deadline in `stop` instead of repairing past it.
+     or a reached spend cap or deadline in `stop` instead of repairing past it,
+     and refreshed route availability. In a single-round run, report your
+     verification of every accepted repair instead of awaiting a recheck.
    - **Recovery:** follow budget-exhaustion's
      [single recovery](../review/references/budget-exhaustion.md#continue-a-stopped-scoring-loop),
      steps 2 to 4: diagnose from retained evidence, fix the cause and submit
