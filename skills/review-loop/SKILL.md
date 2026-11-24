@@ -76,9 +76,11 @@ and stop. Do not run the loop by hand, read hook tokens or run the
      environment, a scratch directory verified with `git check-ignore`, and
      the evidence and screenshots required.
    - Optional `roster` (`primary` only when the user named one; `companions`),
-     `limits` (`repairRounds`, `deadline`), `judgeMinutes`, `repairMinutes`.
+     `limits` (`repairRounds`, `deadline`, `spendCap`), `judgeMinutes`,
+     `repairMinutes`.
    - `continuation` only for an operator-approved continuation (step 7):
-     `priorRun`, the prior run's `repairsUsed` and the `approval` message.
+     `priorRun`, the prior run's `repairsUsed`, the `approval` message, its
+     final ledger as `priorLedger` (JSON text) and `sameContract`.
    Never set `test`: test fields are for acceptance runs.
 
 5. **Start the run, then end your turn.**
@@ -112,12 +114,13 @@ and stop. Do not run the loop by hand, read hook tokens or run the
      workflow then never hands back an earlier candidate. After each
      round, update the JSON score ledger from the turn and render the
      [score line graph](../review/references/score-chart.md). Report a blocker
-     or limit in `stop` instead of repairing past it.
+     or a reached spend cap or deadline in `stop` instead of repairing past it.
    - **Recovery:** follow budget-exhaustion's
      [single recovery](../review/references/budget-exhaustion.md#continue-a-stopped-scoring-loop),
      steps 2 to 4: diagnose from retained evidence, fix the cause and submit
-     the frozen candidate, or `fix-failed` when the fix is blocked. The
-     workflow records the attempt and runs it at most once.
+     the frozen candidate, any revised contract or checks, and refreshed route
+     availability, or `fix-failed` when the fix is blocked. The workflow
+     records the attempt, checks the revision and runs it at most once.
 
 7. **Accept the evidence or explain the stop.**
    The result turn gives the status, final candidate, scores, findings and

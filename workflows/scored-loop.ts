@@ -94,6 +94,11 @@ const Continuation = Schema.Struct({
   // Repair rounds the prior run already consumed against the same explicit limit.
   repairsUsed: Schema.Number,
   approval: Schema.String,
+  // The prior run's final score ledger as JSON text; its eras and rounds are kept as history.
+  priorLedger: Schema.optional(Schema.String),
+  // True when the rubric, target, checks and roster are unchanged, so a score for this exact
+  // candidate in the prior ledger may seed the baseline instead of a new evaluation.
+  sameContract: Schema.Boolean,
 });
 
 const Packet = Schema.Struct({
@@ -120,6 +125,9 @@ const Packet = Schema.Struct({
   limits: Schema.optional(Schema.Struct({
     repairRounds: Schema.optional(Schema.Number),
     deadline: Schema.optional(Schema.String),
+    // An explicit spend cap, as the operator stated it. The workflow cannot measure spend:
+    // the invoking thread reports reaching it, and a reached cap blocks the recovery.
+    spendCap: Schema.optional(Schema.String),
   })),
   continuation: Schema.optional(Continuation),
   judgeMinutes: Schema.optional(Schema.Number),
@@ -160,7 +168,8 @@ const Repair = Schema.Struct({
     disposition: Schema.Literals(["fixed", "deferred", "rejected", "open"]),
     note: Schema.String,
   })),
-  stop: Schema.NullOr(Schema.String),
+  // Null, or why no repair could be made; `limit` names an exhausted explicit limit.
+  stop: Schema.NullOr(Schema.Struct({ reason: Schema.String, limit: Schema.Literals(["none", "spend-cap", "deadline"]) })),
 });
 const Fix = Schema.Struct({
   outcome: Schema.Literals(["fixed", "fix-failed"]),
@@ -174,9 +183,13 @@ const Fix = Schema.Struct({
     target: Schema.optional(Schema.Number),
     rubric: Schema.optional(Schema.String),
     criteria: Schema.optional(Schema.String),
+    // The changed loop-required checks, described.
+    checks: Schema.optional(Schema.String),
     primary: Schema.optional(Route),
     panel: Schema.optional(Schema.Array(Route)),
   })),
+  // Refreshed availability: route keys whose provider is unavailable or lacks the exact model now.
+  unavailableRoutes: Schema.Array(Schema.String),
 });
 const Pace = Schema.Struct({
   observedAt: Schema.String,
@@ -192,10 +205,21 @@ const Pace = Schema.Struct({
 const Receipts = Schema.Struct({
   judges: Schema.Array(Schema.Struct({
     thread: Schema.String,
+    turnId: Schema.NullOr(Schema.String),
     executedModel: Schema.NullOr(Schema.String),
     turns: Schema.NullOr(Schema.Number),
   })),
 });
+
+// Words that name a model family in a judge's own identity claim.
+const FAMILY_WORDS = {
+  openai: ["gpt", "sol", "openai", "codex", "chatgpt"],
+  anthropic: ["claude", "opus", "sonnet", "fable", "haiku", "anthropic"],
+  google: ["gemini", "neon", "hydrogen", "argon", "carbon", "google"],
+  deepseek: ["deepseek"],
+  xai: ["grok", "xai"],
+  qwen: ["qwen"],
+};
 
 // ---------- pure rules (no clock, no I/O) ----------
 
@@ -242,6 +266,7 @@ function packetProblems(p) {
   if (!p.checkout.startsWith("/")) problems.push("checkout must be an absolute path");
   const s = p.scale;
   if (!(s.precision > 0) || !(s.max > s.min)) problems.push("scale needs min < max and a positive precision");
+  if (decimals(s.precision) > 3) problems.push("scale.precision may have at most three decimal places");
   if (!targetFits(s, p.target)) problems.push("target must sit inside the scale");
   const r = p.roster ?? {};
   const scoring = [r.primary, r.panelPrimary, ...(r.panel ?? [])].filter(Boolean);
@@ -273,8 +298,34 @@ function packetProblems(p) {
   if (c !== undefined) {
     if (!c.priorRun.trim() || !c.approval.trim()) problems.push("continuation needs priorRun and the operator's approval");
     if (!(Number.isInteger(c.repairsUsed) && c.repairsUsed >= 0)) problems.push("continuation.repairsUsed must be a whole number");
+    if (c.priorLedger !== undefined && priorLedgerOf(c.priorLedger) === null) problems.push("continuation.priorLedger is not a version 1 score ledger");
   }
   return problems;
+}
+
+// A judge's own model claim conflicts when it names another family and not its own.
+function identityConflict(key, claim) {
+  const text = String(claim ?? "").toLowerCase();
+  const own = ROUTES[key].lineage;
+  const words = (family) => (FAMILY_WORDS[family] ?? []).some((w) => new RegExp(`\\b${w}\\b`).test(text));
+  const others = Object.keys(FAMILY_WORDS).filter((f) => f !== own && words(f));
+  return others.length > 0 && !words(own) ? others : null;
+}
+
+// Keep only dimensions the score chart accepts: a name and, when weighted, a positive weight.
+function cleanDimensions(dimensions, scale) {
+  return (dimensions ?? []).filter((d) => d.name.trim() && d.score >= scale.min && d.score <= scale.max
+    && (d.weight === undefined || d.weight > 0)).map((d) => ({ ...d, name: d.name.trim() }));
+}
+
+// A prior run's ledger, parsed, or null when it is not a version 1 ledger.
+function priorLedgerOf(text) {
+  try {
+    const l = JSON.parse(text);
+    return l && l.version === 1 && Array.isArray(l.eras) && Array.isArray(l.rounds) && Array.isArray(l.reviewers) ? l : null;
+  } catch {
+    return null;
+  }
 }
 
 // Review's selection rule: after the gates, the highest-scored provider wins; null is
@@ -368,36 +419,52 @@ function eligibleBest(scored, floor) {
   return best;
 }
 
-// The candidate an incomplete stop hands back, under the rounds rules.
-function finalCandidate(eras, floor) {
+// The candidate an incomplete stop hands back, under the rounds rules. `floor` is the required-fix
+// floor seq and `floorCandidate` the candidate that set it.
+function finalCandidate(eras, floor, floorCandidate) {
   const last = eras[eras.length - 1];
+  const fallback = (candidate, seq, note) => (seq >= floor
+    ? { candidate, metric: null, note, entry: null }
+    : { candidate: floorCandidate, metric: null, note: `${note}; it lacks a required fix, so the required-fix candidate is handed back`, entry: null });
+  // A panel phase that never completed a panel score in this invocation hands back its panel entry.
+  if (last.phase === "panel" && !last.scored.some((c) => c.phase === "panel")) {
+    return fallback(last.panelEntry ?? last.latest, last.panelEntrySeq ?? last.latestSeq, "panel-entry candidate; no complete panel result");
+  }
   const comparable = eras.every((e) => e.comparable && e.phase === last.phase);
   const pool = (comparable ? eras : [last]).flatMap((e) => e.scored.filter((c) => c.phase === last.phase));
   const best = eligibleBest(pool, floor);
   if (best !== null) {
-    return { candidate: best.candidate, metric: best.metric, note: comparable ? "best fully scored candidate that keeps required fixes" : "best under the current contract; earlier scores historical" };
+    return { candidate: best.candidate, metric: best.metric, entry: best,
+      note: comparable ? "best fully scored candidate that keeps required fixes" : "best under the current contract; earlier scores historical" };
   }
-  if (last.phase === "panel" && last.panelEntry !== null) return { candidate: last.panelEntry, metric: null, note: "panel-entry candidate; no complete panel result" };
-  return { candidate: last.latest, metric: null, note: "no ranked best; latest eligible work (the era's frozen baseline or later)" };
+  return fallback(last.latest, last.latestSeq, "no ranked best; latest eligible work (the era's frozen baseline or later)");
 }
 
-function ledgerOf(p, runId, status, eras, rounds, rosterLabels) {
-  const reviewers = Object.entries(rosterLabels).map(([id, x]) => ({ id, label: x.label, role: x.role }));
+function ledgerOf(p, runId, status, eras, rounds, rosterLabels, prior) {
+  const own = Object.entries(rosterLabels).map(([id, x]) => ({ id, label: x.label, role: x.role }));
+  // A continuation keeps the prior run's eras and rounds as history, ahead of its own.
+  const priorReviewers = (prior?.reviewers ?? []).filter((r) => !own.some((o) => o.id === r.id));
+  const reviewers = [...priorReviewers, ...own];
+  const priorEras = (prior?.eras ?? []).map((e) => ({ ...e, id: `p-${e.id}`, label: `Prior run: ${e.label}`, historical: true }));
+  const priorRounds = (prior?.rounds ?? []).map((r) => ({ ...r, id: `P-${r.id}`, era: `p-${r.era}` }));
+  const scale = { min: p.scale.min, max: p.scale.max, precision: decimals(p.scale.precision) };
   return {
     version: 1,
     // The ledger's precision is decimal places; the packet's is the rubric's step.
-    run: { title: p.title, id: runId, skill: p.skill, status, scale: { min: p.scale.min, max: p.scale.max, precision: decimals(p.scale.precision) } },
+    run: { title: p.title, id: runId, skill: p.skill, status, scale },
     reviewers: reviewers.length ? reviewers : [{ id: "none", label: "no judge" }],
-    eras: eras.map((e, i) => ({
+    eras: [...priorEras, ...eras.map((e, i) => ({
       id: `e${i + 1}`,
       label: i === 0 ? (p.continuation ? "Continuation" : "Original contract") : `Recovery era ${i + 1}`,
       target: e.target,
       ...(e.target !== p.target ? { original_target: p.target } : {}),
       historical: i < eras.length - 1 && !eras[i + 1].comparable,
-      comparable_to_prev: i === 0 ? true : e.comparable,
+      comparable_to_prev: i === 0 ? (priorEras.length > 0 && p.continuation?.sameContract === true) : e.comparable,
       ...(e.recovery ? { recovery: e.recovery } : {}),
-    })),
-    rounds: rounds.length ? rounds : [{ id: "B0", label: "Baseline", era: "e1", phase: "primary", expected_reviewers: [], status: "unscored", failure_note: "no evaluation completed", scores: [] }],
+    }))],
+    rounds: [...priorRounds, ...(rounds.length ? rounds : [{ id: "B0", label: "Baseline", era: "e1", phase: "primary",
+      expected_reviewers: [reviewers.length ? reviewers[reviewers.length - 1].id : "none"], status: "unscored",
+      failure_note: "no evaluation completed", scores: [] }])],
   };
 }
 
@@ -405,9 +472,10 @@ function roundEntry(p, eraIndex, label, id, candidate, phase, judges, failure) {
   const scoring = judges.filter((j) => j.scoring);
   const scores = scoring.map((j) => {
     const retry = j.retried ? { retried: true, retry_note: j.retryNote } : {};
+    const dims = cleanDimensions(j.dimensions, p.scale);
     return typeof j.score === "number"
-      ? { reviewer: j.key, score: quantise(j.score, p.scale), bullets: j.bullets.slice(0, 5),
-        ...(j.dimensions ? { dimensions: j.dimensions } : {}), ...retry }
+      ? { reviewer: j.key, score: quantise(j.score, p.scale), bullets: j.bullets.map((b) => b.trim()).filter(Boolean).slice(0, 5),
+        ...(dims.length ? { dimensions: dims } : {}), ...retry }
       : { reviewer: j.key, score: null, status: j.status, failure_note: j.problems.join("; ") || j.status, ...retry };
   });
   const status = failure ? (scores.some((s) => s.score !== null) ? "incomplete" : "unscored")
@@ -434,15 +502,17 @@ function findingsText(judges, withEvidence) {
 }
 
 function receiptsText(judges) {
-  return judges.filter((j) => j.thread).map((j) => `- ${j.key}: thread ${j.thread}, requested ${ROUTES[j.key].model}, `
-    + `executedModel ${j.executed?.model ?? "null"} (${j.executed?.verified ? "verified" : "unverified"})`).join("\n") || "- none";
+  return judges.filter((j) => j.thread).map((j) => `- ${j.key}: thread ${j.thread}, turn ${j.executed?.turnId ?? "unknown"}, `
+    + `requested ${ROUTES[j.key].model} ${ROUTES[j.key].effort.id}=${ROUTES[j.key].effort.value}, `
+    + `executedModel ${j.executed?.model ?? "null"} (${j.executed?.verified ? "verified" : "unverified"}), effort unverified `
+    + `(the host records none), self-reported "${String(j.claim ?? "").slice(0, 80)}"`).join("\n") || "- none";
 }
 
 // ---------- workflow ----------
 
 export default T3.workflow(
   "scored-loop",
-  { version: 2, payload: T3.WebhookRequest, triggers: [T3.webhook("start")] },
+  { version: 3, payload: T3.WebhookRequest, triggers: [T3.webhook("start")] },
   (input, { id }) =>
     Effect.gen(function* () {
       const parsed = yield* T3.step.try("packet", { returns: Packet }, Effect.try(() => decodePacket(JSON.parse(input.body))));
@@ -521,7 +591,10 @@ export default T3.workflow(
         if (paced.outcome === "done") pace = paced.value;
         else paceProblem = paced.reason.slice(0, 200);
       }
-      const unavailable = new Set(pace?.unavailableRoutes ?? []);
+      // A route is unavailable when its provider is reported unavailable or lacks the exact model.
+      const offProviders = new Set((pace?.providers ?? []).filter((x) => !x.available).map((x) => x.provider));
+      const unavailable = new Set([...(pace?.unavailableRoutes ?? []), ...ROUTE_KEYS.filter((k) => offProviders.has(ROUTES[k].instanceId))]);
+      const prior = p.continuation?.priorLedger !== undefined ? priorLedgerOf(p.continuation.priorLedger) : null;
       const namedMissing = rosterKeys(r).filter((k) => unavailable.has(k));
       if (namedMissing.length > 0) {
         yield* tell("callback", ["Roster unavailable: these named routes are not offered by their providers now.",
@@ -615,7 +688,10 @@ export default T3.workflow(
           const thread = ran.thread?.threadId ?? null;
           if (ran.outcome !== "done") return { ...seat, status: "failed", score: null, problems: [ran.reason.slice(0, 300)], thread };
           const bad = judgedProblems(p, candidate, ran.value, seat.scoring);
-          if (bad.length > 0) return { ...seat, status: "invalid", score: null, problems: bad, thread, findings: ran.value.findings };
+          // A judge whose own identity claim names another model family conflicts with its route.
+          const conflict = identityConflict(seat.key, ran.value.model);
+          if (conflict !== null) bad.push(`the judge reports "${ran.value.model.slice(0, 80)}" (${conflict.join(", ")}), not ${route.label}`);
+          if (bad.length > 0) return { ...seat, status: "invalid", score: null, problems: bad, thread, findings: ran.value.findings, claim: ran.value.model };
           return { ...seat, status: seat.scoring ? "scored" : "reported", score: seat.scoring ? ran.value.score : null,
             bullets: ran.value.bullets.filter((b) => b.trim()), dimensions: ran.value.dimensions, findings: ran.value.findings,
             coverageComplete: ran.value.coverageComplete, coverageGaps: ran.value.coverageGaps, claim: ran.value.model, problems: [], thread };
@@ -651,8 +727,8 @@ export default T3.workflow(
             timeout: `${left} millis`,
             returns: Receipts,
             brief: [`${head} Host receipts for judge threads. Do nothing else in this turn.`,
-              "For each thread, read it with t3_thread_read and report the executedModel of its run that submitted",
-              "with t3_submit_output, and the thread's run count as turns. Use null where the host shows nothing.",
+              "For each thread, read it with t3_thread_read and report, for its run that submitted with t3_submit_output,",
+              "the run ID as turnId and its executedModel, and the thread's run count as turns. Use null where the host shows nothing.",
               ...listed.map((j) => `- ${j.thread} (${j.key}, requested ${ROUTES[j.key].model})`),
               "Submit with t3_submit_output."].join("\n"),
           });
@@ -661,7 +737,7 @@ export default T3.workflow(
             if (!listed.includes(j)) return j;
             const row = rows.find((x) => x.thread === j.thread);
             const executed = { model: row?.executedModel ?? null, verified: Boolean(row?.executedModel),
-              turns: row?.turns ?? null, ...(read.outcome === "done" ? {} : { problem: read.reason.slice(0, 200) }) };
+              turns: row?.turns ?? null, turnId: row?.turnId ?? null, ...(read.outcome === "done" ? {} : { problem: read.reason.slice(0, 200) }) };
             if (executed.verified && String(executed.model).trim().toLowerCase() !== ROUTES[j.key].model) {
               return { ...j, executed, status: "invalid", score: null,
                 problems: [...j.problems, `host executedModel ${executed.model} is not ${ROUTES[j.key].model}`] };
@@ -715,7 +791,9 @@ export default T3.workflow(
             if (j.findings !== undefined) priorFindings[j.key] = findingsText([j], false);
           }
           const done = complete(judges);
-          return { judges, metric: done ? metricOf(p, judges) : null, complete: done, covered: judgesCovered(judges) };
+          // When the evaluation finished, journaled: a result after the run deadline cannot pass.
+          const endedAt = yield* now(`${tag}/ended`);
+          return { judges, metric: done ? metricOf(p, judges) : null, complete: done, covered: judgesCovered(judges), late: endedAt > deadline };
         });
 
       // ----- run state across eras -----
@@ -729,14 +807,32 @@ export default T3.workflow(
       let accepted = null;
       let stopReason = null;
       let lastEval = null;
-      let finalEval = new Map();
       const repairsLeft = () => roundCap === null || repairsUsed < roundCap;
+      const ledgerNow = (status) => ledgerOf(p, id, status, eras, rounds, rosterLabels, prior);
+      const lateStop = { stop: "run deadline passed before the evaluation finished", limit: "deadline" };
+      const failStop = (ev, what) => (ev.judges.some((j) => j.status === "limit") ? { stop: "run deadline passed", limit: "deadline" }
+        : { stop: `${what} failed after its one retry` });
+
+      // A continuation under the same contract may seed its baseline from the prior ledger's score
+      // for this exact candidate, primary phase and scoring roster, instead of a new evaluation.
+      const reusedBaseline = (roster) => {
+        if (!prior || p.continuation?.sameContract !== true) return null;
+        const keys = seatsFor("primary", roster).filter((s) => s.scoring).map((s) => s.key);
+        const hit = [...prior.rounds].reverse().find((rd) => rd.candidate === p.candidate && rd.phase === "primary" && rd.status === "scored"
+          && JSON.stringify([...rd.expected_reviewers].sort()) === JSON.stringify([...keys].sort()));
+        if (!hit) return null;
+        const judges = hit.scores.map((s) => ({ key: s.reviewer, scoring: true, role: "Primary", status: "scored", score: s.score,
+          bullets: s.bullets, dimensions: s.dimensions, findings: [], problems: [], thread: null, coverageComplete: true,
+          coverageGaps: `reused from prior run ${p.continuation.priorRun}, round ${hit.id}`, claim: "reused" }));
+        judges.forEach(label);
+        return { judges, metric: metricOf(p, judges), complete: true, covered: true, late: false, reused: hit.id };
+      };
 
       const runEra = (index, start, contract, roster, phase0, recoveryNote) =>
         Effect.gen(function* () {
           const era = { target: contract.target, comparable: recoveryNote === null || recoveryNote.comparable,
-            recovery: recoveryNote?.ledger, phase: phase0, best: null, panelEntry: null, latest: start.candidate,
-            counter: 0, scored: [] };
+            recovery: recoveryNote?.ledger, phase: phase0, best: null, panelEntry: null, panelEntrySeq: null,
+            latest: start.candidate, latestSeq: start.seq, counter: 0, scored: [] };
           eras.push(era);
           // Score reuse is keyed by phase: a primary score never stands in for a panel score.
           const cache = new Map();
@@ -745,26 +841,30 @@ export default T3.workflow(
           let mySeq = start.seq;
           let roundNo = 0;
           let note = recoveryNote ? `recovery fix: ${recoveryNote.fix}` : "";
-          if (era.phase === "panel") era.panelEntry = candidate;
+          if (era.phase === "panel") {
+            era.panelEntry = candidate;
+            era.panelEntrySeq = mySeq;
+          }
           const record = (ev, label, rid) => {
             rounds.push(roundEntry(p, index - 1, label, rid, candidate, era.phase, ev.judges,
               ev.complete ? null : "evaluation incomplete after one retry"));
-            lastEval = { candidate, judges: ev.judges };
-            finalEval.set(`${era.phase}:${candidate}`, ev.judges);
+            lastEval = { candidate, judges: ev.judges, checks };
           };
+          // Each scored entry keeps its own judges and checks, so a handback never mixes evaluations.
           const score = (ev) => {
-            const entry = { candidate, metric: ev.metric, seq: mySeq, phase: era.phase, checks, covered: ev.covered };
+            const entry = { candidate, metric: ev.metric, seq: mySeq, phase: era.phase, checks, covered: ev.covered, judges: ev.judges };
             cache.set(`${era.phase}:${candidate}`, entry);
             era.scored.push(entry);
-            return entry;
           };
 
-          // Baseline (or the recovery's frozen baseline).
-          let ev = yield* evaluate(candidate, era.phase, index, contract, roster, note);
-          record(ev, index === 1 ? (p.continuation ? "Continuation baseline" : "Baseline") : "Recovery baseline", `E${index}B0`);
+          // Baseline (or the recovery's frozen baseline, or a reused continuation score).
+          const reused = index === 1 && era.phase === "primary" ? reusedBaseline(roster) : null;
+          let ev = reused ?? (yield* evaluate(candidate, era.phase, index, contract, roster, note));
+          record(ev, reused ? `Continuation baseline (reused ${reused.reused})` : index === 1 ? (p.continuation ? "Continuation baseline" : "Baseline") : "Recovery baseline", `E${index}B0`);
           yield* pausePoint("after-baseline");
-          if (!ev.complete) return { stop: ev.judges.some((j) => j.status === "limit") ? "run deadline passed" : "evaluation failed after its one retry" };
-          let entry = score(ev);
+          if (!ev.complete) return failStop(ev, "evaluation");
+          if (ev.late) return lateStop;
+          score(ev);
           era.best = { candidate, metric: ev.metric };
 
           for (;;) {
@@ -773,22 +873,25 @@ export default T3.workflow(
               if (era.phase === "primary" && roster.panel.length > 0) {
                 era.phase = "panel";
                 era.panelEntry = candidate;
+                era.panelEntrySeq = mySeq;
                 // The panel seeds its own best and counter; primary scores do not carry over.
                 era.best = null;
                 era.counter = 0;
                 ev = yield* evaluate(candidate, "panel", index, contract, roster, "panel entry: same frozen candidate");
                 record(ev, "Panel entry", `E${index}P0`);
-                if (!ev.complete) return { stop: ev.judges.some((j) => j.status === "limit") ? "run deadline passed" : "panel evaluation failed after its one retry" };
-                entry = score(ev);
+                if (!ev.complete) return failStop(ev, "panel evaluation");
+                if (ev.late) return lateStop;
+                score(ev);
                 era.best = { candidate, metric: ev.metric };
                 continue;
               }
-              return { accepted: { candidate, metric: ev.metric, checks } };
+              return { accepted: { candidate, metric: ev.metric, checks, judges: ev.judges } };
             }
             if (era.counter >= 2) return { stop: "two consecutive rounds without a higher score" };
             if (!repairsLeft()) return { stop: `repair-round limit of ${roundCap} reached`, limit: "rounds" };
 
-            // Repair from the phase's best candidate that keeps every required fix.
+            // Repair from the phase's best candidate that keeps every required fix. The round counts
+            // when it is dispatched, whatever its outcome.
             roundNo += 1;
             const base = eligibleBest(era.scored.filter((c) => c.phase === era.phase), floor)?.candidate ?? floorCandidate;
             let rep;
@@ -799,9 +902,11 @@ export default T3.workflow(
                 checks: { passed: !(p.test.failChecks ?? []).includes(n), coverage: true, summary: "synthetic" },
                 buildable: !(p.test.unbuildable ?? []).includes(n), addsRequiredFix: (p.test.requiredFix ?? []).includes(n),
                 summary: "synthetic repair", dispositions: [], stop: null };
+              repairsUsed += 1;
             } else {
               const left = yield* allowance(`e${index}/r${roundNo}/clock`, repairMs);
               if (left <= 0) return { stop: "run deadline passed", limit: "deadline" };
+              repairsUsed += 1;
               const ran = yield* T3.agent.try(`e${index}/r${roundNo}/repair`, {
                 thread: { threadId: p.invokerThread },
                 timeout: `${left} millis`,
@@ -810,8 +915,9 @@ export default T3.workflow(
                 brief: [
                   `${head} Repair round ${roundNo} of era ${index}.`,
                   `Phase ${era.phase}. Target ${contract.target}. Best ${era.best?.metric ?? "none"} on ${era.best?.candidate ?? "none"}. Latest ${ev.metric ?? "no score"} on ${candidate}.`,
-                  `Non-improving rounds: ${era.counter} of 2. Repairs used: ${repairsUsed + 1}${roundCap === null ? "" : ` of ${roundCap}`}.`,
+                  `Non-improving rounds: ${era.counter} of 2. Repairs used, this one included: ${repairsUsed}${roundCap === null ? "" : ` of ${roundCap}`}.`,
                   deadline === NO_DEADLINE ? "" : `Run deadline: ${new Date(deadline).toISOString()}; this turn has ${Math.floor(left / 60000)} minute(s).`,
+                  p.limits?.spendCap ? `Spend cap: ${p.limits.spendCap}. If it is reached, stop with limit spend-cap.` : "",
                   "Findings from the latest evaluation:", findingsText(ev.judges, true), "",
                   `Checks on ${candidate}: ${checks.passed ? "pass" : "fail"}, coverage ${checks.coverage ? "complete" : "incomplete"}: ${checks.summary}`,
                   "",
@@ -820,23 +926,25 @@ export default T3.workflow(
                   "Update your score ledger with the score ledger below and render the score chart.",
                   "Submit with t3_submit_output: candidate (the new commit SHA), checks, buildable, addsRequiredFix (true",
                   "when later candidates must keep a fix this one adds), summary, dispositions for each finding, and",
-                  "stop (null, or the blocker or limit that prevents a repair).",
+                  "stop (null, or { reason, limit: none | spend-cap | deadline } when no repair can be made).",
                   "You may finish in a later turn of this thread; submit once, when the repair is committed.",
                   "",
                   "Score ledger so far:",
-                  JSON.stringify(ledgerOf(p, id, "in-progress", eras, rounds, rosterLabels)),
+                  JSON.stringify(ledgerNow("in-progress")),
                 ].filter((line) => line !== "").join("\n"),
               });
               if (ran.outcome !== "done") return { stop: `repair step failed: ${ran.reason.slice(0, 300)}` };
               rep = ran.value;
             }
-            if (rep.stop !== null) return { stop: `repair stopped: ${rep.stop}`, blocked: true };
-            repairsUsed += 1;
+            if (rep.stop !== null) {
+              return { stop: `repair stopped: ${rep.stop.reason}`, ...(rep.stop.limit === "none" ? {} : { limit: rep.stop.limit }) };
+            }
             seq += 1;
             mySeq = seq;
             candidate = rep.candidate;
             checks = rep.checks;
             era.latest = candidate;
+            era.latestSeq = mySeq;
             if (rep.addsRequiredFix) {
               floor = mySeq;
               floorCandidate = candidate;
@@ -849,22 +957,23 @@ export default T3.workflow(
               rounds.push({ id: `E${index}R${roundNo}`, label: `Round ${roundNo}`, candidate, era: `e${index}`, phase: era.phase,
                 expected_reviewers: seatsFor(era.phase, roster).filter((s) => s.scoring).map((s) => s.key), status: "unscored",
                 failure_note: `candidate could not build or run: ${rep.summary}`, scores: [] });
-              ev = { judges: [], metric: null, complete: true, covered: false };
+              ev = { judges: [], metric: null, complete: true, covered: false, late: false };
               continue;
             }
             const cached = cache.get(`${era.phase}:${candidate}`);
             if (cached !== undefined) {
               // Never re-score an evaluated candidate to shop for a higher score: reuse it, and log the round.
-              const prior = finalEval.get(`${era.phase}:${candidate}`) ?? [];
-              ev = { judges: prior, metric: cached.metric, complete: true, covered: cached.covered };
+              ev = { judges: cached.judges, metric: cached.metric, complete: true, covered: cached.covered, late: false };
               rounds.push(roundEntry(p, index - 1, `Round ${roundNo} (resubmitted; earlier score reused)`, `E${index}R${roundNo}`,
-                candidate, era.phase, prior, null));
+                candidate, era.phase, cached.judges, null));
               mySeq = cached.seq;
+              era.latestSeq = mySeq;
             } else {
               ev = yield* evaluate(candidate, era.phase, index, contract, roster, note);
               record(ev, `Round ${roundNo}`, `E${index}R${roundNo}`);
-              if (!ev.complete) return { stop: ev.judges.some((j) => j.status === "limit") ? "run deadline passed" : "evaluation failed after its one retry" };
-              entry = score(ev);
+              if (!ev.complete) return failStop(ev, "evaluation");
+              if (ev.late) return lateStop;
+              score(ev);
             }
             // Gate before progress: a gate-passing candidate advances even on a tie.
             if (gatePasses(contract.target, ev.metric, checks, ev.covered) && mySeq >= floor) continue;
@@ -894,16 +1003,17 @@ export default T3.workflow(
         const lastEra = eras[eras.length - 1];
         const capSpent = !repairsLeft();
         const failedFix = (diagnosis) => ({ outcome: "fix-failed", diagnosis, fix: "none", candidate: lastEra.latest,
-          checks: { passed: false, coverage: false, summary: "not run" }, buildable: true, revised: null });
+          checks: { passed: false, coverage: false, summary: "not run" }, buildable: true, revised: null, unavailableRoutes: [] });
         let fix;
-        const left = deadline === NO_DEADLINE ? repairMs : Math.min(repairMs, deadline - committed.at);
-        if (left <= 0) {
-          fix = failedFix("the run deadline has passed: an exhausted deadline blocks every recovery action");
+        const left = yield* allowance("recovery/clock", repairMs);
+        if (outcome.limit === "deadline" || outcome.limit === "spend-cap" || left <= 0) {
+          // An exhausted deadline or spend cap blocks every recovery action, setup included.
+          fix = failedFix(`the ${outcome.limit === "spend-cap" ? "spend cap is" : "run deadline has"} exhausted: it blocks every recovery action`);
         } else if (test && p.test.recovery !== undefined) {
           const t = p.test.recovery;
           fix = { outcome: t.outcome, diagnosis: "synthetic", fix: "synthetic recovery",
             candidate: t.changes === false ? lastEra.latest : "test-recovery",
-            checks: { passed: true, coverage: true, summary: "synthetic" }, buildable: true,
+            checks: { passed: true, coverage: true, summary: "synthetic" }, buildable: true, unavailableRoutes: [],
             revised: t.target === undefined ? null : { reason: "synthetic target revision", target: t.target } };
         } else {
           const ran = yield* T3.agent.try("recovery/fix", {
@@ -917,40 +1027,53 @@ export default T3.workflow(
               "Follow skills/review/references/budget-exhaustion.md, 'One automatic recovery', steps 2 to 4:",
               "diagnose from the retained evidence (start no evaluator), fix the cause, and freeze the result.",
               capSpent ? `The repair-round limit (${roundCap}) is spent: a setup-only fix may recover; a candidate-changing fix is blocked, so return fix-failed if one is needed.`
-                : "A fix that changes the candidate consumes one repair round.",
+                : "A fix that changes the candidate consumes one repair round, whether or not it succeeds.",
               deadline === NO_DEADLINE ? "" : `Run deadline: ${new Date(deadline).toISOString()}; this turn has ${Math.floor(left / 60000)} minute(s).`,
-              "Permitted changes: repair strategy, implementation, setup, rubric, target (inside the scale), required checks, and a roster seat",
+              p.limits?.spendCap ? `Spend cap: ${p.limits.spendCap}. If it is reached, return fix-failed.` : "",
+              "Permitted changes: repair strategy, implementation, setup, rubric, target (inside the scale), required checks (describe",
+              "them in revised.checks), and a roster seat",
               p.skill === "review-loop"
                 ? `from the standing routes (${STATIC_ORDER.join(", ")}) that are lineage-eligible and available.`
-                : `from the routes already confirmed for this run (${[...confirmed].join(", ")}).`,
+                : `from the routes already confirmed for this run (${[...confirmed].join(", ")}), keeping the panel's size with distinct seats.`,
               "A new provider or model, a user constraint, a repository gate, a permission, publication or scope change blocks it: return fix-failed.",
               `Latest candidate: ${lastEra.latest}. Keep every required fix (latest required-fix candidate: ${floorCandidate}).`,
               "Findings from the latest evaluation:", findingsText(lastEval?.judges ?? [], true), "",
               "Submit with t3_submit_output: outcome (fixed or fix-failed), diagnosis, fix, candidate (the frozen commit to",
-              "re-baseline), checks, buildable, and revised (null, or the changed target, rubric, criteria or roster with the reason).",
+              "re-baseline), checks, buildable, revised (null, or the changed target, rubric, criteria, checks or roster with the",
+              "reason), and unavailableRoutes: re-run orchestrator_capabilities and list each route key below whose provider is",
+              "unavailable or lacks its exact model now:",
+              ...ROUTE_KEYS.map((k) => `- ${k}: ${ROUTES[k].instanceId}/${ROUTES[k].model}`),
               "You may finish in a later turn of this thread; submit once.",
               "",
               "Score ledger so far:",
-              JSON.stringify(ledgerOf(p, id, "in-progress", eras, rounds, rosterLabels)),
+              JSON.stringify(ledgerNow("in-progress")),
             ].filter((line) => line !== "").join("\n"),
           });
           fix = ran.outcome === "done" ? ran.value : failedFix(`the recovery step failed: ${ran.reason.slice(0, 300)}`);
+          const returned = yield* now("recovery/returned");
+          if (fix.outcome === "fixed" && returned > deadline) fix = { ...fix, outcome: "fix-failed", diagnosis: `${fix.diagnosis} (returned after the run deadline)` };
         }
-        // Code checks what the fix may change before any judge sees it.
+        // A candidate-changing attempt consumes a repair round, whatever its outcome.
         const changesCandidate = fix.candidate !== lastEra.latest;
+        if (changesCandidate && !capSpent) repairsUsed += 1;
+        // Code checks what the fix may change before any judge sees it.
         const rv = fix.revised;
+        const nowOff = new Set([...unavailable, ...(fix.unavailableRoutes ?? [])]);
         const swapped = rv ? [rv.primary, ...(rv.panel ?? [])].filter(Boolean) : [];
         const unauthorised = swapped.filter((k) => (p.skill === "review-loop"
           ? !ROUTES[k].standing || lineageBlocked(p, k)
-          : !confirmed.has(k)) || modeOf(ROUTES[k], p.maxRuntimeMode) === null || unavailable.has(k));
+          : !confirmed.has(k)) || modeOf(ROUTES[k], p.maxRuntimeMode) === null || nowOff.has(k));
+        const newPanel = rv?.panel === undefined ? null : [rv.primary ?? baseRoster.panelPrimary ?? baseRoster.primary, ...rv.panel];
+        const panelBroken = newPanel !== null && (p.skill !== "hillclimb" || rv.panel.length !== panelKeys.length
+          || new Set(newPanel).size !== newPanel.length);
         const blocked = fix.outcome !== "fixed" ? null
           : !fix.buildable ? "the fixing turn marked its candidate unbuildable"
           : changesCandidate && capSpent ? "a candidate-changing fix is blocked: the repair-round limit is spent"
           : rv?.target !== undefined && !targetFits(p.scale, rv.target) ? `revised target ${rv.target} is outside the scale`
           : unauthorised.length > 0 ? `roster change to ${unauthorised.join(", ")} needs new approval or is unavailable`
+          : panelBroken ? "a revised panel must keep the confirmed number of distinct seats"
           : null;
         if (blocked !== null) fix = { ...fix, outcome: "fix-failed", diagnosis: `${fix.diagnosis} (${blocked})` };
-        if (fix.outcome === "fixed" && changesCandidate) repairsUsed += 1;
         recovery = { trigger: outcome.stop, at: committed.at, outcome: fix.outcome, diagnosis: fix.diagnosis, fix: fix.fix, revised: fix.revised };
         yield* pausePoint("after-recovery");
 
@@ -958,10 +1081,10 @@ export default T3.workflow(
           const contract = { criteria: rv?.criteria ?? contract0.criteria, rubric: rv?.rubric ?? contract0.rubric, target: rv?.target ?? contract0.target };
           const roster = { ...baseRoster, ...(rv?.primary ? { primary: rv.primary } : {}), ...(rv?.panel ? { panel: rv.panel } : {}) };
           const comparable = rv === null || (rv.target === undefined && rv.rubric === undefined && rv.criteria === undefined
-            && rv.primary === undefined && rv.panel === undefined);
+            && rv.checks === undefined && rv.primary === undefined && rv.panel === undefined);
           const note = {
             comparable,
-            fix: fix.fix,
+            fix: `${fix.fix}${rv?.checks ? ` Required checks now: ${rv.checks}` : ""}`,
             ledger: { kind: "automatic", label: `Recovery${rv?.target !== undefined ? ` · ${p.target} → ${rv.target}` : ""}`,
               trigger: outcome.stop, diagnosis: fix.diagnosis, fix: fix.fix },
           };
@@ -981,15 +1104,17 @@ export default T3.workflow(
       // ----- hand back -----
       const revisedPass = accepted !== null && eras.length > 1 && !eras[1].comparable;
       const status = accepted !== null ? (revisedPass ? "passed-revised" : "passed") : "goal-not-met";
-      const last = eras[eras.length - 1];
-      const final = accepted !== null ? { candidate: accepted.candidate, metric: accepted.metric, note: "accepted candidate" } : finalCandidate(eras, floor);
-      const finalJudges = finalEval.get(`${last.phase}:${final.candidate}`) ?? finalEval.get(`primary:${final.candidate}`) ?? [];
-      const ledger = ledgerOf(p, id, status, eras, rounds, rosterLabels);
+      const final = accepted !== null
+        ? { candidate: accepted.candidate, metric: accepted.metric, note: "accepted candidate", entry: { judges: accepted.judges, checks: accepted.checks } }
+        : finalCandidate(eras, floor, floorCandidate);
+      const finalJudges = final.entry?.judges ?? [];
+      const ledger = ledgerNow(status);
       const selectionOut = selection ?? { order: [primary], basis: "named roster", gates: [] };
       const result = {
         run: id, test, skill: p.skill, status,
-        final, stopReason, recovery, repairsUsed, requiredFixFloor: floorCandidate,
-        continuation: p.continuation ?? null,
+        final: { candidate: final.candidate, metric: final.metric, note: final.note, checks: final.entry?.checks ?? null },
+        stopReason, recovery, repairsUsed, requiredFixFloor: floorCandidate,
+        continuation: p.continuation ? { priorRun: p.continuation.priorRun, repairsUsed: p.continuation.repairsUsed, approval: p.continuation.approval } : null,
         selection: { ...selectionOut, notes: selectionNotes },
         eras: eras.map((e) => ({ target: e.target, comparable: e.comparable, phase: e.phase, best: e.best, panelEntry: e.panelEntry, counter: e.counter })),
         ledger,
@@ -998,15 +1123,17 @@ export default T3.workflow(
         test ? "TEST RUN with synthetic scores. Report this result only." : "",
         `Result: ${status}${revisedPass ? ` (revised target ${eras[1].target}; the original target ${p.target} was not met)` : ""}`,
         `Final candidate: ${final.candidate} (${final.metric ?? "no score"}; ${final.note})`,
+        final.entry?.checks ? `Checks on the final candidate: ${final.entry.checks.passed ? "pass" : "fail"}, coverage ${final.entry.checks.coverage ? "complete" : "incomplete"}: ${final.entry.checks.summary}` : "",
         stopReason ? `Stop: ${stopReason}` : "",
         recovery
           ? `Recovery: ${recovery.outcome} after "${recovery.trigger}" — ${recovery.diagnosis}${recovery.revised ? ` Revised: ${JSON.stringify(recovery.revised)}` : ""}`
           : "Recovery: not used",
         `Reviewer selection: ${selectionOut.basis}${selectionOut.gates.length ? `; gates: ${selectionOut.gates.join("; ")}` : ""}${selectionNotes.length ? `; ${selectionNotes.join("; ")}` : ""}`,
         `Repairs used: ${repairsUsed}${roundCap === null ? "" : ` of ${roundCap}`}${p.continuation ? ` (including ${p.continuation.repairsUsed} from run ${p.continuation.priorRun})` : ""}.`,
-        `Findings on the final candidate ${final.candidate}:`, findingsText(finalJudges, true),
+        deadline !== NO_DEADLINE && status === "goal-not-met" && /deadline/.test(stopReason ?? "") ? "The run deadline has passed: do no further work under it." : "",
+        `Findings on the final candidate ${final.candidate}:`, finalJudges.length ? findingsText(finalJudges, true) : "- no complete evaluation of this candidate",
         "Judge receipts for the final candidate:", receiptsText(finalJudges),
-        lastEval && lastEval.candidate !== final.candidate ? `Latest evaluated candidate ${lastEval.candidate} findings:\n${findingsText(lastEval.judges, false)}` : "",
+        lastEval && lastEval.candidate !== final.candidate ? `Latest evaluated candidate ${lastEval.candidate} findings (a different revision):\n${findingsText(lastEval.judges, false)}` : "",
         "",
         test ? "" : `Continue with skills/${p.skill}/SKILL.md from its delivery step, using this result. Write the ledger below to your score ledger and render the chart.`,
         "Score ledger:",
