@@ -346,13 +346,20 @@ function overlapKinds(p, groups) {
   return kinds;
 }
 
+// True when hillclimb's panel starts at the baseline with a panelPrimary, swapping the original
+// primary out before any score so it never runs.
+function isBaselineSwap(p) {
+  return skillOf(p) === "hillclimb" && (p.panel?.judges ?? []).length > 0
+    && p.panel?.trigger === "baseline" && p.panel?.panelPrimary !== undefined;
+}
+
 // The concurrent hillclimb scorer groups a packet confirms. When the panel starts at the baseline
 // with a panelPrimary, enterPanel swaps primary for panelPrimary before any score, so primary never scores.
 function packetScorerGroups(p) {
   const judges = (p.panel?.judges ?? []).map((k) => ({ name: k, lineage: ROUTES[k].lineage }));
   const up = judges.length > 0 && p.panel?.panelPrimary !== undefined
     ? { name: p.panel.panelPrimary, lineage: ROUTES[p.panel.panelPrimary].lineage } : null;
-  const first = p.panel?.trigger === "baseline" && up !== null ? null
+  const first = isBaselineSwap(p) ? null
     : p.namedReviewer ? { name: p.namedReviewer.label, lineage: p.namedReviewer.lineage }
     : p.primary ? { name: p.primary, lineage: ROUTES[p.primary].lineage } : null;
   return scorerGroups(first, up, judges);
@@ -376,7 +383,7 @@ function packetProblems(p) {
     problems.push(`${p.primary} shares the ${ROUTES[p.primary].lineage} lineage with a code author; name an eligible reviewer`);
   }
   const panelKeys = [p.panel?.panelPrimary, ...(p.panel?.judges ?? [])].filter(Boolean);
-  for (const key of [...new Set([p.primary, ...(p.companions ?? []), ...panelKeys, ...(p.alternates ?? [])].filter(Boolean))]) {
+  for (const key of [...new Set([isBaselineSwap(p) ? null : p.primary, ...(p.companions ?? []), ...panelKeys, ...(p.alternates ?? [])].filter(Boolean))]) {
     if (modeOf(ROUTES[key], p.maxRuntimeMode) === null) problems.push(`${key} needs ${ROUTES[key].minMode}, above the invoker's ${p.maxRuntimeMode}`);
   }
   if (skillOf(p) === "review-loop") {
@@ -580,7 +587,7 @@ function receiptsText(judges) {
 
 export default T3.workflow(
   "scored-loop",
-  { version: 12, payload: T3.WebhookRequest, triggers: [T3.webhook("start")] },
+  { version: 13, payload: T3.WebhookRequest, triggers: [T3.webhook("start")] },
   (input, { id }) =>
     Effect.gen(function* () {
       const parsed = yield* T3.step.try("packet", { returns: Packet }, Effect.try(() => decodePacket(JSON.parse(input.body))));
@@ -620,6 +627,7 @@ export default T3.workflow(
       const judgeMs = Math.round((p.judgeMinutes ?? 60) * 60000);
       const repairMs = Math.round((p.repairMinutes ?? 240) * 60000);
       // A user-named reviewer joins this run's routes under a run-scoped key.
+      const baselineSwap = isBaselineSwap(p);
       const namedKey = p.namedReviewer ? `named-${String(id).slice(0, 8)}` : null;
       // OpenCode, Grok and Muse routes fall back to asking for approval below full access (t3-dispatch.md),
       // so a named reviewer on them needs full access or is skipped by the mode gate.
@@ -627,7 +635,7 @@ export default T3.workflow(
         ROUTES[namedKey] = { ...p.namedReviewer, label: `${p.namedReviewer.label} (named)`,
           ...(["opencode", "grok", "muse"].includes(p.namedReviewer.instanceId) ? { minMode: "full-access" } : {}) };
       }
-      if (namedKey !== null && modeOf(ROUTES[namedKey], p.maxRuntimeMode) === null) {
+      if (namedKey !== null && !baselineSwap && modeOf(ROUTES[namedKey], p.maxRuntimeMode) === null) {
         yield* tell("callback", [`${p.namedReviewer.label} on ${p.namedReviewer.instanceId} needs full access, above the invoker's ${p.maxRuntimeMode}.`,
           "Ask the operator for an eligible alternative, then start again with a new idempotency key."]);
         return { run: id, outcome: "blocked", problems: ["named reviewer needs full access"] };
@@ -705,14 +713,14 @@ export default T3.workflow(
         return { run: id, outcome: "blocked", problems: ["route availability unknown"] };
       }
       let selection;
-      let primary = namedKey ?? p.primary ?? null;
       // Hillclimb's panel: the judges that join at the trigger, and the primary from then on.
       let panelJudges = [...(p.panel?.judges ?? [])];
       const panelLead = (p.panel?.judges ?? []).length > 0 ? p.panel?.panelPrimary ?? null : null;
+      // A baseline panel with a panelPrimary swaps the original primary out before any score, so
+      // panelPrimary leads from the start and the idle primary is neither checked nor authorised.
+      let primary = baselineSwap ? panelLead : namedKey ?? p.primary ?? null;
       // Hillclimb's operator-authorised routes for the single automatic recovery (budget-exhaustion.md step 3).
-      // A baseline panel with a panelPrimary swaps primary out before any score, so the idle primary is excluded.
-      const baselineSwap = p.panel?.trigger === "baseline" && panelLead !== null;
-      const authorised = [...new Set([baselineSwap ? null : primary, panelLead, ...panelJudges, ...(p.alternates ?? [])].filter(Boolean))];
+      const authorised = [...new Set([primary, panelLead, ...panelJudges, ...(p.alternates ?? [])].filter(Boolean))];
       if (primary !== null) {
         const how = climb ? `confirmed by the operator: ${ROUTES[primary].label}`
           + `${panelJudges.length ? `; panel ${panelJudges.join(", ")} from ${p.panel.trigger === "baseline" ? "the baseline" : "the primary gate"}` : "; primary-only run"}`

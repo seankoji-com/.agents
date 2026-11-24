@@ -69,10 +69,10 @@ one app. They use what T3 provides:
   scope, rubric and baseline to the `workflows/scored-loop.ts` T3 workflow. For
   `review-loop` the workflow picks the reviewer by quota pace and lineage; for
   `hillclimb` it takes the confirmed roster and adds the full panel when the
-  primary passes. It starts each judge in a fresh thread, asks the invoking
-  thread for each repair, and keeps the counters, the target gate, the
-  two-round stop and the single recovery in code, so a restart cannot dispatch
-  a recovery twice.
+  primary passes, or from the baseline when the operator confirms that. It
+  starts each judge in a fresh thread, asks the invoking thread for each repair,
+  and keeps the counters, the target gate, the two-round stop and the single
+  recovery in code, so a restart cannot dispatch a recovery twice.
 - **Separate workspaces.** `implement` runs coding in its own T3 worktree, so the
   main conversation stays free for decisions and reviews.
 - **Background tasks.** `raise-issue` files issues in a background T3 task while
@@ -481,9 +481,10 @@ in your thread's runtime mode or not at all. Antigravity routes need
 `auto-accept-edits` or broader. The workflow asks your thread for the selection
 data, each judge thread's recorded model, every repair and the one recovery,
 then posts the result with the full score ledger. A `hillclimb` packet also
-names the confirmed primary, the panel and when it joins; judges from one
-model family need the operator's recorded approval. Without the workflow, the
-file or the hook config, either skill reports what is missing and stops.
+names the confirmed primary, the panel and when it joins; a judge sharing a
+model family with another judge or with an implementer needs the operator's
+recorded approval. Without the workflow, the file or the hook config, either
+skill reports what is missing and stops.
 
 Older releases through v0.13.2 contain archives from the previous package.
 Use the current `skills` tree for the library described here.
