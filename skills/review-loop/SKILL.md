@@ -6,178 +6,143 @@ description: "Implement, review and repair in rounds when asked to iterate with 
 # Implement, review, repair
 
 Agree on what success looks like, then alternate repairs and independent
-evaluation. Stop when the score and required checks pass, or report the best
-result if two consecutive rounds fail to improve it. A failed run gets one
-recovery: diagnose, fix, re-invoke once, then report. Ordinary engineering work
+evaluation until the score and required checks pass. Ordinary engineering work
 does not automatically need this loop.
 
-## Workflow
+The T3 workflow `workflows/scored-loop.ts` runs the loop. Its code defines
+reviewer selection, judge dispatch, the frozen candidate, the score metric, the
+target and check gate, the two-non-improving-rounds stop, the one retry of a
+failed evaluation, explicit limits, the single automatic recovery and the score
+ledger. This skill keeps the judgment: scope, rubric, packet, repairs, finding
+dispositions, the recovery's diagnosis and delivery.
 
-1. **Set the scope and score.** Read the request, repository rules, working tree
-   and existing progress. Identify observable acceptance criteria and the
-   authorised endpoint, which may be a verified local change. Ask only about
-   material unresolved choices.
+## Requires T3 Workflows
 
-   - Fix the rubric, precision and target before editing. Reuse supplied criteria
-     and ask about the target only if you cannot infer it.
-   - Score a baseline and start the non-improvement counter at zero. Count each
-     completed evaluation once. A higher score becomes the best and resets the
-     counter. A tie or lower score increments it and keeps the earlier best.
-   - Check the target and required gates first. If they pass, finish. Otherwise
-     stop incomplete after two consecutive rounds without a higher score. A
-     stop-incomplete run gets the single recovery in step 7.
-   - Preserve required bug fixes when choosing the repair base or final candidate,
-     even if an older candidate scored higher. Keep scores, counters and prior
-     progress across repairs, reviewers and resumes. Record any metric change.
-   - If multiple judges score a round, use the lowest score on the same frozen
-     candidate. Honour explicit round, deadline and spending limits.
-     The workflow needs no default ceiling.
+Before anything else, confirm all three:
 
-2. **Choose reviewers and assign roles.**
+- The host is T3 Code with Workflows turned on.
+- `~/.t3/workflows/scored-loop.ts` exists.
+- `~/.config/t3-workflows/scored-loop.curl` exists. The operator creates it
+  once per host; the README's "Use the scored loop on T3 Workflows" section
+  has the steps.
 
-   - The coordinator reads [review](../review/SKILL.md) for eligibility, named
-     models, conflicts and dispatch. It obtains review and, when findings return, owns their
-     [feedback dispositions](../review/references/feedback-dispositions.md).
-   - Before reviewing, evaluators read the [assigned-reviewer card](../review/references/assigned-reviewer.md)
-     and return evidence without delegating.
-   - Before repairing, implementers read the
-     [implementation-participant card](../review/references/implementation-participant.md)
-     and repair selected findings.
+If any is missing, report `review-loop needs T3 Workflows: <what is missing>`
+and stop. Do not run the loop by hand, read hook tokens or run the
+`t3 workflow` CLI.
 
-3. **Prepare the run.**
+## Steps
 
-   - For UI work likely to end in a PR, use [raise-pr](../raise-pr/SKILL.md)
-     before editing to capture practical mobile and desktop baselines.
-   - Implement directly by default. Delegate substantial independent work when
-     it warrants a worker. Make small authorised review repairs directly.
-   - In a verified ignored directory, record goal, authority, scope, milestones,
-     base and head, models and options, scores, best candidate, non-improvement
-     counter, limits, task handles, finding IDs, dispositions, checks and next
-     action. If the host exposes a [native task list](../ship/references/native-task-list.md),
-     show the baseline, rounds, repairs and final verification there. Keep scores
-     and counters in the notes.
-   - Use one primary evaluator and review's required companions. Add opinions only
-     for an unresolved material risk or disagreement. Apply review's model
-     selection to every round, including inside implement. Code-author lineage
-     restricts code review only. Reuse the reviewer's lineage for a routine recheck
-     if it still qualifies after any repairs. Report unavailable choices.
-   - Follow review's dispatch rules. Give every participant the absolute path
-     to their role card and require them to read it. Run independent preparation
-     and checks in parallel when safe, and start the selected evaluators together
-     once ready.
-   - Freeze source, build, runtime and test data during evaluation. While it runs,
-     organise evidence, prepare the handoff, investigate failures read-only and
-     record repair options. Isolate checks that could disturb the candidate, or
-     defer them. Follow host continuation rules while results are pending.
+1. **Set the scope and score.**
+   Read the request, repository rules, working tree and existing progress.
+   Record observable acceptance criteria and the authorised endpoint, which may
+   be a verified local change. Ask only about material unresolved choices.
+   Fix the rubric, precision and target before editing; reuse supplied
+   criteria and ask about the target only if you cannot infer it. Record any
+   explicit round or deadline limit. Done when criteria, rubric, precision,
+   target and limits are written down.
 
-4. **Evaluate the frozen candidate.**
+2. **Prepare the baseline.**
+   For UI work likely to end in a PR, use [raise-pr](../raise-pr/SKILL.md)
+   before editing to capture mobile and desktop baselines. Implement directly
+   by default; delegate substantial independent work when it warrants a worker.
+   Commit the baseline candidate in your checkout and run the required checks
+   on it. Judges read committed objects only. Done when the baseline SHA and
+   its check results exist.
 
-   - Run covering checks and report missing or pre-failing ones. Record the
-     merge base and owned paths, including untracked source.
-   - For round one, give a fresh read-only evaluator the full scoped diff,
-     callers and acceptance criteria. Include intent, exclusions, revision,
-     check results, rubric and target. Ask for a score with a 3–5 bullet
-     rationale (plus any component dimension scores), material bugs, broken
-     callers and unnecessary code, guards, tests or procedure.
-   - Require screenshots of key visible states and findings. Require a
-     plain-text report to the parent with stable IDs, SEV1–SEV3 severity,
-     location, evidence and impact. Delegates may not use `html_render`.
-     Task completion alone does not establish approval.
-   - Keep scoped files frozen. If evaluation fails or returns no report, cancel
-     any active failed task and verify it has stopped. Diagnose the failure before one
-     retry. Missing evaluations have no score and leave the counter unchanged.
-     If that retry still fails, apply the single recovery in step 7, or stop
-     incomplete when it is unavailable.
+3. **Choose companions.** Before naming any, read the
+   [review](../review/SKILL.md) skill's companion rules. Name Hydrogen as a companion for UI or visual scope. Where
+   the OCR lane applies, run it on each frozen candidate yourself and report it
+   in that round's checks. Leave the primary unnamed unless the user named one:
+   the workflow selects it under review's
+   [model selection](../review/references/model-selection.md) rules. When the
+   workflow dispatches a judge, it requires the
+   [assigned-reviewer card](../review/references/assigned-reviewer.md) as the
+   judge's only review instructions.
 
-5. **Verify findings and repair within scope.**
+4. **Write one packet** as a JSON file in a Git-ignored directory of your
+   worktree:
+   - `invokerThread`: `printenv T3CODE_THREAD_ID`.
+   - `skill`: `review-loop`. `title`: a short task name.
+   - `project`: your T3 project ID; judges open their threads there.
+   - `maxRuntimeMode`: your thread's `runtimeMode` from `t3_thread_read`.
+   - `scope`: `code`, `plan`, `prose` or `visual`. Only `code` applies the
+     lineage gate.
+   - `checkout` (absolute path), `base`, `candidate` and `checks`
+     (`passed`, `coverage`, `summary`) for the baseline.
+   - `criteria`, `rubric`, `target` and `scale` (`min`, `max`, `precision`).
+   - `codeAuthors`: the model families that wrote or will repair the code,
+     including your own.
+   - `reviewContext`: the checks judges may run, the exact commands and
+     environment, a scratch directory verified with `git check-ignore`, and
+     the evidence and screenshots required.
+   - Optional `roster` (`primary` only when the user named one; `companions`),
+     `limits` (`repairRounds`, `deadline`), `judgeMinutes`, `repairMinutes`.
+   Never set `test`: test fields are for acceptance runs.
 
-   - Confirm each finding's location, evidence, severity and impact. The parent
-     decides repairs, deferrals and issue filing under review's release rules.
-   - If consecutive completed code reviews find different verified material
-     defects from the same design assumption, reconsider it before the next
-     repair. Record the assumption, both finding IDs and an option that removes
-     the assumption while meeting the criteria, or explain why none is viable.
-   - Address selected findings and unmet criteria. Delete or narrow code when
-     that fixes the cause. Decline unsupported requests with evidence.
-   - Preserve original findings and IDs. Append each fix, rejection or deferral
-     with its evidence. Take fresh captures of visible fixes. Use diff growth to
-     check scope, without setting a line-count target.
+5. **Start the run, then end your turn.**
 
-6. **Recheck material changes.**
+   ```sh
+   curl -sS --noproxy '' -K ~/.config/t3-workflows/scored-loop.curl \
+     -H 'content-type: application/json' \
+     -H 'idempotency-key: loop-<short thread id>-<slug>' \
+     --data-binary @<packet>.json
+   ```
 
-   - Re-review changed behaviour, unresolved consequential findings and gaps
-     in acceptance evidence. Editorial corrections and declined nits need no
-     new round. Never transfer approval across unreviewed behaviour or shop
-     for reviewers.
-   - If the project adopted `review_rounds: 1`, read and apply the
-     [one-round exception](../review/references/single-round.md) before verifying
-     eligible repairs. Otherwise dispatch a fresh read-only evaluator.
-   - Supply the full scoped diff, changes since the last review, checks and findings.
-     If a design assumption recurred, name it and ask whether the repair still
-     relies on it. Broaden review when shared assumptions, interfaces or earlier
-     behaviour change.
-   - Keep the base and scope explicit. Record why either changed and reassess
-     the evidence. Preserve handed-off candidates and name each superseding SHA
-     with the checks run on it.
+   HTTP 202 with a `runId` means it started; the same key returns the same
+   run. `404 hook_not_found` means the workflow or hook is missing: report it
+   and stop. Do not poll. The workflow writes to this thread.
+
+6. **Answer each workflow turn**, then end your turn:
+   - **Selection data:** call the limits snapshot and
+     `orchestrator_capabilities` as asked and submit what they show.
+   - **Receipts:** read each listed judge thread with `t3_thread_read` and
+     submit its `executedModel` and run count, null where none is shown.
+   - **Repair round:** before repairing, read the
+     [implementation-participant card](../review/references/implementation-participant.md).
+     Verify each finding's location, evidence, severity and impact. When
+     deciding it, apply review's [feedback dispositions](../review/references/feedback-dispositions.md).
+     If consecutive rounds found different verified defects from the same
+     design assumption, reconsider that assumption before repairing. Repair
+     from the named base, delete or narrow code when that fixes the cause,
+     commit, run the required checks and submit the candidate. After each
+     round, update the JSON score ledger from the turn and render the
+     [score line graph](../review/references/score-chart.md). Report a blocker
+     or limit in `stop` instead of repairing past it.
+   - **Recovery:** follow budget-exhaustion's
+     [single recovery](../review/references/budget-exhaustion.md#continue-a-stopped-scoring-loop),
+     steps 2 to 4: diagnose from retained evidence, fix the cause and submit
+     the frozen candidate, or `fix-failed` when the fix is blocked. The
+     workflow records the attempt and runs it at most once.
 
 7. **Accept the evidence or explain the stop.**
-
-   - Confirm current evidence covers the criteria, required checks and score.
-     Apply the adopted one-round exception only where it replaces the score gate.
-     Report incomplete visual coverage in the release recommendation.
-   - Apply review's release rules to each remaining finding. The parent owns
-     deferrals and retains severity and evidence. Agreement or a release exception
-     alone does not prove the work is fixed.
-   - Track confirmed non-blocking bugs left unfixed. Use verified issue URLs or
-     owned asynchronous filing requests within authority. Tracking finishes when
-     the URLs are verified.
-   - If the loop stops incomplete, apply the [single recovery](../review/references/budget-exhaustion.md#continue-a-stopped-scoring-loop):
-     record the attempt, diagnose from the retained evidence, fix the cause and
-     re-invoke once from the latest candidate under the original run ID and
-     spent slot. Record any revised criteria or roster and flag a pass under
-     either with the original target. A second
-     failure stops the loop and reports both attempts. Use [progress diagnosis](../review/references/budget-exhaustion.md)
-     for remaining limits and extensions. Escalate only decisions that need the
-     user, and continue independent authorised work.
+   The result turn gives the status, final candidate, scores, findings and
+   the full ledger. Render the chart. Apply review's release rules to each
+   remaining finding and track confirmed unfixed bugs with verified issue
+   URLs. On `goal-not-met`, collect a retrospective and offer the operator a
+   changed approach from the latest candidate, as budget-exhaustion's
+   operator-approved continuation describes; a continuation starts a new run.
+   A `passed-revised` result names the original and revised targets; never
+   claim the original target was met.
 
 8. **Verify the agreed endpoint.**
-
-   A source fix does not complete a requested merge or deployment.
-
-   - For PR creation or updates use [raise-pr](../raise-pr/SKILL.md) for
-     evidence, templates, screenshots, attribution and independent review.
-     New PRs need completed independent review. If proof needs a PR before
-     review, state the dependency and obtain an explicit waiver from the user.
-   - Bundle local repairs before pushing when practical. An authorised branch
-     push or existing PR update can happen earlier for hosted checks or previews.
-     Refresh checks and reviews for the current head before merging.
-   - For a requested deployment, verify the deployed revision and actual
-     behaviour on each target. Report the actual endpoint and any incomplete gate.
-
-On an ordinary resume, reconcile tasks and preserve decisions, findings, scores,
-best candidate, counters and limits. Reconcile the recovery record. A
-`fix-failed` record is spent. A `dispatching` or `started` recovery without a
-usable handle is spent and is never redispatched. A `committed` record with no
-later outcome may resume the fix once. Use the
-continuation procedure after the automatic recovery for an operator-approved
-new baseline. On cancellation, stop only owned work and confirm it stopped.
+   A source fix does not complete a requested merge or deployment. For PR
+   creation or updates use [raise-pr](../raise-pr/SKILL.md); new PRs need
+   completed independent review. Refresh checks and reviews for the current
+   head before merging. For a deployment, verify the deployed revision and
+   behaviour on each target.
 
 ## Outputs
 
-Keep updates brief: result, material findings and next action. After each
-completed scoring round, recovery and final handback, update the JSON score
-ledger and follow [score line graph](../review/references/score-chart.md) to
-render it inline (`html_preview` then `html_render` in T3, text/link fallback
-elsewhere). Final handoff includes revision, attempts, rounds, target/best/current
-scores, counter, limits, models, checks, dispositions, deferrals and endpoint
-evidence. Report usage only when exposed. Separate local validation, hosted
-checks, independent review, merge and deployment. Delegates return plain-text
-reports and the score ledger path; only the main thread renders charts and
-substantive findings reports.
+Keep updates brief: result, material findings and next action. The final
+handoff gives revision, run ID, eras, rounds, target, best and current scores,
+models and their receipts, checks, dispositions, deferrals and endpoint
+evidence. Separate local validation, hosted checks, independent review, merge
+and deployment. Delegates return plain-text reports and the ledger path; only
+the main thread renders charts and findings reports.
 
 ## Boundaries
 
-Use authorized native orchestration, without another scheduler or top-level thread
-substitute. Follow host model, sharing and permission rules. Preserve unrelated
-work and repository protections. Reuse existing authority; this skill grants no
-extra permission to publish, message others, spend, merge or deploy.
+Use the workflow for the loop's state, never a second scheduler or a hand-run
+substitute. Follow host model, sharing and permission rules. Preserve
+unrelated work and repository protections. This skill grants no extra
+permission to publish, message others, spend, merge or deploy.
