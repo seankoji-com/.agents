@@ -346,13 +346,15 @@ function overlapKinds(p, groups) {
   return kinds;
 }
 
-// The concurrent hillclimb scorer groups a packet confirms.
+// The concurrent hillclimb scorer groups a packet confirms. When the panel starts at the baseline
+// with a panelPrimary, enterPanel swaps primary for panelPrimary before any score, so primary never scores.
 function packetScorerGroups(p) {
-  const first = p.namedReviewer ? { name: p.namedReviewer.label, lineage: p.namedReviewer.lineage }
-    : p.primary ? { name: p.primary, lineage: ROUTES[p.primary].lineage } : null;
   const judges = (p.panel?.judges ?? []).map((k) => ({ name: k, lineage: ROUTES[k].lineage }));
   const up = judges.length > 0 && p.panel?.panelPrimary !== undefined
     ? { name: p.panel.panelPrimary, lineage: ROUTES[p.panel.panelPrimary].lineage } : null;
+  const first = p.panel?.trigger === "baseline" && up !== null ? null
+    : p.namedReviewer ? { name: p.namedReviewer.label, lineage: p.namedReviewer.lineage }
+    : p.primary ? { name: p.primary, lineage: ROUTES[p.primary].lineage } : null;
   return scorerGroups(first, up, judges);
 }
 
@@ -578,7 +580,7 @@ function receiptsText(judges) {
 
 export default T3.workflow(
   "scored-loop",
-  { version: 11, payload: T3.WebhookRequest, triggers: [T3.webhook("start")] },
+  { version: 12, payload: T3.WebhookRequest, triggers: [T3.webhook("start")] },
   (input, { id }) =>
     Effect.gen(function* () {
       const parsed = yield* T3.step.try("packet", { returns: Packet }, Effect.try(() => decodePacket(JSON.parse(input.body))));
@@ -708,7 +710,9 @@ export default T3.workflow(
       let panelJudges = [...(p.panel?.judges ?? [])];
       const panelLead = (p.panel?.judges ?? []).length > 0 ? p.panel?.panelPrimary ?? null : null;
       // Hillclimb's operator-authorised routes for the single automatic recovery (budget-exhaustion.md step 3).
-      const authorised = [...new Set([primary, panelLead, ...panelJudges, ...(p.alternates ?? [])].filter(Boolean))];
+      // A baseline panel with a panelPrimary swaps primary out before any score, so the idle primary is excluded.
+      const baselineSwap = p.panel?.trigger === "baseline" && panelLead !== null;
+      const authorised = [...new Set([baselineSwap ? null : primary, panelLead, ...panelJudges, ...(p.alternates ?? [])].filter(Boolean))];
       if (primary !== null) {
         const how = climb ? `confirmed by the operator: ${ROUTES[primary].label}`
           + `${panelJudges.length ? `; panel ${panelJudges.join(", ")} from ${p.panel.trigger === "baseline" ? "the baseline" : "the primary gate"}` : "; primary-only run"}`

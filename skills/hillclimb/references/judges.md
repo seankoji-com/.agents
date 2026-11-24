@@ -74,13 +74,15 @@ still needs direct interaction and fresh captures in the required states.
 
 On T3 Workflows, the operator preapproves any panel-primary upgrade, and any
 recovery alternates, at roster confirmation; there is no prompt at panel entry.
-Keeping the confirmed primary is the default choice. When offering an upgrade
-such as Opus xhigh or Fable high at roster confirmation, show the actual model,
-route and effort, relevant headroom and any lineage overlap with the panel
-roster. Offer only settings the host can verify, at or below xhigh. Record the
-preapproved upgrade as `panel.panelPrimary` and any recovery alternates as
-`alternates` in the packet. When no upgrade route is eligible, keep the
-confirmed primary and explain the unavailable option.
+Keeping the confirmed primary is the default choice. An upgrade on T3 Workflows
+is a switch to another listed route at high effort (for example Opus high when
+Sol is the primary); an effort upgrade, a named reviewer or a model without a
+route is not available there, so keep the confirmed primary and explain the
+unavailable option. When offering an eligible upgrade at roster confirmation,
+show the actual model, route and effort, relevant headroom and any lineage
+overlap with the panel roster, using only host-verified settings at or below
+xhigh. Record the preapproved upgrade as `panel.panelPrimary` and any recovery
+alternates as `alternates` in the packet.
 
 Use a fresh task for the approved panel primary. All panel judges score the
 same frozen candidate together before the next edit. Keep the chosen primary
