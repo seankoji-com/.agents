@@ -587,7 +587,7 @@ function receiptsText(judges) {
 
 export default T3.workflow(
   "scored-loop",
-  { version: 13, payload: T3.WebhookRequest, triggers: [T3.webhook("start")] },
+  { version: 15, payload: T3.WebhookRequest, triggers: [T3.webhook("start")] },
   (input, { id }) =>
     Effect.gen(function* () {
       const parsed = yield* T3.step.try("packet", { returns: Packet }, Effect.try(() => decodePacket(JSON.parse(input.body))));
