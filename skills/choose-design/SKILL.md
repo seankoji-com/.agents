@@ -34,14 +34,13 @@ A count or explicit model-only roster overrides these defaults. A named model
 fills one planned slot; fill the remaining unnamed slots with Opus. A model
 mention alone does not increase the count or mean "only this model". For a
 single unnamed designer, use Opus. Label an explicitly constrained single-model
-run honestly. Do not infer that constraint from a small task or familiar visual
-system.
+run honestly. Do not infer it from a small task or familiar system.
 
 ## Write the brief
 
-Read the request and the code before writing. Record the product, the audience,
-the screen or component, the real content it shows, its states, the target
-platforms and the existing design tokens, components or screenshots. Ask only
+Read the request and the code before writing. Record the product, audience,
+screen or component, real content, its states, target platforms and existing
+design tokens, components or screenshots. Ask only
 about missing intent that would change the design.
 
 A direct invocation, or an authorised workflow selecting this skill, authorises
@@ -147,16 +146,16 @@ Scores inform the choice; they do not replace it.
 
 In T3 Code, give each option its own frame, grouped by designer. For each,
 check the page with `html_preview`, then show it with `html_render` at the
-measured height. Each frame opens with a header in the T3 theme variables. The
+measured height. Each frame opens with a header in T3's theme variables. The
 header holds a label such as `B2 · Opus`, the option name and the blurb.
-Below the header, put the mockup in its own box with its own colours, 16px of
-padding and `var(--radius)` corners. Title each frame with its label and name.
-Show both reviewers' scores and notes.
+Below it, put the mockup in its own box with its own colours, 16px of padding
+and `var(--radius)` corners. Show both reviewers' scores and notes.
 
 After the frames, list the labels and names in one line. Ask the user to pick an
-option or describe a hybrid using feature IDs, such as "A1-F1 with B2-F3". On hosts
-without inline HTML, write each mockup to a task-owned file and give the label,
-model, name, blurb and absolute path for each one.
+option or describe a hybrid using feature IDs, such as "A1-F1 with B2-F3".
+Publish the comparison to S3 per [publish requirements](references/publish.md)
+and give its URL and deadline. Without inline HTML, write each mockup to a
+task-owned file and give its label, model, name, blurb and path.
 
 ## After the choice
 
@@ -166,4 +165,5 @@ original request asked for implementation, using the project's real stack and
 existing components. A further round of options needs a new request.
 
 Stop task-owned delegates when they are done or cancelled. Remove task-owned
-mockup files after the choice unless the user wants them kept.
+mockup files and the run's recorded S3 keys after the choice unless the user
+wants them kept.

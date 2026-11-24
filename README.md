@@ -316,9 +316,12 @@ a job, especially one that can publish or merge changes.
 - **Sharing.** Invoking `choose-design` permits sending the minimal design
   brief and that designer's emphasis to each selected designer, and the base
   brief, option HTML and rendered captures to the Neon/Sol scoring roster,
-  including Fable or DeepSeek Flash when a named scorer is replaced. These sends
-  are subject to your sharing limits. Redact secrets and unrelated private data;
-  broader raw-file sharing needs separate authority.
+  including Fable or DeepSeek Flash when a named scorer is replaced. On the
+  owner's configured host it also permits uploading that run's option HTML and
+  generated comparison index to the private `CHOOSE_DESIGN_S3` base, with links
+  shared only with you; it does not permit public access or another destination.
+  These sends are subject to your sharing limits. Redact secrets and unrelated
+  private data; broader raw-file sharing needs separate authority.
   Where OCR's lane applies, it sends the selected
   diff and context to its configured provider; use existing authority for that scope
   and exclude secrets and unrelated files. Covered authorization needs no repeated question.
@@ -671,7 +674,7 @@ installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 95cb122be0a70582ea001bebf5daa7cea46f2736e6a343623cb789db5787b0c9 -->
+<!-- skills-review: 6a28b0a7bbb6253522cad5bce632ae96aa6b28cf1bf51f0c18fc74ea74a6cc8b -->
 
 ### Owner maintenance
 
