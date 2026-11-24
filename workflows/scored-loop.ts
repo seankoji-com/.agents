@@ -40,7 +40,7 @@ const ROUTES = {
   neon: { label: "Neon 4 high", instanceId: "antigravity", model: "gemini-4-neon", effort: { id: "thought_level", value: "high" }, lineage: "google", version: "4", minMode: "auto-accept-edits" },
   hydrogen: { label: "Hydrogen 4 high", instanceId: "antigravity", model: "gemini-4-hydrogen", effort: { id: "thought_level", value: "high" }, lineage: "google", version: "4", minMode: "auto-accept-edits" },
   // Hillclimb scoring only (skills/hillclimb/references/judges.md); never a review-loop reviewer.
-  "deepseek-flash": { label: "DeepSeek Flash 4.1 high", instanceId: "opencode", model: "litellm/deepseek-v4.1-flash", effort: { id: "variant", value: "high" }, lineage: "deepseek", version: "4.1", minMode: "full-access", scoringOnly: true },
+  "deepseek-flash": { label: "DeepSeek Flash 4.1 high", instanceId: "opencode", model: "litellm/deepseek-v4.1-flash", aliases: ["deepseek-v4.1-flash"], effort: { id: "variant", value: "high" }, lineage: "deepseek", version: "4.1", minMode: "full-access", scoringOnly: true },
 };
 const ROUTE_KEYS = Object.keys(ROUTES);
 const STATIC_ORDER = ["sol", "opus", "sonnet-agy", "neon", "hydrogen"];
@@ -139,6 +139,8 @@ const Packet = Schema.Struct({
     trigger: Schema.Literals(["primary-pass", "baseline"]),
     panelPrimary: Schema.optional(Route),
   })),
+  // Hillclimb: operator-confirmed alternate routes authorised for the single automatic recovery.
+  alternates: Schema.optional(Schema.Array(Route)),
   // Hillclimb: the operator's recorded approval of a disclosed lineage overlap among scorers and implementers.
   overlapApproval: Schema.optional(Schema.String),
   limits: Schema.optional(Schema.Struct({
@@ -274,35 +276,84 @@ function lineageBlocked(p, key) {
   return skillOf(p) === "review-loop" && p.scope === "code" && p.codeAuthors.includes(ROUTES[key].lineage);
 }
 
-// Hillclimb overlaps among scorers, and between scorers and implementers (judges.md step 3).
-// `scorers` is a list of { name, lineage }.
-function rosterOverlaps(p, scorers) {
+function executedMatches(route, model) {
+  const actual = String(model).trim().toLowerCase();
+  return [route.model, ...(route.aliases ?? [])].some((m) => m.toLowerCase() === actual);
+}
+
+// Concurrent scorer groups: the primary alone, plus the panel set when judges are configured.
+// Primary and panelPrimary never score together because panel entry swaps primary for panelPrimary.
+function scorerGroups(primary, panelPrimary, judges) {
+  const groups = [];
+  if (primary !== null) groups.push([primary]);
+  if (judges.length > 0) {
+    const lead = panelPrimary ?? primary;
+    groups.push([...(lead !== null ? [lead] : []), ...judges]);
+  }
+  return groups;
+}
+
+function uniqueScorers(groups) {
+  const seen = new Set();
   const out = [];
-  scorers.forEach((s, i) => {
+  for (const group of groups) {
+    for (const s of group) {
+      if (!seen.has(s.name)) {
+        seen.add(s.name);
+        out.push(s);
+      }
+    }
+  }
+  return out;
+}
+
+// Hillclimb overlaps between any scorer and implementers, and between scorers that judge together
+// (judges.md step 3). `groups` is a list of concurrent scorer groups of { name, lineage }.
+function rosterOverlaps(p, groups) {
+  const out = [];
+  for (const s of uniqueScorers(groups)) {
     if (p.codeAuthors.includes(s.lineage)) out.push(`${s.name} shares the ${s.lineage} lineage with an implementer`);
-    for (const t of scorers.slice(i + 1)) if (t.lineage === s.lineage) out.push(`${s.name} and ${t.name} share the ${s.lineage} lineage`);
-  });
+  }
+  const paired = new Set();
+  for (const group of groups) {
+    group.forEach((s, i) => {
+      for (const t of group.slice(i + 1)) {
+        if (t.lineage === s.lineage) {
+          const pairKey = [s.name, t.name].sort().join("\0");
+          if (!paired.has(pairKey)) {
+            paired.add(pairKey);
+            out.push(`${s.name} and ${t.name} share the ${s.lineage} lineage`);
+          }
+        }
+      }
+    });
+  }
   return out;
 }
 
 // The kinds of overlap a roster has ("implementer:<lineage>", "pair:<lineage>"): a replacement that
 // adds a kind needs new approval.
-function overlapKinds(p, scorers) {
+function overlapKinds(p, groups) {
   const kinds = new Set();
-  scorers.forEach((s, i) => {
+  for (const s of uniqueScorers(groups)) {
     if (p.codeAuthors.includes(s.lineage)) kinds.add(`implementer:${s.lineage}`);
-    if (scorers.slice(i + 1).some((t) => t.lineage === s.lineage)) kinds.add(`pair:${s.lineage}`);
-  });
+  }
+  for (const group of groups) {
+    group.forEach((s, i) => {
+      if (group.slice(i + 1).some((t) => t.lineage === s.lineage)) kinds.add(`pair:${s.lineage}`);
+    });
+  }
   return kinds;
 }
 
-// The hillclimb scorers a packet confirms, primary first.
-function packetScorers(p) {
-  const first = p.namedReviewer ? [{ name: p.namedReviewer.label, lineage: p.namedReviewer.lineage }]
-    : p.primary ? [{ name: p.primary, lineage: ROUTES[p.primary].lineage }] : [];
-  const up = p.panel?.panelPrimary;
-  const panel = (p.panel?.judges ?? []).length > 0 && up !== undefined && up !== p.primary ? [{ name: up, lineage: ROUTES[up].lineage }] : [];
-  return [...first, ...panel, ...(p.panel?.judges ?? []).map((k) => ({ name: k, lineage: ROUTES[k].lineage }))];
+// The concurrent hillclimb scorer groups a packet confirms.
+function packetScorerGroups(p) {
+  const first = p.namedReviewer ? { name: p.namedReviewer.label, lineage: p.namedReviewer.lineage }
+    : p.primary ? { name: p.primary, lineage: ROUTES[p.primary].lineage } : null;
+  const judges = (p.panel?.judges ?? []).map((k) => ({ name: k, lineage: ROUTES[k].lineage }));
+  const up = judges.length > 0 && p.panel?.panelPrimary !== undefined
+    ? { name: p.panel.panelPrimary, lineage: ROUTES[p.panel.panelPrimary].lineage } : null;
+  return scorerGroups(first, up, judges);
 }
 
 function targetFits(scale, target) {
@@ -323,11 +374,12 @@ function packetProblems(p) {
     problems.push(`${p.primary} shares the ${ROUTES[p.primary].lineage} lineage with a code author; name an eligible reviewer`);
   }
   const panelKeys = [p.panel?.panelPrimary, ...(p.panel?.judges ?? [])].filter(Boolean);
-  for (const key of [p.primary, ...(p.companions ?? []), ...panelKeys].filter(Boolean)) {
+  for (const key of [...new Set([p.primary, ...(p.companions ?? []), ...panelKeys, ...(p.alternates ?? [])].filter(Boolean))]) {
     if (modeOf(ROUTES[key], p.maxRuntimeMode) === null) problems.push(`${key} needs ${ROUTES[key].minMode}, above the invoker's ${p.maxRuntimeMode}`);
   }
   if (skillOf(p) === "review-loop") {
     if (p.panel !== undefined) problems.push("panel is a hillclimb roster; review-loop has no panel phase");
+    if (p.alternates !== undefined) problems.push("alternates are for a hillclimb roster; review-loop uses the standing routes");
     for (const key of [p.primary, ...(p.companions ?? [])].filter(Boolean)) {
       if (ROUTES[key].scoringOnly) problems.push(`${key} is a hillclimb scoring route, not a review-loop reviewer`);
     }
@@ -341,7 +393,7 @@ function packetProblems(p) {
     if (judges.some((k) => leads.includes(k))) problems.push("a panel judge cannot also be the primary or panelPrimary");
     if (judges.length === 0 && p.panel?.panelPrimary !== undefined) problems.push("panelPrimary needs a panel");
     if (judges.length === 0 && p.panel?.trigger === "baseline") problems.push("a baseline panel trigger needs panel judges");
-    const overlaps = rosterOverlaps(p, packetScorers(p));
+    const overlaps = rosterOverlaps(p, packetScorerGroups(p));
     if (overlaps.length > 0 && !String(p.overlapApproval ?? "").trim()) {
       problems.push(`lineage overlap needs the operator's recorded approval (overlapApproval): ${overlaps.join("; ")}`);
     }
@@ -526,7 +578,7 @@ function receiptsText(judges) {
 
 export default T3.workflow(
   "scored-loop",
-  { version: 10, payload: T3.WebhookRequest, triggers: [T3.webhook("start")] },
+  { version: 11, payload: T3.WebhookRequest, triggers: [T3.webhook("start")] },
   (input, { id }) =>
     Effect.gen(function* () {
       const parsed = yield* T3.step.try("packet", { returns: Packet }, Effect.try(() => decodePacket(JSON.parse(input.body))));
@@ -655,10 +707,12 @@ export default T3.workflow(
       // Hillclimb's panel: the judges that join at the trigger, and the primary from then on.
       let panelJudges = [...(p.panel?.judges ?? [])];
       const panelLead = (p.panel?.judges ?? []).length > 0 ? p.panel?.panelPrimary ?? null : null;
+      // Hillclimb's operator-authorised routes for the single automatic recovery (budget-exhaustion.md step 3).
+      const authorised = [...new Set([primary, panelLead, ...panelJudges, ...(p.alternates ?? [])].filter(Boolean))];
       if (primary !== null) {
         const how = climb ? `confirmed by the operator: ${ROUTES[primary].label}`
           + `${panelJudges.length ? `; panel ${panelJudges.join(", ")} from ${p.panel.trigger === "baseline" ? "the baseline" : "the primary gate"}` : "; primary-only run"}`
-          + `${panelLead ? `; panel primary ${panelLead}` : ""}${p.overlapApproval ? `; approved overlap: ${p.overlapApproval}` : ""}`
+          + `${panelLead ? `; panel primary ${panelLead}` : ""}${p.alternates?.length ? `; alternates ${p.alternates.join(", ")}` : ""}${p.overlapApproval ? `; approved overlap: ${p.overlapApproval}` : ""}`
           : `named by the user: ${ROUTES[primary].label}`;
         selection = { order: [primary], basis: how, gates: available.has(primary) ? [] : [`${primary}: not reported available`] };
         if (!available.has(primary)) primary = null;
@@ -765,7 +819,7 @@ export default T3.workflow(
             const row = rows.find((x) => x.thread === j.thread);
             const executed = { model: row?.executedModel ?? null, verified: Boolean(row?.executedModel), turns: row?.turns ?? null,
               turnId: row?.turnId ?? null, ...(read.outcome === "done" ? {} : { problem: read.reason.slice(0, 200) }) };
-            if (executed.verified && String(executed.model).trim().toLowerCase() !== ROUTES[j.key].model) {
+            if (executed.verified && !executedMatches(ROUTES[j.key], executed.model)) {
               return { ...j, executed, status: "invalid", score: null, problems: [...j.problems, `host executedModel ${executed.model} is not ${ROUTES[j.key].model}`] };
             }
             return { ...j, executed };
@@ -866,7 +920,7 @@ export default T3.workflow(
             era.panelEntry = at;
             // The panel best is seeded by the first complete panel evaluation, never by a primary score.
             era.best = null;
-            if (panelLead !== null && !recoveryNote?.primaryChanged) primary = panelLead;
+            if (panelLead !== null && !(startPhase === "panel" && recoveryNote?.primaryChanged)) primary = panelLead;
           };
           if (startPhase === "panel") enterPanel();
           const judgeRound = (labelText, rid) =>
@@ -1093,7 +1147,7 @@ export default T3.workflow(
               climb ? `The run stopped in the ${eras[0].phase} phase; the recovery keeps that phase and every confirmed scorer.` : "",
               "Permitted changes: repair strategy, implementation, setup, rubric, target (inside the scale), required checks (in",
               climb
-                ? `revised.checks), and a roster seat replaced from this run's routes (${keys.join(", ")}) that is available and needs no new\n`
+                ? `revised.checks), and a roster seat replaced from this run's authorised routes (${authorised.join(", ")}) that is available and needs no new\n`
                   + "lineage approval: revised.primary for the current primary, revised.panel for the whole new panel list."
                 : `revised.checks), and the primary reviewer from the standing routes (${STATIC_ORDER.join(", ")}) that are lineage-eligible\nand available.`,
               "A new provider or model, a user constraint, a repository gate, a permission, publication or scope change",
@@ -1119,21 +1173,24 @@ export default T3.workflow(
         const next = rv?.primary ?? primary;
         const nextPanel = rv?.panel ?? panelJudges;
         // A replacement may not add a lineage overlap the operator has not already approved.
-        const lead = eras[0].phase === "panel" || panelLead === null || rv?.primary !== undefined ? [] : [panelLead];
-        const roster2 = [...new Set([next, ...lead, ...nextPanel])].map((k) => ({ name: k, lineage: ROUTES[k].lineage }));
-        const before = overlapKinds(p, packetScorers(p));
+        const scorerOf = (k) => ({ name: k, lineage: ROUTES[k].lineage });
+        const nextLead = eras[0].phase === "panel" ? null : panelLead;
+        const groups2 = scorerGroups(scorerOf(next), nextLead !== null ? scorerOf(nextLead) : null, nextPanel.map(scorerOf));
+        const before = overlapKinds(p, packetScorerGroups(p));
         const fresh = climb && (rv?.primary !== undefined || rv?.panel !== undefined)
-          ? [...overlapKinds(p, roster2)].filter((x) => !before.has(x)) : [];
-        const seatProblem = (k) => !keys.includes(k) || lineageBlocked(p, k) || modeOf(ROUTES[k], p.maxRuntimeMode) === null || (!climb && ROUTES[k].scoringOnly);
+          ? [...overlapKinds(p, groups2)].filter((x) => !before.has(x)) : [];
+        const seatProblem = (k) => !(climb ? authorised : STATIC_ORDER).includes(k) || lineageBlocked(p, k) || modeOf(ROUTES[k], p.maxRuntimeMode) === null || (!climb && ROUTES[k].scoringOnly);
+        const leads2 = [next, nextLead].filter(Boolean);
         const blocked = fix.outcome !== "fixed" ? null
           : after.stop !== null ? limitStop(after.stop).stop
           : !fix.buildable ? "the fixing turn marked its candidate unbuildable"
           : changes && capSpent ? "a candidate-changing fix is blocked: the repair-round limit is spent"
           : rv?.target !== undefined && !targetFits(p.scale, rv.target) ? `revised target ${rv.target} is outside the scale`
           : rv?.primary !== undefined && seatProblem(rv.primary) ? `${rv.primary} is not an eligible primary`
+          : rv?.primary !== undefined && nextLead === null && nextPanel.includes(next) ? `${next} is already a panel judge`
           : rv?.panel !== undefined && !climb ? "review-loop has no panel to revise"
           : rv?.panel !== undefined && (panelJudges.length === 0 || rv.panel.length === 0) ? "a replacement cannot add or remove the panel phase"
-          : rv?.panel !== undefined && (new Set(rv.panel).size !== rv.panel.length || rv.panel.includes(next) || rv.panel.some(seatProblem)) ? "the revised panel is not an eligible, distinct roster"
+          : rv?.panel !== undefined && (new Set(rv.panel).size !== rv.panel.length || rv.panel.some((k) => leads2.includes(k)) || rv.panel.some(seatProblem)) ? "the revised panel is not an eligible, distinct roster"
           : fresh.length > 0 ? `the replacement needs new lineage approval: ${fresh.join("; ")}`
           : available === null || !available.has(next) ? `${next} is not reported available now`
           : nextPanel.some((k) => available === null || !available.has(k)) ? "a panel judge is not reported available now"

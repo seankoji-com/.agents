@@ -43,7 +43,8 @@ and stop. Do not run the rounds by hand, read hook tokens or run the
    research comparable products when external examples materially help define
    quality.
 3. Read [judge selection](references/judges.md) to propose and confirm the
-   roster, panel trigger and any preapproved panel primary. Get explicit
+   roster, panel trigger, any preapproved panel primary and any recovery
+   alternates. Get explicit
    confirmation, including approval of any disclosed lineage overlap, before
    implementation or judging. Before confirmation, continue independent,
    read-only setup. In UI mode, finish each judge's access pilot before edits.
@@ -51,6 +52,9 @@ and stop. Do not run the rounds by hand, read hook tokens or run the
    on it. Judges read committed objects only.
 
 ## Run the rounds on T3 Workflows
+
+Before writing the packet, read [review-loop](../review-loop/SKILL.md) for the
+shared packet fields, curl command and workflow turn contract.
 
 1. **Write one packet** as a JSON file in a Git-ignored directory of your
    worktree, with the fields review-loop's packet step lists and these
@@ -61,6 +65,8 @@ and stop. Do not run the rounds by hand, read hook tokens or run the
    - `panel`: `judges` (route keys; `[]` for a confirmed primary-only run),
      `trigger` (`primary-pass`, or `baseline` when the operator confirmed an
      earlier panel start) and an optional preapproved `panelPrimary`.
+   - `alternates`: optional operator-confirmed route keys authorised for a seat
+     replacement during the single automatic recovery.
    - `codeAuthors`: the implementers' model families, including your own.
    - `overlapApproval`: the operator's words approving a disclosed overlap,
      when there is one.
