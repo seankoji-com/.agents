@@ -62,7 +62,7 @@ and stop. Do not run the loop by hand, read hook tokens or run the
 4. **Write one packet** as a JSON file in a Git-ignored directory of your
    worktree:
    - `invokerThread`: `printenv T3CODE_THREAD_ID`.
-   - `skill`: `review-loop`. `title`: a short task name.
+   - `title`: a short task name.
    - `project`: your T3 project ID; judges open their threads there.
    - `maxRuntimeMode`: your thread's `runtimeMode` from `t3_thread_read`.
    - `scope`: `code`, `plan`, `prose` or `visual`. Only `code` applies the
@@ -75,7 +75,7 @@ and stop. Do not run the loop by hand, read hook tokens or run the
    - `reviewContext`: the checks judges may run, the exact commands and
      environment, a scratch directory verified with `git check-ignore`, and
      the evidence and screenshots required.
-   - Optional `roster` (`primary` only when the user named one; `companions`),
+   - Optional `primary` (only when the user named one), `companions`,
      `limits` (`repairRounds`, `deadline`, `spendCap`), `judgeMinutes`,
      `repairMinutes`.
    - `singleRound: true` only when the project adopted `review_rounds: 1`.
@@ -84,8 +84,8 @@ and stop. Do not run the loop by hand, read hook tokens or run the
      does one scored review, then one repair turn you verify yourself, with
      no recheck.
    - `continuation` only for an operator-approved continuation (step 7):
-     `priorRun`, the prior run's `repairsUsed`, the `approval` message, its
-     final ledger as `priorLedger` (JSON text) and `sameContract`.
+     `priorRun`, the prior run's `repairsUsed` and the `approval` message.
+     Keep the prior run's ledger and history in your own report.
    Never set `test`: test fields are for acceptance runs.
 
 5. **Start the run, then end your turn.**
@@ -102,13 +102,15 @@ and stop. Do not run the loop by hand, read hook tokens or run the
    and stop. Do not poll. The workflow writes to this thread.
 
 6. **Answer each workflow turn**, then end your turn:
-   - **Selection data:** call the limits snapshot and
-     `orchestrator_capabilities` as asked and submit what they show,
-     including each listed route whose exact model or effort is missing and
-     whether the spend cap is reached.
+   - **Every turn** ends with a limits report: from `orchestrator_capabilities`,
+     the routes whose exact model and effort option you confirmed available
+     now, and whether the spend cap is reached. A judge dispatches only to a
+     route the latest report lists.
+   - **Selection data:** call the limits snapshot as asked and submit each
+     provider's `paceScore`.
    - **Receipts:** read each listed judge thread with `t3_thread_read` and
      submit its turn ID, `executedModel` and run count, null where none is
-     shown, with refreshed route availability and the spend cap.
+     shown.
    - **Repair round:** before repairing, read the
      [implementation-participant card](../review/references/implementation-participant.md).
      Verify each finding's location, evidence, severity and impact. When
@@ -121,15 +123,16 @@ and stop. Do not run the loop by hand, read hook tokens or run the
      workflow then never hands back an earlier candidate. After each
      round, update the JSON score ledger from the turn and render the
      [score line graph](../review/references/score-chart.md). Report a blocker
-     or a reached spend cap or deadline in `stop` instead of repairing past it,
-     and refreshed route availability. In a single-round run, report your
-     verification of every accepted repair instead of awaiting a recheck.
+     or a reached spend cap or deadline in `stop` instead of repairing past
+     it. In a single-round run, report your verification of every accepted
+     repair; there is no recheck, recovery or second scored round.
    - **Recovery:** follow budget-exhaustion's
      [single recovery](../review/references/budget-exhaustion.md#continue-a-stopped-scoring-loop),
-     steps 2 to 4: diagnose from retained evidence, fix the cause and submit
-     the frozen candidate, any revised contract or checks, and refreshed route
-     availability, or `fix-failed` when the fix is blocked. The workflow
-     records the attempt, checks the revision and runs it at most once.
+     steps 2 to 4: diagnose from retained evidence, fix the cause from the
+     named latest candidate and submit the frozen candidate with any revised
+     target, rubric, criteria, checks or primary, or `fix-failed` when the fix
+     is blocked. The workflow records the attempt, checks the revision and
+     runs it at most once.
 
 7. **Accept the evidence or explain the stop.**
    The result turn gives the status, final candidate, scores, findings and
