@@ -77,6 +77,8 @@ and stop. Do not run the loop by hand, read hook tokens or run the
      the evidence and screenshots required.
    - Optional `roster` (`primary` only when the user named one; `companions`),
      `limits` (`repairRounds`, `deadline`), `judgeMinutes`, `repairMinutes`.
+   - `continuation` only for an operator-approved continuation (step 7):
+     `priorRun`, the prior run's `repairsUsed` and the `approval` message.
    Never set `test`: test fields are for acceptance runs.
 
 5. **Start the run, then end your turn.**
@@ -94,7 +96,8 @@ and stop. Do not run the loop by hand, read hook tokens or run the
 
 6. **Answer each workflow turn**, then end your turn:
    - **Selection data:** call the limits snapshot and
-     `orchestrator_capabilities` as asked and submit what they show.
+     `orchestrator_capabilities` as asked and submit what they show,
+     including each listed route whose exact model is missing.
    - **Receipts:** read each listed judge thread with `t3_thread_read` and
      submit its `executedModel` and run count, null where none is shown.
    - **Repair round:** before repairing, read the
@@ -104,7 +107,9 @@ and stop. Do not run the loop by hand, read hook tokens or run the
      If consecutive rounds found different verified defects from the same
      design assumption, reconsider that assumption before repairing. Repair
      from the named base, delete or narrow code when that fixes the cause,
-     commit, run the required checks and submit the candidate. After each
+     commit, run the required checks and submit the candidate. Set
+     `addsRequiredFix` when every later candidate must keep a fix it adds; the
+     workflow then never hands back an earlier candidate. After each
      round, update the JSON score ledger from the turn and render the
      [score line graph](../review/references/score-chart.md). Report a blocker
      or limit in `stop` instead of repairing past it.
@@ -120,7 +125,9 @@ and stop. Do not run the loop by hand, read hook tokens or run the
    remaining finding and track confirmed unfixed bugs with verified issue
    URLs. On `goal-not-met`, collect a retrospective and offer the operator a
    changed approach from the latest candidate, as budget-exhaustion's
-   operator-approved continuation describes; a continuation starts a new run.
+   operator-approved continuation describes. A continuation starts a new run
+   whose packet carries `continuation` and the same limits, so it gets no
+   second automatic recovery.
    A `passed-revised` result names the original and revised targets; never
    claim the original target was met.
 
