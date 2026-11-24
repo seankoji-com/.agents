@@ -99,9 +99,11 @@ and stop. Do not run the loop by hand, read hook tokens or run the
 6. **Answer each workflow turn**, then end your turn:
    - **Selection data:** call the limits snapshot and
      `orchestrator_capabilities` as asked and submit what they show,
-     including each listed route whose exact model is missing.
+     including each listed route whose exact model or effort is missing and
+     whether the spend cap is reached.
    - **Receipts:** read each listed judge thread with `t3_thread_read` and
-     submit its `executedModel` and run count, null where none is shown.
+     submit its turn ID, `executedModel` and run count, null where none is
+     shown, with refreshed route availability and the spend cap.
    - **Repair round:** before repairing, read the
      [implementation-participant card](../review/references/implementation-participant.md).
      Verify each finding's location, evidence, severity and impact. When
