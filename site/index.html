@@ -376,7 +376,7 @@
               <p>Choose your agents when prompted.</p>
               <p>Try asking <q>Run hillclimb on the onboarding flow until it scores 8 out of 10.</q></p>
               <p class="helpers">Supporting skills include <a href="#skill-review">review</a>, <a href="#skill-raise-pr">raise-pr</a>, and <a href="#skill-raise-issue">raise-issue</a>.</p>
-              <p class="t3-preflight">On T3 Code, also install <a href="#skill-agent-tuneup">agent-tuneup</a> for the T3 dispatch preflight.</p>
+              <p class="t3-preflight">Before the first run, turn on Workflows in T3, install <code>workflows/scored-loop.ts</code> into <code>~/.t3/workflows</code>, and have the operator save the hook URL once in <code>~/.config/t3-workflows/scored-loop.curl</code>. The <a href="https://github.com/seankoji-com/.agents#use-the-scored-loop-on-t3-workflows">README</a> has the steps. Without them, <code>hillclimb</code> reports what is missing and stops. Also install <a href="#skill-agent-tuneup">agent-tuneup</a> for the T3 dispatch preflight.</p>
               <a href="#skill-hillclimb">Close install instructions</a>
             </div>
           </li>
@@ -539,12 +539,12 @@
       <div class="tiers">
         <div class="tier tier-needs">
           <p class="tier-label">Needs T3 Code</p>
-          <p class="chips"><a href="#skill-implement">implement</a> <a href="#skill-backlog-burn">backlog-burn</a> <a href="#skill-raise-issue">raise-issue</a> <a href="#skill-ocr">ocr</a> <a href="#skill-vote">vote</a> <a href="#skill-review-loop">review-loop</a></p>
-          <p>These hand work to T3 delegates that run in their own threads or worktrees, so your conversation stays free. <code>raise-issue</code> can still file inline if you ask for that explicitly. <code>vote</code> runs as a T3 workflow: it starts one voter per model family, or counts the invoker's existing recommendation, checks each ballot and each voter's recorded model, and returns the 2/3 choice or the split. <code>review-loop</code> runs its rounds through a T3 workflow too: the workflow starts each judge, asks your thread for each repair, and keeps the counters, the stop rule and the one recovery in code. Both need Workflows turned on in T3.</p>
+          <p class="chips"><a href="#skill-implement">implement</a> <a href="#skill-backlog-burn">backlog-burn</a> <a href="#skill-raise-issue">raise-issue</a> <a href="#skill-ocr">ocr</a> <a href="#skill-vote">vote</a> <a href="#skill-review-loop">review-loop</a> <a href="#skill-hillclimb">hillclimb</a></p>
+          <p>These hand work to T3 delegates that run in their own threads or worktrees, so your conversation stays free. <code>raise-issue</code> can still file inline if you ask for that explicitly. <code>vote</code> runs as a T3 workflow: it starts one voter per model family, or counts the invoker's existing recommendation, checks each ballot and each voter's recorded model, and returns the 2/3 choice or the split. <code>review-loop</code> and <code>hillclimb</code> run their rounds through a T3 workflow too: the workflow starts each judge, asks your thread for each repair, and keeps the counters, the stop rule and the one recovery in code. For <code>hillclimb</code> it also brings in the full panel of judges you approved once the lead judge's score reaches the target. All three need Workflows turned on in T3.</p>
         </div>
         <div class="tier tier-better">
           <p class="tier-label">Better in T3 Code</p>
-          <p class="chips"><a href="#skill-review">review</a> <a href="#skill-think">think</a> <a href="#skill-challenge">challenge</a> <a href="#skill-hillclimb">hillclimb</a> <a href="#skill-choose-design">choose-design</a> <a href="#skill-focus-group">focus-group</a> <a href="#skill-ship">ship</a> <a href="#skill-babysitter">babysitter</a> <a href="#skill-settle">settle</a></p>
+          <p class="chips"><a href="#skill-review">review</a> <a href="#skill-think">think</a> <a href="#skill-challenge">challenge</a> <a href="#skill-choose-design">choose-design</a> <a href="#skill-focus-group">focus-group</a> <a href="#skill-ship">ship</a> <a href="#skill-babysitter">babysitter</a> <a href="#skill-settle">settle</a></p>
           <ul>
             <li>Reviewers and judges start on another provider from the same conversation; <code>choose-design</code> runs its designers on Opus and has Neon and Sol score every option. Code review needs a second model family; without one, the agent reports the review as unavailable.</li>
             <li><code>babysitter</code> uses T3's pull request watch to wake when checks or reviews change. Elsewhere it waits with its bundled <code>pr-wait</code> helper.</li>

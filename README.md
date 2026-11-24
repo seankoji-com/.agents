@@ -65,12 +65,14 @@ one app. They use what T3 provides:
   the panel. Its code keeps the seat deadline, checks each ballot and each
   seat's recorded model, and tallies the 2/3 choice or the split. Without T3
   Workflows, `vote` reports what is missing and stops.
-- **Scored loops on T3 Workflows.** `review-loop` posts its scope, rubric and
-  baseline to the `workflows/scored-loop.ts` T3 workflow. The workflow picks
-  the reviewer by quota pace and lineage, starts each judge in a fresh thread,
-  asks the invoking thread for each repair, and keeps the counters, the target
-  gate, the two-round stop and the single recovery in code, so a restart cannot
-  dispatch a recovery twice.
+- **Scored loops on T3 Workflows.** `review-loop` and `hillclimb` post their
+  scope, rubric and baseline to the `workflows/scored-loop.ts` T3 workflow. For
+  `review-loop` the workflow picks the reviewer by quota pace and lineage; for
+  `hillclimb` it takes the confirmed roster and adds the full panel when the
+  primary passes. It starts each judge in a fresh thread, asks the invoking
+  thread for each repair, and keeps the counters, the target gate, the
+  two-round stop and the single recovery in code, so a restart cannot dispatch
+  a recovery twice.
 - **Separate workspaces.** `implement` runs coding in its own T3 worktree, so the
   main conversation stays free for decisions and reviews.
 - **Background tasks.** `raise-issue` files issues in a background T3 task while
@@ -93,8 +95,8 @@ one app. They use what T3 provides:
 Most skills still work in Claude Code, Codex or another host that supports
 skills, using what that host offers instead. Outside T3, `babysitter` waits with
 its bundled `scripts/pr-wait` helper, and `ship` posts status lists in the
-conversation. `implement` and asynchronous `raise-issue` need T3, and `vote`
-and `review-loop` need T3 with Workflows turned on. Cross-family code review needs a host that
+conversation. `implement` and asynchronous `raise-issue` need T3, and `vote`,
+`review-loop` and `hillclimb` need T3 with Workflows turned on. Cross-family code review needs a host that
 can reach a second model family; without one, the agent reports the review as
 unavailable instead of reviewing its own work. `vote` never simulates a ballot:
 without its workflow it reports the gap and stops.
@@ -202,7 +204,7 @@ Build, check, and deliver changes with evidence of what works and what remains.
 - [review](skills/review/SKILL.md): Evaluate a plan, change, or release against its requirements. Code reviewers differ in family from code authors. Return evidence-backed findings without edits.
 - [ocr](skills/ocr/SKILL.md): Run OpenCodeReview on a frozen diff. A public repository draws up to three free OpenCode reviewers and returns one grouped report. A private one runs the `ocr` CLI through one watcher.
 - [review-loop](skills/review-loop/SKILL.md): Hill-climb through repairs and review until the score target and required gates pass or two consecutive rounds fail to improve the best score. A failed run gets one reflect-fix-re-invoke before it reports. Its T3 workflow keeps the rounds, the stop rule and the recovery in code.
-- [hillclimb](skills/hillclimb/SKILL.md): Improve a workflow, artifact or product toward a fixed score target. Confirm the judging roster, follow the rounds in one report and use the real interface for UI judging. A failed run gets one reflect-fix-re-invoke before it reports.
+- [hillclimb](skills/hillclimb/SKILL.md): Improve a workflow, artifact or product toward a fixed score target. Confirm the judging roster, follow the rounds in one report and use the real interface for UI judging. A failed run gets one reflect-fix-re-invoke before it reports. Runs on the scored-loop T3 workflow.
 - [test-writer](skills/test-writer/SKILL.md): Choose tests that catch consequential failures, with attention to reliability, maintenance, and CI time.
 - [raise-pr](skills/raise-pr/SKILL.md): Prepare PR descriptions and evidence that meet the repository's requirements. Creating or updating the PR needs authority from your request.
 - [babysitter](skills/babysitter/SKILL.md): Repair an existing PR, handle checks and review gates, and verify its merge when permitted. Explicit limits such as no-merge still apply.
@@ -344,7 +346,7 @@ a job, especially one that can publish or merge changes.
 - **Evidence.** The agent reports checks against the revision it actually tested.
   Missing access, unavailable reviewers, and unverified behavior remain visible gaps.
 - **Stopped scoring loops.** A failed `review-loop` or `hillclimb` run gets one
-  automatic recovery (for `review-loop`, enforced by its T3 workflow): the agent
+  automatic recovery, enforced by the scored-loop T3 workflow: the agent
   records the attempt, diagnoses what stalled,
   fixes the cause and re-invokes once from the latest candidate. A deadline or
   spending cap already reached stops the recovery. A repair-round cap already
@@ -463,8 +465,8 @@ substitute. Without any of these, `vote` reports what is missing and stops.
 
 ### Use the scored loop on T3 Workflows
 
-`review-loop` runs through the `workflows/scored-loop.ts` T3 workflow. Each
-host where you run it needs:
+`review-loop` and `hillclimb` run through the `workflows/scored-loop.ts` T3
+workflow. Each host where you run them needs:
 
 1. Workflows turned on in T3 Code.
 2. `workflows/scored-loop.ts` in `~/.t3/workflows`, put there by the owner's
@@ -478,8 +480,10 @@ committed candidate through `git show` and `git diff` in your checkout and run
 in your thread's runtime mode or not at all. Antigravity routes need
 `auto-accept-edits` or broader. The workflow asks your thread for the selection
 data, each judge thread's recorded model, every repair and the one recovery,
-then posts the result with the full score ledger. Without the workflow, the
-file or the hook config, `review-loop` reports what is missing and stops.
+then posts the result with the full score ledger. A `hillclimb` packet also
+names the confirmed primary, the panel and when it joins; judges from one
+model family need the operator's recorded approval. Without the workflow, the
+file or the hook config, either skill reports what is missing and stops.
 
 Older releases through v0.13.2 contain archives from the previous package.
 Use the current `skills` tree for the library described here.
@@ -701,7 +705,7 @@ installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: cc1e861727ede46a8109c48b0522fa1e64cb7b814bc941655b555f122c227928 -->
+<!-- skills-review: 44fb357f4265c34afc48d3166eee89a9d81564a9b13527278f6e88c8549b415b -->
 
 ### Owner maintenance
 
