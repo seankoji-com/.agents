@@ -86,8 +86,10 @@ and stop. Do not run the loop by hand, read hook tokens or run the
      does one scored review, then one repair turn you verify yourself, with
      no recheck.
    - `continuation` only for an operator-approved continuation (step 7):
-     `priorRun`, the prior run's `repairsUsed` and the `approval` message.
-     Keep the prior run's ledger and history in your own report.
+     `priorRun`, the prior run's `repairsUsed` and the `approval` message,
+     plus `baseline` (primary, score, bullets, judge thread) when that run
+     validly scored this exact candidate under this exact contract. Keep the
+     prior run's ledger and history in your own report.
    Never set `test`: test fields are for acceptance runs.
 
 5. **Start the run, then end your turn.**
@@ -128,9 +130,10 @@ and stop. Do not run the loop by hand, read hook tokens or run the
      or a reached spend cap or deadline in `stop` instead of repairing past
      it. In a single-round run, report your verification of every accepted
      repair; there is no recheck, recovery or second scored round.
-   - **Recovery:** follow budget-exhaustion's
+   - **Recovery:** two turns. First submit only the diagnosis and plan,
+     changing nothing. Then follow budget-exhaustion's
      [single recovery](../review/references/budget-exhaustion.md#continue-a-stopped-scoring-loop),
-     steps 2 to 4: diagnose from retained evidence, fix the cause from the
+     steps 3 and 4: fix the recorded cause from the
      named latest candidate and submit the frozen candidate, whether it adds
      a required fix, and any revised target, rubric, criteria, checks or
      primary, or `fix-failed` when the fix is blocked. The workflow records the attempt, checks the revision and

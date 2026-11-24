@@ -128,7 +128,14 @@ const Packet = Schema.Struct({
     spendCap: Schema.optional(Schema.String),
   })),
   // An operator-approved continuation of a stopped run: its automatic recovery is spent.
-  continuation: Schema.optional(Schema.Struct({ priorRun: Schema.String, repairsUsed: Schema.Number, approval: Schema.String })),
+  continuation: Schema.optional(Schema.Struct({
+    priorRun: Schema.String,
+    repairsUsed: Schema.Number,
+    approval: Schema.String,
+    // A valid prior score for this exact candidate under this exact contract and primary, reused
+    // instead of judging unchanged work again (budget-exhaustion.md, approved continuation step 2).
+    baseline: Schema.optional(Schema.Struct({ primary: Schema.String, score: Schema.Number, bullets: Schema.Array(Schema.String), judgeThread: Schema.String })),
+  })),
   // The project adopted `review_rounds: 1` (skills/review/references/single-round.md).
   singleRound: Schema.optional(Schema.Boolean),
   judgeMinutes: Schema.optional(Schema.Number),
@@ -311,12 +318,14 @@ function identityConflict(key, claim) {
   const has = (w) => new RegExp(`(^|[^a-z])${w}([^a-z]|$)`).test(text);
   const conflicts = [];
   const others = Object.keys(FAMILY_WORDS).filter((f) => f !== route.lineage && FAMILY_WORDS[f].some(has));
-  if (others.length > 0 && !FAMILY_WORDS[route.lineage].some(has)) conflicts.push(`names ${others.join(", ")}`);
+  const own = FAMILY_WORDS[route.lineage] ?? [];
+  if (others.length > 0 && !own.some(has)) conflicts.push(`names ${others.join(", ")}`);
   const siblings = (SIBLINGS[key] ?? []).filter(has);
   if (siblings.length > 0) conflicts.push(`names ${siblings.join(", ")}`);
   const efforts = EFFORT_WORDS.filter((w) => w !== route.effort.value && has(w));
   if (efforts.length > 0) conflicts.push(`reports effort ${efforts.join(", ")}`);
-  const versions = [...text.matchAll(new RegExp(`(?:${FAMILY_WORDS[route.lineage].join("|")})[\\s-]*v?(\\d+(?:\\.\\d+)?)`, "g"))].map((m) => m[1]);
+  const versions = own.length === 0 ? []
+    : [...text.matchAll(new RegExp(`(?:${own.join("|")})[\\s-]*v?(\\d+(?:\\.\\d+)?)`, "g"))].map((m) => m[1]);
   if (versions.length > 0 && !versions.includes(route.version)) conflicts.push(`reports version ${versions.join(", ")}`);
   return conflicts.length > 0 ? conflicts : null;
 }
@@ -363,7 +372,7 @@ function eligibleBest(scored, floor) {
 // The candidate an incomplete stop hands back: the best eligible scored candidate across eras
 // when the contract never changed, else the current era's; else the required-fix candidate or
 // the latest work, unscored.
-function finalCandidate(eras, floor, latest) {
+function finalCandidate(eras, floor, latest, floorWork) {
   const last = eras[eras.length - 1];
   const comparable = eras.every((e) => e.comparable);
   const best = eligibleBest((comparable ? eras : [last]).flatMap((e) => e.scored), floor);
@@ -371,7 +380,9 @@ function finalCandidate(eras, floor, latest) {
     return { candidate: best.candidate, metric: best.metric, entry: best,
       note: comparable ? "best fully scored candidate that keeps required fixes" : "best under the current contract; earlier scores historical" };
   }
-  return { candidate: latest.candidate, metric: null, entry: null, note: `no ranked best; latest eligible work from ${latest.source}, unscored` };
+  // The unscored fallback never drops below the required-fix floor.
+  const work = latest.seq >= floor ? latest : floorWork;
+  return { candidate: work.candidate, metric: null, entry: null, note: `no ranked best; latest eligible work from ${work.source}, unscored` };
 }
 
 function ledgerOf(p, runId, status, eras, rounds, reviewers) {
@@ -432,7 +443,7 @@ function receiptsText(judges) {
 
 export default T3.workflow(
   "scored-loop",
-  { version: 7, payload: T3.WebhookRequest, triggers: [T3.webhook("start")] },
+  { version: 8, payload: T3.WebhookRequest, triggers: [T3.webhook("start")] },
   (input, { id }) =>
     Effect.gen(function* () {
       const parsed = yield* T3.step.try("packet", { returns: Packet }, Effect.try(() => decodePacket(JSON.parse(input.body))));
@@ -471,7 +482,17 @@ export default T3.workflow(
       const repairMs = Math.round((p.repairMinutes ?? 240) * 60000);
       // A user-named reviewer joins this run's routes under a run-scoped key.
       const namedKey = p.namedReviewer ? `named-${String(id).slice(0, 8)}` : null;
-      if (namedKey !== null) ROUTES[namedKey] = { ...p.namedReviewer, label: `${p.namedReviewer.label} (named)` };
+      // OpenCode, Grok and Muse routes fall back to asking for approval below full access (t3-dispatch.md),
+      // so a named reviewer on them needs full access or is skipped by the mode gate.
+      if (namedKey !== null) {
+        ROUTES[namedKey] = { ...p.namedReviewer, label: `${p.namedReviewer.label} (named)`,
+          ...(["opencode", "grok", "muse"].includes(p.namedReviewer.instanceId) ? { minMode: "full-access" } : {}) };
+      }
+      if (namedKey !== null && modeOf(ROUTES[namedKey], p.maxRuntimeMode) === null) {
+        yield* tell("callback", [`${p.namedReviewer.label} on ${p.namedReviewer.instanceId} needs full access, above the invoker's ${p.maxRuntimeMode}.`,
+          "Ask the operator for an eligible alternative, then start again with a new idempotency key."]);
+        return { run: id, outcome: "blocked", problems: ["named reviewer needs full access"] };
+      }
       const keys = namedKey === null ? ROUTE_KEYS : [...ROUTE_KEYS, namedKey];
       const routeList = keys.map((k) => `- ${k}: ${ROUTES[k].instanceId}/${ROUTES[k].model} with ${ROUTES[k].effort.id}=${ROUTES[k].effort.value}`);
       const reportAsk = [
@@ -697,6 +718,8 @@ export default T3.workflow(
       let seq = 0;
       let floor = 0;
       let latest = { candidate: p.candidate, checks: p.checks, seq: 0, source: "the baseline", requiredFix: false };
+      // The candidate that set the required-fix floor: the oldest work any handback may return.
+      let floorWork = latest;
       let lastEval = null;
       const repairsLeft = () => roundCap === null || repairsUsed < roundCap;
       const ledgerNow = (status) => ledgerOf(p, id, status, eras, rounds, reviewers);
@@ -708,7 +731,10 @@ export default T3.workflow(
           seqs.set(candidate, seq);
         }
         latest = { candidate, checks, seq: seqs.get(candidate), source, requiredFix };
-        if (requiredFix) floor = Math.max(floor, latest.seq);
+        if (requiredFix && latest.seq >= floor) {
+          floor = latest.seq;
+          floorWork = latest;
+        }
         return latest;
       };
 
@@ -734,14 +760,29 @@ export default T3.workflow(
                 era.scored.push({ ...cached, seq: at.seq });
                 return { judges: cached.judges, metric: cached.metric, complete: true, covered: cached.covered, limit: null };
               }
+              // An approved continuation reuses a valid prior baseline score for the same candidate and primary.
+              const prior = p.continuation?.baseline;
+              if (index === 1 && rid === "E1B0" && prior !== undefined && prior.primary === primary) {
+                const g = yield* limits(`${rid}/reuse`, 1);
+                const judges = [{ key: primary, scoring: true, role: "Primary", status: "scored", score: prior.score, bullets: prior.bullets,
+                  problems: [], findings: [], thread: prior.judgeThread, coverageComplete: true, claim: `reused from run ${p.continuation.priorRun}` }];
+                rounds.push(roundEntry(p, index, `${labelText} (reused from run ${p.continuation.priorRun})`, rid, at.candidate, judges, null));
+                const entry = { candidate: at.candidate, metric: quantise(prior.score, p.scale), seq: at.seq, checks: at.checks, covered: true, judges };
+                era.scored.push(entry);
+                return { judges, metric: entry.metric, complete: true, covered: true, limit: g.stop };
+              }
               const ev = yield* evaluate(at.candidate, index, contract, note, rid);
-              // A result excluded by a limit or an incomplete companion is charted as incomplete, never as a gate score.
+              // A result excluded by a limit or an incomplete companion is charted without a score, so the
+              // chart never computes a gate the loop excluded.
               const excluded = ev.limit !== null ? `excluded: ${limitStop(ev.limit).stop}` : !ev.complete ? "evaluation incomplete after one retry" : null;
-              rounds.push(roundEntry(p, index, labelText, rid, at.candidate, ev.judges, excluded));
+              const charted = excluded === null ? ev.judges : ev.judges.map((j) => (typeof j.score === "number"
+                ? { ...j, score: null, status: "excluded", problems: [...j.problems, `scored ${j.score}, excluded: ${excluded}`] } : j));
+              rounds.push(roundEntry(p, index, labelText, rid, at.candidate, charted, excluded));
               lastEval = { candidate: at.candidate, judges: ev.judges };
               if (excluded === null) {
                 const entry = { candidate: at.candidate, metric: ev.metric, seq: at.seq, checks: at.checks, covered: ev.covered, judges: ev.judges };
-                scoreCache.set(cacheKey(contract, at.candidate), entry);
+                // A score with a coverage gap is not cached: a setup fix may obtain the missing evidence.
+                if (ev.covered) scoreCache.set(cacheKey(contract, at.candidate), entry);
                 era.scored.push(entry);
               }
               return ev;
@@ -884,16 +925,34 @@ export default T3.workflow(
             revised: t.target === undefined ? null : { reason: "synthetic target revision", target: t.target } };
           reported = true;
         } else {
-          const ran = yield* T3.agent.try("recovery/fix", {
+          // The diagnosis is journaled before any fix, so a lost fixing turn still leaves it on record
+          // with the frozen candidate the recovery starts from (budget-exhaustion.md, step 1 `committed`).
+          const diag = yield* T3.agent.try("recovery/diagnose", {
+            thread: { threadId: p.invokerThread },
+            timeout: `${g.left} millis`,
+            returns: Schema.Struct({ diagnosis: Schema.String, plan: Schema.String }),
+            brief: [`${head} Recovery, step 1 of 2: diagnose only. Change nothing in this turn.`,
+              `The loop stopped incomplete: ${stopReason}. The recovery starts from ${from.candidate} (from ${from.source}).`,
+              "Diagnose from the retained evidence (start no evaluator) and state the fix you will make. Submit diagnosis and plan.",
+              "Findings from the latest evaluation:", findingsText(lastEval?.judges ?? [], true)].join("\n"),
+          });
+          history.push({ kind: "recovery", round: "recovery/diagnose", candidate: from.candidate, outcome: diag.outcome === "done" ? "diagnosed" : "diagnosis failed",
+            checks: from.checks, buildable: true, addsRequiredFix: false, diagnosis: diag.outcome === "done" ? diag.value.diagnosis : diag.reason.slice(0, 600),
+            fix: diag.outcome === "done" ? `planned: ${diag.value.plan}` : "none", revised: null });
+        }
+        if (fix === undefined) {
+          const recorded = history[history.length - 1];
+          const ran = recorded.outcome !== "diagnosed" ? { outcome: "failed", reason: `the diagnosis step failed: ${recorded.diagnosis}` } : yield* T3.agent.try("recovery/fix", {
             thread: { threadId: p.invokerThread },
             timeout: `${g.left} millis`,
             quiet: "30 minutes",
             returns: Fix,
             brief: [
-              `${head} The loop stopped incomplete: ${stopReason}.`,
+              `${head} Recovery, step 2 of 2. The loop stopped incomplete: ${stopReason}.`,
               "This is the run's single automatic recovery; it has one step key and runs at most once.",
-              "Follow skills/review/references/budget-exhaustion.md, 'One automatic recovery', steps 2 to 4: diagnose from the",
-              "retained evidence (start no evaluator), fix the cause, and freeze the result.",
+              `Recorded diagnosis: ${recorded.diagnosis}`, `Recorded plan: ${recorded.fix}`,
+              "Follow skills/review/references/budget-exhaustion.md, 'One automatic recovery', steps 3 and 4: fix the diagnosed",
+              "cause and freeze the result.",
               `Start from the latest committed candidate ${from.candidate} (from ${from.source}); keep every required fix.`,
               capSpent ? `The repair-round limit (${roundCap}) is spent: only a setup-only fix that leaves the candidate unchanged may recover.`
                 : "A fix that changes the candidate consumes one repair round, whatever its outcome.",
@@ -964,7 +1023,7 @@ export default T3.workflow(
             entry: { judges: eras.flatMap((e) => e.scored).find((c) => c.candidate === single.reviewed.candidate)?.judges ?? [], checks: single.repaired.checks },
             note: `${single.single === "verified" ? "fixes coordinator-verified, not independently re-reviewed" : "repairs not verified"}; `
               + `the score ${single.reviewed.metric} stays bound to the reviewed candidate ${single.reviewed.candidate}` }
-          : finalCandidate(eras, floor, latest);
+          : finalCandidate(eras, floor, latest, floorWork);
       const finalJudges = final.entry?.judges ?? [];
       const ledger = ledgerNow(status);
       const result = {
