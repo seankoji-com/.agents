@@ -75,8 +75,10 @@ and stop. Do not run the loop by hand, read hook tokens or run the
    - `reviewContext`: the checks judges may run, the exact commands and
      environment, a scratch directory verified with `git check-ignore`, and
      the evidence and screenshots required.
-   - Optional `primary` (only when the user named one), `companions`,
-     `limits` (`repairRounds`, `deadline`, `spendCap`), `judgeMinutes`,
+   - Optional `primary` (only when the user named a standing route) or
+     `namedReviewer` (a user-named model outside them: label, instance,
+     model, effort, lineage, version), `companions`, `limits`
+     (`repairRounds`, `deadline`, `spendCap`), `judgeMinutes`,
      `repairMinutes`.
    - `singleRound: true` only when the project adopted `review_rounds: 1`.
      Before setting it, read the
@@ -129,9 +131,9 @@ and stop. Do not run the loop by hand, read hook tokens or run the
    - **Recovery:** follow budget-exhaustion's
      [single recovery](../review/references/budget-exhaustion.md#continue-a-stopped-scoring-loop),
      steps 2 to 4: diagnose from retained evidence, fix the cause from the
-     named latest candidate and submit the frozen candidate with any revised
-     target, rubric, criteria, checks or primary, or `fix-failed` when the fix
-     is blocked. The workflow records the attempt, checks the revision and
+     named latest candidate and submit the frozen candidate, whether it adds
+     a required fix, and any revised target, rubric, criteria, checks or
+     primary, or `fix-failed` when the fix is blocked. The workflow records the attempt, checks the revision and
      runs it at most once.
 
 7. **Accept the evidence or explain the stop.**
