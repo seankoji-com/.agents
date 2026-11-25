@@ -808,7 +808,24 @@ config holds the hook URL and token, so neither appears in command text or
 transcripts. After a successful install, the installer reads
 `t3 workflow hooks --json` and writes a mode-600 config for each manual
 webhook workflow, printing only file paths. A rotated token is picked up on the
-next sync. Agents run the `t3 workflow` CLI only through that installer.
+next sync. Agents run the `t3 workflow` CLI only through that installer unless
+explicitly directed by the operator to inspect or clear a blocked run.
+
+If delivery stops with `unfinished runs would be interrupted by the reload: ...`
+when nothing appears to be running, check for `paused` workflow runs. The
+installer refuses changes whenever any row in T3's `workflow_runs` table has
+`ended_at IS NULL`, which includes `paused` (and `waiting`) runs alongside
+active `running` ones. A paused run looks idle in the T3 UI — for example, when
+a workflow `callback` step into a busy or failing invoker thread fails twice and
+pauses the run. On the blocked host, an operator (or an agent with operator
+direction) can inspect and clear it before retrying `python3 scripts/maintain.py sync`:
+
+```sh
+t3 workflow list --status paused          # or `t3 workflow list` for all runs
+t3 workflow show <run>                    # add `--json` for full step results
+t3 workflow cancel <run> --reason "<why>" # ends the run (keeps step results and score history; loses resumability)
+t3 workflow resume <run>                  # alternative: re-runs the failed step (delivery stays blocked until it finishes)
+```
 
 #### One-time external skill migration on receivers
 
