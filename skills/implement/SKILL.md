@@ -26,6 +26,8 @@ the host exposes one; the lead's own list stays separate.
    acceptance criteria, verification, repository identity, exact source HEAD and
    the main thread's model identity/lineage.
    Include the paths to this skill, review-loop and [review](../review/SKILL.md).
+   Apply the [issue status](../ship/references/issue-status.md) start transition
+   before dispatch.
 2. **Check the starting revision.** Isolated delegates start from the parent's
    committed HEAD. Identify required uncommitted prerequisites before dispatch. Commit
    them only with existing or newly obtained authority; otherwise report the

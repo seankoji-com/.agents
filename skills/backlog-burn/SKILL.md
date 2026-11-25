@@ -57,15 +57,15 @@ and follow it instead of this file.
      --json number,title,labels,assignees,updatedAt,url
    ```
 
-   Record both counts and every ID. If a connector tool fails twice, use `gh`.
+   Record both counts and IDs. If a connector tool fails twice, use `gh`.
 4. Call `orchestrator_capabilities` once. Record the model, effort, providers
    and any concurrency limit in the ledger header.
 
 ## 2. Triage every item from headers
 
 Give **every** open PR and issue a provisional class from its title, labels,
-draft flag, linked PRs and dates. Do this for the whole list in one pass and
-write it to the ledger. Headers only; no bodies yet.
+draft flag, linked PRs and dates. Do this for the whole list and write it to the
+ledger. Headers only; no bodies yet.
 
 - PR classes: `in-flight-elsewhere`, `adopt`, `retire`, `ask`.
 - Issue classes for triage are in [the ledger](references/ledger.md#table).
@@ -124,13 +124,14 @@ first dispatch, and run their preflight once.
 
 - Use up to 20 delegates for the whole run, repairs and reviewers included,
   under [the capacity protocol](references/ledger.md#delegate-capacity).
-- Start one implement lead per issue in its own worktree. The brief names the
-  repository, base, issue, acceptance criteria, authority, child-slot budget
-  and required skills.
+- Start one implement lead per issue in its own worktree after its
+  [issue status](../ship/references/issue-status.md) start transition. The brief
+  names the repository, base, issue, acceptance criteria, authority, child-slot
+  budget and required skills.
 - State the main thread's exact model and effort in each brief for leads and
   coding workers. Reviewers follow review's selection and eligibility rules. Owner
   choices override both.
-- Record each returned task ID and worktree; no receipt means not dispatched.
+- Record each task ID and worktree; no receipt means not dispatched.
 - Never implement an issue fix in this thread. If delegation is unavailable,
   ask the owner. If a lead cannot start its own reviewer, get the
   independent review yourself against the exact committed head; self-review
@@ -139,7 +140,7 @@ first dispatch, and run their preflight once.
 - One issue, one PR. Use `Refs #N` instead of a closing keyword when acceptance
   needs live verification or the issue is protected.
 
-On a delegate result: integrate, open or update the PR under ship, and refill
+On a delegate result, integrate, open or update the PR under ship and refill
 the slot.
 
 ## 6. Ask the owner, in one batch

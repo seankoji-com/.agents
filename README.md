@@ -599,6 +599,15 @@ reviewers use the defaults above. They read a short role card instead of a whole
 - [implementation-participant card](skills/review/references/implementation-participant.md)
   for a dispatched coding or repair worker.
 
+Delivery also keeps a repository's linked project board true. `implement`, `ship`,
+`raise-pr`, `review-loop` and `babysitter` assign the operator and move an issue
+through `In Progress`, `In Review` and `Done` under the
+[issue-status contract](skills/ship/references/issue-status.md). `Done` waits for
+verified production, or for a verified direct publish. GitHub's default board
+sets an option named `Done` itself when an issue closes, so a production gate
+maps its release option and keeps no `Done` option. A missing board, field or
+option is reported in the handoff and never blocks the work.
+
 AI-written GitHub passages open with a visible byline under
 [github-writing](skills/github-writing/SKILL.md):
 
@@ -715,7 +724,7 @@ installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 531c786b31ad46596cea90d55fd41b4c5a0d15bf04ea6c5e2d0f5afc046a0281 -->
+<!-- skills-review: cce7fbd2e0f9fd823758697990ceac005170c94c4566e385efb9df5ed43757f8 -->
 
 ### Owner maintenance
 

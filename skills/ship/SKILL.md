@@ -52,6 +52,9 @@ image tool alongside the completion report. The main thread feeds final
 estimate/actual, model, effort, segment and review-round calibration into the
 retrospective, preserving unknown cost coverage.
 
+Apply [issue status](references/issue-status.md) when work starts, a PR closes
+the issue, or production is verified.
+
 When backlog-burn invokes ship, use its existing authority and narrower limits;
 this invocation adds no permissions from the explicit ship grant above. Keep one
 parent plan and execution manifest across its delivery batches. Apply proof and

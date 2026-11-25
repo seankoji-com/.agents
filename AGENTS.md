@@ -32,6 +32,15 @@ Run `python3 scripts/check_library.py` and
 GitHub. Run changed skill helpers from a foreign working directory. Keep mandatory
 organization workflows; no package or documentation build is needed.
 
+## Issue status
+
+Read `skills/ship/references/issue-status.md` before starting an issue, opening
+or linking a PR, or verifying a release. Assign the operator once and set
+`In Progress` at start; set `In Review` when a PR closes the issue; set `Done`
+only after verified production, or after a verified direct publish. Never
+regress a status, never set `Done` on merge alone, and report a missing board,
+field or option in the handoff without blocking the work.
+
 Owner maintenance publishes by fast-forward pushes to `main`. Do not create pull
 requests for this repository. Use `python3 scripts/maintain.py check` for validation
 alone. The default command generates a commit message, commits, pushes and delivers

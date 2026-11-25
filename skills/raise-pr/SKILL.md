@@ -133,7 +133,8 @@ CLI. Never use an interactive browser form for PR creation. Preserve the intende
 base, branch and draft status. Verify the returned PR URL and read back its
 description, template sections, evidence and attribution. Read the PR's
 `closingIssuesReferences` and confirm they match the issues it is meant to
-close; fix unintended references in the body and read them again. After a
+close; fix unintended references in the body and read them again. When they
+match, set those issues to [In Review](../ship/references/issue-status.md). After a
 transport error, check whether the PR already exists before retrying. Partial attachment failure
 can create or update the PR despite a nonzero CLI exit; read back the returned
 URL and disclose missing images rather than creating a duplicate PR. Follow host

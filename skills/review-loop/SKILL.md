@@ -38,7 +38,9 @@ missing>` and stop. Do not run the loop by hand, read hook tokens or run the
 1. **Set the scope and score.**
    Read the request, repository rules, working tree and existing progress.
    Record observable acceptance criteria and the authorised endpoint, which may
-   be a verified local change. Ask only about material unresolved choices.
+   be a verified local change. Apply the
+   [issue status](../ship/references/issue-status.md) start transition when this
+   run starts an issue. Ask only about material unresolved choices.
    Fix the rubric, precision and target before editing; reuse supplied
    criteria and ask about the target only if you cannot infer it. Record any
    explicit round or deadline limit. Done when criteria, rubric, precision,
