@@ -18,6 +18,14 @@ class Gap(Exception):
     """A board gap that is reported without failing the work."""
 
 
+class CommandError(RuntimeError):
+    """A gh failure that keeps its full text for HTTP-status classification."""
+
+    def __init__(self, detail):
+        self.detail = detail
+        super().__init__(detail[:300] or "gh failed")
+
+
 def decide(current, transition, names=None):
     """Return the status to set, or None when the issue is already at or past it."""
     names = names or TRANSITIONS
@@ -178,7 +186,7 @@ def _gh(args):
         raise RuntimeError("gh timed out") from error
     if completed.returncode:
         detail = (completed.stderr or completed.stdout).strip()
-        raise RuntimeError(detail[:300] or "gh failed")
+        raise CommandError(detail)
     return completed.stdout
 
 
@@ -396,7 +404,9 @@ class GitHub:
                               "--jq", ".content"])
         except RuntimeError as error:
             message = str(error)
-            if re.search(r"\bHTTP\s+404\b", message):
+            full = getattr(error, "detail", message)
+            status = re.search(r"\(HTTP\s+(\d{3})\)\s*$", full)
+            if status and status.group(1) == "404":
                 return {}
             raise Gap(f"could not read .github/issue-status.json: {message}")
         try:
@@ -464,6 +474,8 @@ def load_names(client, owner, name, config_path=None):
         for other, default_name in reserved.items():
             if key == default_name and other != role:
                 raise ValueError(f"{role} uses {value!r}, reserved for {other}")
+        if role != "done" and key in TERMINAL:
+            raise ValueError(f"{role} uses terminal status {value!r}")
         seen[key] = role
         names[role] = value.strip()
     project = config.get("project")

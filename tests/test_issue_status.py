@@ -181,11 +181,15 @@ class DecisionTable(unittest.TestCase):
         with self.assertRaises(ValueError) as error:
             status.load_names(Config({'start': 'In Progress', 'pr': 'in progress'}), 'o', 'r')
         self.assertIn('same status name', str(error.exception))
-        for value in ({'pr': 'Done'}, {'start': 'In Review'}, {'done': 'In Progress'}):
+        for value in ({'pr': 'Done'}, {'start': 'In Review'}, {'done': 'In Progress'},
+                      {'start': 'Released'}, {'pr': 'Closed'}):
             with self.subTest(value=value), self.assertRaises(ValueError) as error:
                 status.load_names(Config(value), 'o', 'r')
             message = str(error.exception)
-            self.assertTrue('reserved' in message or 'status name' in message, message)
+            self.assertTrue('reserved' in message or 'status name' in message
+                            or 'terminal' in message, message)
+        names, _ = status.load_names(Config({'done': 'Released'}), 'o', 'r')
+        self.assertEqual(names['done'], 'Released')
 
 
 class Transitions(unittest.TestCase):
@@ -487,10 +491,13 @@ class Adapters(unittest.TestCase):
                                          RuntimeError('gh: Not Found (HTTP 404)')}))
         self.assertEqual(missing.project_config('o', 'r'), {})
         masked = status.GitHub(fake_gh({'contents/.github/issue-status.json':
-                                        RuntimeError('Upstream request 404 failed (HTTP 502)')}))
+                                        RuntimeError('gh: Upstream returned HTTP 404 (HTTP 502)')}))
         with self.assertRaises(status.Gap) as gap:
             masked.project_config('o', 'r')
         self.assertIn('HTTP 502', str(gap.exception))
+        truncated = status.CommandError('x' * 400 + ' (HTTP 404)')
+        long = status.GitHub(fake_gh({'contents/.github/issue-status.json': truncated}))
+        self.assertEqual(long.project_config('o', 'r'), {})
         denied = status.GitHub(fake_gh({'contents/.github/issue-status.json':
                                         RuntimeError('gh: Resource not accessible (HTTP 403)')}))
         with self.assertRaises(status.Gap) as gap:
