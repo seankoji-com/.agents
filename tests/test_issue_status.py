@@ -172,12 +172,20 @@ class DecisionTable(unittest.TestCase):
 
     def test_duplicate_config_names_are_rejected(self):
         class Config:
+            def __init__(self, value):
+                self.value = value
+
             def project_config(self, owner, name):
-                return {'start': 'In Progress', 'pr': 'in progress'}
+                return self.value
 
         with self.assertRaises(ValueError) as error:
-            status.load_names(Config(), 'o', 'r')
+            status.load_names(Config({'start': 'In Progress', 'pr': 'in progress'}), 'o', 'r')
         self.assertIn('same status name', str(error.exception))
+        for value in ({'pr': 'Done'}, {'start': 'In Review'}, {'done': 'In Progress'}):
+            with self.subTest(value=value), self.assertRaises(ValueError) as error:
+                status.load_names(Config(value), 'o', 'r')
+            message = str(error.exception)
+            self.assertTrue('reserved' in message or 'status name' in message, message)
 
 
 class Transitions(unittest.TestCase):
@@ -311,6 +319,8 @@ class Transitions(unittest.TestCase):
         code, output, _ = run(['start', '--repo', 'o/r', '--issue', '1', '--dry-run'], board)
         self.assertEqual(code, 0)
         self.assertIn('In Progress (dry run)', output)
+        self.assertIn('would assign @seankoji', output)
+        self.assertNotIn('assigned @seankoji', output)
         self.assertEqual(board.issues[1]['assignees'], [])
         self.assertEqual(board.board['P1'], [])
 
@@ -348,6 +358,14 @@ class Transitions(unittest.TestCase):
         self.assertEqual(board.issues[1]['assignees'], ['seankoji'])
         self.assertIn('untracked', output)
         self.assertIn('assigned @seankoji', output)
+
+    def test_config_gap_dry_run_reports_a_planned_assignment(self):
+        board = FakeBoard(fail_config='config unreadable')
+        code, output, _ = run(['start', '--repo', 'o/r', '--issue', '1', '--dry-run'], board)
+        self.assertEqual(code, 0)
+        self.assertEqual(board.issues[1]['assignees'], [])
+        self.assertIn('would assign @seankoji', output)
+        self.assertNotIn('assigned @seankoji', output)
 
     def test_custom_done_mapping_still_protects_literal_done(self):
         board = FakeBoard(
@@ -468,6 +486,11 @@ class Adapters(unittest.TestCase):
         missing = status.GitHub(fake_gh({'contents/.github/issue-status.json':
                                          RuntimeError('gh: Not Found (HTTP 404)')}))
         self.assertEqual(missing.project_config('o', 'r'), {})
+        masked = status.GitHub(fake_gh({'contents/.github/issue-status.json':
+                                        RuntimeError('Upstream request 404 failed (HTTP 502)')}))
+        with self.assertRaises(status.Gap) as gap:
+            masked.project_config('o', 'r')
+        self.assertIn('HTTP 502', str(gap.exception))
         denied = status.GitHub(fake_gh({'contents/.github/issue-status.json':
                                         RuntimeError('gh: Resource not accessible (HTTP 403)')}))
         with self.assertRaises(status.Gap) as gap:

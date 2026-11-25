@@ -145,7 +145,11 @@ def apply(client, repo, issue_number, transition, operator=None, verified=None,
 def format_result(result, transition, verified=None):
     """One handoff-ready line for an issue."""
     prefix = f"issue status: {result['repo']}#{result['issue']}"
-    assignment = f", assigned @{result['assigned']}" if result["assigned"] else ""
+    if result["assigned"]:
+        assignment = (f", would assign @{result['assigned']}" if result["dry_run"]
+                      else f", assigned @{result['assigned']}")
+    else:
+        assignment = ""
     if not result["tracked"] or result["failed"]:
         notes = "; ".join(result["notes"]) or "unknown gap"
         return f"{prefix}: untracked ({notes}){assignment}"
@@ -155,7 +159,8 @@ def format_result(result, transition, verified=None):
     if result["skipped"]:
         parts.append(f"skipped ({result['skipped']})")
     if result["assigned"]:
-        parts.append(f"assigned @{result['assigned']}")
+        parts.append((f"would assign @{result['assigned']}" if result["dry_run"]
+                      else f"assigned @{result['assigned']}"))
     if result["status"] and transition == "done" and verified:
         parts.append(f"verified {verified}")
     if result["notes"]:
@@ -391,7 +396,7 @@ class GitHub:
                               "--jq", ".content"])
         except RuntimeError as error:
             message = str(error)
-            if re.search(r"\b404\b", message):
+            if re.search(r"\bHTTP\s+404\b", message):
                 return {}
             raise Gap(f"could not read .github/issue-status.json: {message}")
         try:
@@ -448,6 +453,7 @@ def load_names(client, owner, name, config_path=None):
     if not isinstance(config, dict):
         raise ValueError("config must be a JSON object")
     names, seen = {}, {}
+    reserved = {role: name.casefold() for role, name in TRANSITIONS.items()}
     for role, default in TRANSITIONS.items():
         value = config.get(role, default)
         if not isinstance(value, str) or not value.strip():
@@ -455,6 +461,9 @@ def load_names(client, owner, name, config_path=None):
         key = value.strip().casefold()
         if key in seen:
             raise ValueError(f"{role} and {seen[key]} use the same status name {value!r}")
+        for other, default_name in reserved.items():
+            if key == default_name and other != role:
+                raise ValueError(f"{role} uses {value!r}, reserved for {other}")
         seen[key] = role
         names[role] = value.strip()
     project = config.get("project")
@@ -480,7 +489,8 @@ def report_config_gap(client, repo, args, error):
                 notes.extend(more)
             except Exception as failure:  # Bookkeeping must never fail the main work.
                 notes.append(f"assignment failed: {failure}")
-        suffix = f", assigned @{assigned}" if assigned else ""
+        suffix = (f", would assign @{assigned}" if args.dry_run
+                  else f", assigned @{assigned}") if assigned else ""
         print(f"issue status: {owner}/{name}#{number}: untracked "
               f"({'; '.join(notes)}){suffix}")
 
