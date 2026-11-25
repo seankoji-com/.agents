@@ -484,9 +484,12 @@ workflow. Each host where you run them needs:
 Judges open fresh threads in the project the packet names. They read the
 committed candidate through `git show` and `git diff` in your checkout and run
 in your thread's runtime mode or not at all. Antigravity routes need
-`auto-accept-edits` or broader. The workflow asks your thread for the selection
-data, each judge thread's recorded model, every repair and the one recovery,
-then posts the result with the full score ledger. A `hillclimb` packet also
+`auto-accept-edits` or broader. The packet carries your thread's route report.
+The workflow asks your thread for every repair, with the recorded model of each
+judge thread that scored the work being repaired, and for the one recovery,
+then posts the result with the full score ledger. A continuation's ledger
+includes every earlier run. Scores round to the packet's `scale.decimals`
+places. A `hillclimb` packet also
 names the confirmed primary, the panel and when it joins; a judge sharing a
 model family with another judge or with an implementer needs the operator's
 recorded approval. Without the workflow, the file or the hook config, either
@@ -712,7 +715,7 @@ installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 6c0ae3fd373cdcc9aa16ba254cdd78d94f5be2ee1897bd8588a572bf0ee5773e -->
+<!-- skills-review: 531c786b31ad46596cea90d55fd41b4c5a0d15bf04ea6c5e2d0f5afc046a0281 -->
 
 ### Owner maintenance
 

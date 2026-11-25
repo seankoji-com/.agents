@@ -82,8 +82,8 @@ shared packet fields, curl command and workflow turn contract.
    `hillclimb-<short thread id>-<slug>` idempotency key, then end your turn.
    HTTP 202 with a `runId` means it started. Do not poll.
 3. **Answer each workflow turn** as review-loop's turn step describes: the
-   limits report, selection data, receipts, repair rounds and the two-turn
-   recovery. Use [review](../review/SKILL.md) for finding severity, evidence
+   limits report, receipts, repair rounds, stopped-turn resends and the
+   two-turn recovery. Use [review](../review/SKILL.md) for finding severity, evidence
    and dispositions. Repair from the named base, which is the phase's best
    eligible candidate. Save each owned revision when authorised. After each
    round, append results, findings and evidence to the
@@ -97,9 +97,10 @@ shared packet fields, curl command and workflow turn contract.
    revised targets and never claims the original was met. If the result is
    `goal-not-met`, collect the implementer's retrospective and offer the operator
    [a changed approach from the latest candidate](../review/references/budget-exhaustion.md#continue-a-stopped-scoring-loop).
-   A continuation starts a new run whose packet carries `continuation` and
-   the same limits. Add the notes, choice and any approved continuation to
-   the rolling report.
+   A continuation starts a new run whose packet carries `continuation`, built
+   from the result's `continueWith` as review-loop describes, and the same
+   limits. Its ledger covers every earlier run. Add the notes, choice and any
+   approved continuation to the rolling report.
 
 ## Deliver the result
 

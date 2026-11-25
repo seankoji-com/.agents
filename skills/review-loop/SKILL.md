@@ -72,7 +72,16 @@ missing>` and stop. Do not run the loop by hand, read hook tokens or run the
      lineage gate.
    - `checkout` (absolute path), `base`, `candidate` and `checks`
      (`passed`, `coverage`, `summary`) for the baseline.
-   - `criteria`, `rubric`, `target` and `scale` (`min`, `max`, `precision`).
+   - `criteria`, `rubric`, `target` and `scale` (`min`, `max`, `decimals`).
+     `decimals` is the number of decimal places scores round to: `1` for
+     steps of 0.1, the default; the target must sit on that grid. The
+     workflow rejects the retired `precision`.
+   - `startReport`: before starting, call `orchestrator_capabilities` and list
+     in `availableRoutes` each route key in `ROUTES` at the top of
+     `~/.t3/workflows/scored-loop.ts` whose exact model and effort option you
+     confirmed; list `named` for a confirmed `namedReviewer`. Add
+     `spendCapReached`, `observedAt` and, when the limits
+     snapshot tool exists in your session, `providers` with each `paceScore`.
    - `codeAuthors`: the model families that wrote or will repair the code,
      including your own.
    - `reviewContext`: the checks judges may run, the exact commands and
@@ -89,10 +98,11 @@ missing>` and stop. Do not run the loop by hand, read hook tokens or run the
      does one scored review, then one repair turn you verify yourself, with
      no recheck.
    - `continuation` only for an operator-approved continuation (step 7):
-     `priorRun`, the prior run's `repairsUsed` and the `approval` message,
-     plus `baseline` (primary, score, bullets, judge thread) when that run
-     validly scored this exact candidate under this exact contract. Keep the
-     prior run's ledger and history in your own report.
+     copy the prior result's `continueWith`, set `priorLedger` to that
+     result's score ledger and write the operator's `approval` and the
+     approved `change`. Keep its `baseline`: the workflow reuses that score
+     only when the candidate, roster and contract fingerprint still match.
+     Keep the scale's `min` and `max`; changing them needs a fresh run.
    Never set `test`: test fields are for acceptance runs.
 
 5. **Start the run, then end your turn.**
@@ -113,11 +123,14 @@ missing>` and stop. Do not run the loop by hand, read hook tokens or run the
      the routes whose exact model and effort option you confirmed available
      now, and whether the spend cap is reached. A judge dispatches only to a
      route the latest report lists.
-   - **Selection data:** call the limits snapshot as asked and submit each
-     provider's `paceScore`.
-   - **Receipts:** read each listed judge thread with `t3_thread_read` and
+   - **Receipts:** a repair turn, or a receipts-only turn before a stop or
+     acceptance, lists judge threads. Read each with `t3_thread_read` and
      submit its turn ID, `executedModel` and run count, null where none is
-     shown.
+     shown. A receipt naming another model voids that score, never a repair.
+   - **Stopped turn:** if a repair turn is stopped before it submits, the
+     workflow sends it once more without a new round. Resubmit any repair
+     you already committed for that round. A second stop ends the run with
+     no automatic recovery.
    - **Repair round:** before repairing, read the
      [implementation-participant card](../review/references/implementation-participant.md).
      Verify each finding's location, evidence, severity and impact. When
@@ -150,7 +163,8 @@ missing>` and stop. Do not run the loop by hand, read hook tokens or run the
    changed approach from the latest candidate, as budget-exhaustion's
    operator-approved continuation describes. A continuation starts a new run
    whose packet carries `continuation` and the same limits, so it gets no
-   second automatic recovery.
+   second automatic recovery. Its ledger includes every earlier run, so
+   render that one chart.
    A `passed-revised` result names the original and revised targets; never
    claim the original target was met.
 

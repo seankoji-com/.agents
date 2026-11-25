@@ -54,6 +54,12 @@ scope and include expected models and settings, the candidate, the rubric,
 required observations and approval of any overlap. Ask for an independent
 view with evidence.
 
+One score covers correctness, accessibility and design. Each judge first
+rechecks its findings on the previous candidate, marking each fixed or open
+with evidence, then lists up to 10 findings: the issues that most affected its
+score, most important first. It reports only real issues; fewer, or none, is
+valid. The workflow's judge brief carries these rules.
+
 After roster confirmation, verify access to the candidate and evidence
 needed by the selected mode. In UI mode, start confirmed panel judges'
 access pilots before edits. They may run alongside remaining setup or

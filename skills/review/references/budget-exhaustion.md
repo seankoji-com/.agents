@@ -238,7 +238,9 @@ For an approved continuation:
    forward remaining authority, required repairs and delivery gates.
 2. Freeze the latest candidate as the new baseline. Retain any required fixes
    and record a new revision if they need to be reapplied. Reuse valid scores
-   and check evidence for that exact candidate and evaluation contract.
+   and check evidence for that exact candidate and evaluation contract. On
+   T3 Workflows that means the result's `continueWith.baseline`, reused only
+   when its fingerprint, roster and complete coverage still match.
    Obtain missing or invalidated evidence before seeding the new score and
    setting the new non-improvement counter to zero. Keep results under old
    scoring criteria labelled as historical.

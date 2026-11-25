@@ -40,6 +40,8 @@ See `skills/review/examples/score-ledger.json` for a complete synthetic example.
 
 - `version`: integer `1`.
 - `run`: `{ title, id, skill, status, scale: { min, max, precision } }`.
+  `precision` is decimal places (0 to 3), matching the scored-loop packet's
+  `scale.decimals`.
   - `status`: `in-progress`, `passed`, `passed-revised`, `goal-not-met`,
     `stopped`, or `blocked`.
 - `reviewers`: nonempty list of `{ id, label, role? }`. Each reviewer gets a
@@ -54,6 +56,11 @@ See `skills/review/examples/score-ledger.json` for a complete synthetic example.
     The chart breaks lines across non-comparable boundaries, hatches historical
     rounds, and steps the dotted target line while keeping a faint ghost of
     `original_target`.
+  - A continuation's ledger starts with every earlier run's eras and rounds;
+    earlier round ids carry their run's prefix. Its first era has a
+    `continuation` recovery and is comparable only when its `fingerprint`
+    (contract, phase and scorers as it opens) matches the earlier era's
+    `end_fingerprint`. Render that one ledger, not one per run.
 - `rounds`: nonempty list in chronological order of `{ id, label, candidate?,
   era, phase, expected_reviewers, status, failure_note?, scores }`.
   - `phase`: `primary`, `panel`, or `review`.
