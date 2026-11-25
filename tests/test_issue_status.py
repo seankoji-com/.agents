@@ -30,7 +30,8 @@ class FakeBoard:
 
     def __init__(self, projects=None, fields=None, issues=None, items=None,
                  operator='seankoji', prs=None, fail_items=None, fail_projects=None,
-                 config=None, assign_result=None, stale_status=None):
+                 config=None, assign_result=None, stale_status=None,
+                 fail_config=None):
         self.projects = [{'id': 'P1', 'number': 1, 'title': 'Board'}] \
             if projects is None else projects
         self.fields = fields if fields is not None else {'P1': [{
@@ -48,6 +49,7 @@ class FakeBoard:
         self.fail_items = fail_items
         self.fail_projects = fail_projects
         self.config = config or {}
+        self.fail_config = fail_config
         self.assign_result = assign_result
         self.stale_status = stale_status
         self.calls = []
@@ -102,6 +104,8 @@ class FakeBoard:
         return [login]
 
     def project_config(self, owner, name):
+        if self.fail_config:
+            raise status.Gap(self.fail_config)
         return self.config
 
     def operator(self):
@@ -337,6 +341,38 @@ class Transitions(unittest.TestCase):
         self.assertEqual(board.issues[1]['assignees'], ['seankoji'])
         self.assertIn('untracked (no linked project), assigned @seankoji', output)
 
+    def test_config_gap_still_assigns_at_start(self):
+        board = FakeBoard(fail_config='config unreadable')
+        code, output, _ = run(['start', '--repo', 'o/r', '--issue', '1'], board)
+        self.assertEqual(code, 0)
+        self.assertEqual(board.issues[1]['assignees'], ['seankoji'])
+        self.assertIn('untracked', output)
+        self.assertIn('assigned @seankoji', output)
+
+    def test_custom_done_mapping_still_protects_literal_done(self):
+        board = FakeBoard(
+            items={'P1': [{'id': 'T1', 'issue_id': 'I1', 'number': 1,
+                           'status': 'Done'}]},
+            prs={9: [('o/r', 1)]},
+            config={'done': 'Released'})
+        code, output, _ = run(['pr', '--repo', 'o/r', '--pr', '9'], board)
+        self.assertEqual(code, 0)
+        self.assertIn('skipped (already Done)', output)
+        self.assertEqual(board.board['P1'][0]['status'], 'Done')
+
+    def test_add_item_race_does_not_overwrite_a_newer_status(self):
+        class Racing(FakeBoard):
+            def add_item(self, project_id, content_id):
+                item_id = super().add_item(project_id, content_id)
+                next(i for i in self.board[project_id] if i['id'] == item_id)['status'] = 'Done'
+                return item_id
+
+        board = Racing()
+        code, output, _ = run(['start', '--repo', 'o/r', '--issue', '1'], board)
+        self.assertEqual(code, 0)
+        self.assertIn('changed to Done', output)
+        self.assertEqual(board.board['P1'][0]['status'], 'Done')
+
     def test_fresh_read_prevents_a_stale_overwrite(self):
         board = FakeBoard(
             items={'P1': [{'id': 'T1', 'issue_id': 'I1', 'number': 1,
@@ -437,6 +473,11 @@ class Adapters(unittest.TestCase):
         with self.assertRaises(status.Gap) as gap:
             denied.project_config('o', 'r')
         self.assertIn('could not read', str(gap.exception))
+        upstream = status.GitHub(fake_gh({'contents/.github/issue-status.json':
+                                          RuntimeError('gh: Upstream Not Found (HTTP 502)')}))
+        with self.assertRaises(status.Gap) as gap:
+            upstream.project_config('o', 'r')
+        self.assertIn('HTTP 502', str(gap.exception))
         invalid = status.GitHub(fake_gh({'contents/.github/issue-status.json':
                                          base64.b64encode(b'[]').decode()}))
         with self.assertRaises(status.Gap) as gap:
@@ -447,6 +488,17 @@ class Adapters(unittest.TestCase):
         client = status.GitHub(fake_gh({'issues/1/assignees': json.dumps(
             {'assignees': [{'login': 'seankoji'}]})}))
         self.assertEqual(client.assign('o', 'r', 1, 'seankoji'), ['seankoji'])
+
+    def test_status_mutation_is_not_retried(self):
+        calls = []
+
+        def gh(args):
+            calls.append(args)
+            raise RuntimeError('gh timed out')
+
+        with self.assertRaises(RuntimeError):
+            status.GitHub(gh).set_status('P1', 'T1', 'F1', 'O1')
+        self.assertEqual(len(calls), 1)
 
     def test_items_read_the_status_field_directly(self):
         queries = []

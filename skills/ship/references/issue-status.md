@@ -30,10 +30,13 @@ logical production state; a configured release option may carry its name.
    A board without the field or the needed option is a reported gap.
 4. **Assign the operator.** Use the verified human on whose behalf the skill
    runs, never a bot. If the operator cannot be verified, leave assignment
-   unchanged and report it.
+   unchanged and report it. Start-time assignment does not depend on board
+   access; an unreadable board still reports it.
 5. **Move forward only.** Skip a transition that would move an issue backwards.
    The helper never resets an issue; a reopened issue returns to `In Progress`
-   only after an explicit manual status change.
+   only after an explicit manual status change. It re-reads the item before
+   writing, but an external writer can still race between that read and the
+   write.
 6. **A PR means closing issues.** A draft PR counts. A PR that only says
    `Refs #N` moves nothing. Run `pr` with the PR number; the helper reads its
    closing references and ignores issues outside this repository.
@@ -41,7 +44,8 @@ logical production state; a configured release option may carry its name.
    signal, leave the issue `In Review` and report the missing evidence.
 8. **Direct publish.** Skip `In Review`; set `Done` after the publish and its
    post-publish check are verified.
-9. **Retry once.** Retry a transient API failure once, then report the gap.
+9. **Retry once.** Retry a transient read once, then report the gap. Never
+   replay a status write.
 10. **Check the board's own automation.** GitHub's default project status moves a
     linked PR to `In Review` and a closed issue to an option named `Done`. That
     is not production evidence, and renaming the option does not stop it:

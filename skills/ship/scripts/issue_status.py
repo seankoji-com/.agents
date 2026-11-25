@@ -4,6 +4,7 @@ import argparse
 import base64
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 
@@ -21,9 +22,11 @@ def decide(current, transition, names=None):
     """Return the status to set, or None when the issue is already at or past it."""
     names = names or TRANSITIONS
     rank = TERMINAL.get((current or "").casefold(), 0)
-    for role, name in names.items():
-        if (current or "").casefold() == name.casefold():
-            rank = max(rank, ROLE_RANK[role])
+    # Standard names stay protected even when a board renames another role.
+    for mapping in (TRANSITIONS, names):
+        for role, name in mapping.items():
+            if (current or "").casefold() == name.casefold():
+                rank = max(rank, ROLE_RANK[role])
     if rank >= ROLE_RANK[transition]:
         return None
     return names[transition]
@@ -58,6 +61,25 @@ def status_option(fields, target):
     return field, option
 
 
+def assign_start(client, repo, issue_number, issue, operator=None, dry_run=False):
+    """Assign the verified operator once; return (login or None, notes)."""
+    owner, name = repo
+    notes = []
+    if issue["assignees"]:
+        return None, notes
+    login = operator or client.operator()
+    if not login or login.lower().endswith("[bot]"):
+        notes.append("operator unverified; assignment unchanged")
+        return None, notes
+    if dry_run:
+        return login, notes
+    confirmed = client.assign(owner, name, issue_number, login)
+    if login in confirmed:
+        return login, notes
+    notes.append(f"assignment not confirmed for @{login}")
+    return None, notes
+
+
 def apply(client, repo, issue_number, transition, operator=None, verified=None,
           project_number=None, dry_run=False, names=None):
     """Perform one transition. Board gaps are recorded, never raised."""
@@ -73,19 +95,11 @@ def apply(client, repo, issue_number, transition, operator=None, verified=None,
         return result
 
     # Assignment belongs to the start of work and never needs a board.
-    if transition == "start" and not issue["assignees"]:
+    if transition == "start":
         try:
-            login = operator or client.operator()
-            if not login or login.lower().endswith("[bot]"):
-                result["notes"].append("operator unverified; assignment unchanged")
-            elif dry_run:
-                result["assigned"] = login
-            else:
-                confirmed = client.assign(owner, name, issue_number, login)
-                if login in confirmed:
-                    result["assigned"] = login
-                else:
-                    result["notes"].append(f"assignment not confirmed for @{login}")
+            result["assigned"], notes = assign_start(
+                client, repo, issue_number, issue, operator, dry_run)
+            result["notes"].extend(notes)
         except Exception as error:  # Bookkeeping must never fail the main work.
             result["notes"].append(f"assignment failed: {error}")
 
@@ -106,21 +120,21 @@ def apply(client, repo, issue_number, transition, operator=None, verified=None,
         if target is None:
             result["skipped"] = f"already {current}"
             return result
-        if item is not None:
-            # Re-read immediately before writing so a concurrent update is not
-            # overwritten. External writers can still race between read and write.
-            fresh = client.item_status(item["id"])
-            if fresh != current:
-                current = fresh
-                target = decide(current, transition, names)
-                if target is None:
-                    result["skipped"] = f"changed to {current}"
-                    return result
-            item_id = item["id"]
-        else:
-            item_id = None if dry_run else client.add_item(project["id"], issue["id"])
-        if not dry_run:
-            client.set_status(project["id"], item_id, field["id"], option["id"])
+        item_id = item["id"] if item else None
+        if item_id is None and not dry_run:
+            item_id = client.add_item(project["id"], issue["id"])
+        if dry_run:
+            result["status"] = target
+            return result
+        # Re-read immediately before writing. add_item can return an item another
+        # writer just created, so a new item is checked too. External writers can
+        # still race between this read and the write.
+        fresh = client.item_status(item_id)
+        target = decide(fresh, transition, names)
+        if target is None:
+            result["skipped"] = f"changed to {fresh}" if fresh != current else f"already {fresh}"
+            return result
+        client.set_status(project["id"], item_id, field["id"], option["id"])
         result["status"] = target
     except Exception as error:  # Bookkeeping must never fail the main work.
         result["failed"] = True
@@ -268,12 +282,12 @@ class GitHub:
     def __init__(self, gh=_gh):
         self.gh = gh
 
-    def graphql(self, query, **variables):
+    def graphql(self, query, retry=True, **variables):
         args = ["api", "graphql", "-f", f"query={query}"]
         for key, value in variables.items():
             args += ["-F" if isinstance(value, int) else "-f", f"{key}={value}"]
         last = None
-        for _ in range(2):
+        for _ in range(2 if retry else 1):
             try:
                 payload = json.loads(self.gh(args))
                 if payload.get("errors"):
@@ -356,12 +370,13 @@ class GitHub:
         return value.get("name")
 
     def add_item(self, project_id, content_id):
-        data = self.graphql(ADD_ITEM_MUTATION, project=project_id, content=content_id)
+        data = self.graphql(ADD_ITEM_MUTATION, retry=False,
+                            project=project_id, content=content_id)
         return data["addProjectV2ItemById"]["item"]["id"]
 
     def set_status(self, project_id, item_id, field_id, option_id):
-        self.graphql(SET_STATUS_MUTATION, project=project_id, item=item_id,
-                     field=field_id, option=option_id)
+        self.graphql(SET_STATUS_MUTATION, retry=False, project=project_id,
+                     item=item_id, field=field_id, option=option_id)
 
     def assign(self, owner, name, number, login):
         output = self.gh(["api", "--method", "POST",
@@ -376,7 +391,7 @@ class GitHub:
                               "--jq", ".content"])
         except RuntimeError as error:
             message = str(error)
-            if "404" in message or "Not Found" in message:
+            if re.search(r"\b404\b", message):
                 return {}
             raise Gap(f"could not read .github/issue-status.json: {message}")
         try:
@@ -448,16 +463,26 @@ def load_names(client, owner, name, config_path=None):
     return names, project
 
 
-def report_config_gap(repo, args, error):
-    """Print one untracked line per affected issue without mutating anything."""
+def report_config_gap(client, repo, args, error):
+    """Report a config gap, still assigning at start when issue access allows."""
     owner, name = repo
     if args.pr is not None:
         print(f"issue status: {owner}/{name} PR #{args.pr}: untracked "
               f"(invalid issue-status config: {error})")
         return
     for number in args.issue:
+        notes, assigned = [f"invalid issue-status config: {error}"], None
+        if args.transition == "start":
+            try:
+                issue = client.issue(owner, name, number)
+                assigned, more = assign_start(client, repo, number, issue,
+                                              args.operator, args.dry_run)
+                notes.extend(more)
+            except Exception as failure:  # Bookkeeping must never fail the main work.
+                notes.append(f"assignment failed: {failure}")
+        suffix = f", assigned @{assigned}" if assigned else ""
         print(f"issue status: {owner}/{name}#{number}: untracked "
-              f"(invalid issue-status config: {error})")
+              f"({'; '.join(notes)}){suffix}")
 
 
 def main(argv=None, client=None):
@@ -492,7 +517,7 @@ def main(argv=None, client=None):
     try:
         names, config_project = load_names(client, owner, name, args.config)
     except Exception as error:  # Bookkeeping must never fail the main work.
-        report_config_gap(args.repo, args, error)
+        report_config_gap(client, args.repo, args, error)
         return 0
     project_number = args.project if args.project is not None else config_project
 
