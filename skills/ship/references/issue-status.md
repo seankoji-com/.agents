@@ -14,7 +14,8 @@ blocks the work.
 | The direct publish is verified | `Done` | Direct-publish repositories |
 
 Assign the operator once, when the issue has no assignee. Never reassign.
-Never move `In Progress`, `In Review` or `Done` backwards.
+Never move `In Progress`, `In Review` or `Done` backwards. `Done` is the
+logical production state; a configured release option may carry its name.
 
 ## Rules
 
@@ -31,9 +32,11 @@ Never move `In Progress`, `In Review` or `Done` backwards.
    runs, never a bot. If the operator cannot be verified, leave assignment
    unchanged and report it.
 5. **Move forward only.** Skip a transition that would move an issue backwards.
-   A reopened issue returns to `In Progress` only when work actually restarts.
+   The helper never resets an issue; a reopened issue returns to `In Progress`
+   only after an explicit manual status change.
 6. **A PR means closing issues.** A draft PR counts. A PR that only says
-   `Refs #N` moves nothing.
+   `Refs #N` moves nothing. Run `pr` with the PR number; the helper reads its
+   closing references and ignores issues outside this repository.
 7. **Done needs production.** Merge alone never sets `Done`. With no production
    signal, leave the issue `In Review` and report the missing evidence.
 8. **Direct publish.** Skip `In Review`; set `Done` after the publish and its
@@ -59,7 +62,8 @@ A board whose names differ from the defaults commits `.github/issue-status.json`
 reads this file from the target repository; `--config PATH` uses a local file
 instead. Missing keys use `In Progress`, `In Review` and `Done`. A repository
 that reserves production for `Done` should keep no option named `Done` and map
-`done` to another option, such as `Released`.
+`done` to another option, such as `Released`. A config read error, invalid JSON
+or duplicate status name is reported without changing the board.
 
 ## Run it
 
@@ -82,8 +86,8 @@ Add `--operator LOGIN` when the authenticated account is not the operator, and
 `--project NUMBER` when the repository has more than one linked project. Use
 `--dry-run` to print the plan without changing GitHub.
 
-`start` and `done` accept repeated `--issue`. `pr` accepts `--issue` for an
-explicit link and otherwise reads the PR's closing references.
+`start` and `done` accept repeated `--issue`. `pr` requires `--pr` and derives
+the issues from its closing references.
 
 ## Handoff
 

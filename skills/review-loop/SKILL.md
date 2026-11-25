@@ -175,7 +175,8 @@ missing>` and stop. Do not run the loop by hand, read hook tokens or run the
    creation or updates use [raise-pr](../raise-pr/SKILL.md); new PRs need
    completed independent review. Refresh checks and reviews for the current
    head before merging. For a deployment, verify the deployed revision and
-   behaviour on each target.
+   behaviour on each target. When production is verified, apply
+   [issue status](../ship/references/issue-status.md) done.
 
 ## Outputs
 

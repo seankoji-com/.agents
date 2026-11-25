@@ -9,6 +9,8 @@ import sys
 
 TRANSITIONS = {"start": "In Progress", "pr": "In Review", "done": "Done"}
 ROLE_RANK = {"start": 1, "pr": 2, "done": 3}
+# Names a closed or released item may already carry when no mapping is configured.
+TERMINAL = {"released": 2, "closed": 2, "shipped": 2}
 
 
 class Gap(Exception):
@@ -18,7 +20,7 @@ class Gap(Exception):
 def decide(current, transition, names=None):
     """Return the status to set, or None when the issue is already at or past it."""
     names = names or TRANSITIONS
-    rank = 0
+    rank = TERMINAL.get((current or "").casefold(), 0)
     for role, name in names.items():
         if (current or "").casefold() == name.casefold():
             rank = max(rank, ROLE_RANK[role])
@@ -63,47 +65,65 @@ def apply(client, repo, issue_number, transition, operator=None, verified=None,
     names = names or TRANSITIONS
     result = {"repo": f"{owner}/{name}", "issue": issue_number, "tracked": False,
               "status": None, "assigned": None, "skipped": None, "notes": [],
-              "dry_run": dry_run}
+              "dry_run": dry_run, "failed": False}
+    try:
+        issue = client.issue(owner, name, issue_number)
+    except Exception as error:  # Bookkeeping must never fail the main work.
+        result["notes"].append(str(error))
+        return result
+
+    # Assignment belongs to the start of work and never needs a board.
+    if transition == "start" and not issue["assignees"]:
+        try:
+            login = operator or client.operator()
+            if not login or login.lower().endswith("[bot]"):
+                result["notes"].append("operator unverified; assignment unchanged")
+            elif dry_run:
+                result["assigned"] = login
+            else:
+                confirmed = client.assign(owner, name, issue_number, login)
+                if login in confirmed:
+                    result["assigned"] = login
+                else:
+                    result["notes"].append(f"assignment not confirmed for @{login}")
+        except Exception as error:  # Bookkeeping must never fail the main work.
+            result["notes"].append(f"assignment failed: {error}")
+
     try:
         project = choose_project(client.repo_projects(owner, name), project_number)
         fields = client.project_fields(project["id"])
         field, option = status_option(fields, names[transition])
-        issue = client.issue(owner, name, issue_number)
     except Exception as error:  # Bookkeeping must never fail the main work.
         result["notes"].append(str(error))
         return result
     result["tracked"] = True
 
-    if not issue["assignees"]:
-        login = operator or client.operator()
-        if login and not login.lower().endswith("[bot]"):
-            if dry_run:
-                result["assigned"] = login
-            else:
-                try:
-                    client.assign(owner, name, issue_number, login)
-                except RuntimeError as error:
-                    result["notes"].append(f"assignment failed: {error}")
-                else:
-                    result["assigned"] = login
-        else:
-            result["notes"].append("operator unverified; assignment unchanged")
-
     try:
         item = next((i for i in client.items(project["id"])
-                     if i.get("number") == issue_number), None)
+                     if i.get("issue_id") == issue["id"]), None)
         current = item.get("status") if item else None
         target = decide(current, transition, names)
         if target is None:
             result["skipped"] = f"already {current}"
             return result
-        item_id = item["id"] if item else None
-        if item_id is None and not dry_run:
-            item_id = client.add_item(project["id"], issue["id"])
+        if item is not None:
+            # Re-read immediately before writing so a concurrent update is not
+            # overwritten. External writers can still race between read and write.
+            fresh = client.item_status(item["id"])
+            if fresh != current:
+                current = fresh
+                target = decide(current, transition, names)
+                if target is None:
+                    result["skipped"] = f"changed to {current}"
+                    return result
+            item_id = item["id"]
+        else:
+            item_id = None if dry_run else client.add_item(project["id"], issue["id"])
         if not dry_run:
             client.set_status(project["id"], item_id, field["id"], option["id"])
         result["status"] = target
     except Exception as error:  # Bookkeeping must never fail the main work.
+        result["failed"] = True
         result["notes"].append(f"status update failed: {error}")
     return result
 
@@ -111,8 +131,10 @@ def apply(client, repo, issue_number, transition, operator=None, verified=None,
 def format_result(result, transition, verified=None):
     """One handoff-ready line for an issue."""
     prefix = f"issue status: {result['repo']}#{result['issue']}"
-    if not result["tracked"]:
-        return f"{prefix}: untracked ({'; '.join(result['notes'])})"
+    assignment = f", assigned @{result['assigned']}" if result["assigned"] else ""
+    if not result["tracked"] or result["failed"]:
+        notes = "; ".join(result["notes"]) or "unknown gap"
+        return f"{prefix}: untracked ({notes}){assignment}"
     parts = []
     if result["status"]:
         parts.append(result["status"] + (" (dry run)" if result["dry_run"] else ""))
@@ -128,7 +150,13 @@ def format_result(result, transition, verified=None):
 
 
 def _gh(args):
-    completed = subprocess.run(["gh", *args], capture_output=True, text=True, check=False)
+    try:
+        completed = subprocess.run(["gh", *args], capture_output=True, text=True,
+                                   check=False, timeout=60)
+    except OSError as error:
+        raise RuntimeError(f"gh unavailable: {error}") from error
+    except subprocess.TimeoutExpired as error:
+        raise RuntimeError("gh timed out") from error
     if completed.returncode:
         detail = (completed.stderr or completed.stdout).strip()
         raise RuntimeError(detail[:300] or "gh failed")
@@ -136,18 +164,22 @@ def _gh(args):
 
 
 REPO_QUERY = """
-query($owner: String!, $name: String!) {
+query($owner: String!, $name: String!, $after: String) {
   repository(owner: $owner, name: $name) {
-    projectsV2(first: 20) { nodes { id number title } }
+    projectsV2(first: 20, after: $after) {
+      pageInfo { hasNextPage endCursor }
+      nodes { id number title }
+    }
   }
 }
 """
 
 FIELDS_QUERY = """
-query($id: ID!) {
+query($id: ID!, $after: String) {
   node(id: $id) {
     ... on ProjectV2 {
-      fields(first: 50) {
+      fields(first: 50, after: $after) {
+        pageInfo { hasNextPage endCursor }
         nodes { ... on ProjectV2SingleSelectField { id name options { id name } } }
       }
     }
@@ -174,14 +206,9 @@ query($project: ID!, $after: String) {
         pageInfo { hasNextPage endCursor }
         nodes {
           id
-          content { ... on Issue { number } }
-          fieldValues(first: 30) {
-            nodes {
-              ... on ProjectV2ItemFieldSingleSelectValue {
-                name
-                field { ... on ProjectV2SingleSelectField { name } }
-              }
-            }
+          content { ... on Issue { id number } }
+          fieldValueByName(name: "Status") {
+            ... on ProjectV2ItemFieldSingleSelectValue { name }
           }
         }
       }
@@ -190,11 +217,26 @@ query($project: ID!, $after: String) {
 }
 """
 
+ITEM_QUERY = """
+query($id: ID!) {
+  node(id: $id) {
+    ... on ProjectV2Item {
+      fieldValueByName(name: "Status") {
+        ... on ProjectV2ItemFieldSingleSelectValue { name }
+      }
+    }
+  }
+}
+"""
+
 CLOSING_QUERY = """
-query($owner: String!, $name: String!, $number: Int!) {
+query($owner: String!, $name: String!, $number: Int!, $after: String) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
-      closingIssuesReferences(first: 50) { nodes { number } }
+      closingIssuesReferences(first: 50, after: $after) {
+        pageInfo { hasNextPage endCursor }
+        nodes { number repository { nameWithOwner } }
+      }
     }
   }
 }
@@ -242,22 +284,43 @@ class GitHub:
         raise RuntimeError(str(last))
 
     def repo_projects(self, owner, name):
-        data = self.graphql(REPO_QUERY, owner=owner, name=name)
-        repository = data.get("repository")
-        if repository is None:
-            raise Gap("repository not found or not readable")
-        return repository["projectsV2"]["nodes"]
+        rows, after = [], None
+        while True:
+            variables = {"owner": owner, "name": name}
+            if after:
+                variables["after"] = after
+            data = self.graphql(REPO_QUERY, **variables)
+            repository = data.get("repository")
+            if repository is None:
+                raise Gap("repository not found or not readable")
+            connection = repository["projectsV2"]
+            rows.extend(connection["nodes"])
+            if not connection["pageInfo"]["hasNextPage"]:
+                return rows
+            after = connection["pageInfo"]["endCursor"]
 
     def project_fields(self, project_id):
-        data = self.graphql(FIELDS_QUERY, id=project_id)
-        node = data.get("node")
-        if node is None:
-            raise Gap("project not found or not readable")
-        return node["fields"]["nodes"]
+        rows, after = [], None
+        while True:
+            variables = {"id": project_id}
+            if after:
+                variables["after"] = after
+            data = self.graphql(FIELDS_QUERY, **variables)
+            node = data.get("node")
+            if node is None:
+                raise Gap("project not found or not readable")
+            connection = node["fields"]
+            rows.extend(connection["nodes"])
+            if not connection["pageInfo"]["hasNextPage"]:
+                return rows
+            after = connection["pageInfo"]["endCursor"]
 
     def issue(self, owner, name, number):
         data = self.graphql(ISSUE_QUERY, owner=owner, name=name, number=number)
-        issue = data["repository"]["issue"]
+        repository = data.get("repository")
+        if repository is None:
+            raise Gap("repository not found or not readable")
+        issue = repository["issue"]
         if issue is None:
             raise Gap(f"issue #{number} not found")
         return {"id": issue["id"], "number": issue["number"],
@@ -273,19 +336,24 @@ class GitHub:
             if node is None:
                 raise Gap("project items not readable")
             connection = node["items"]
-            for node in connection["nodes"]:
-                content = node.get("content") or {}
-                if content.get("number") is None:
+            for item in connection["nodes"]:
+                content = item.get("content") or {}
+                if content.get("id") is None:
                     continue
-                status = None
-                for value in node["fieldValues"]["nodes"]:
-                    field = value.get("field") or {}
-                    if field.get("name", "").casefold() == "status":
-                        status = value.get("name")
-                rows.append({"id": node["id"], "number": content["number"], "status": status})
+                value = item.get("fieldValueByName") or {}
+                rows.append({"id": item["id"], "issue_id": content["id"],
+                             "number": content.get("number"), "status": value.get("name")})
             if not connection["pageInfo"]["hasNextPage"]:
                 return rows
             after = connection["pageInfo"]["endCursor"]
+
+    def item_status(self, item_id):
+        data = self.graphql(ITEM_QUERY, id=item_id)
+        node = data.get("node")
+        if node is None:
+            raise Gap("project item not found")
+        value = node.get("fieldValueByName") or {}
+        return value.get("name")
 
     def add_item(self, project_id, content_id):
         data = self.graphql(ADD_ITEM_MUTATION, project=project_id, content=content_id)
@@ -296,21 +364,29 @@ class GitHub:
                      field=field_id, option=option_id)
 
     def assign(self, owner, name, number, login):
-        self.gh(["api", "--method", "POST", f"repos/{owner}/{name}/issues/{number}/assignees",
-                 "-f", f"assignees[]={login}"])
+        output = self.gh(["api", "--method", "POST",
+                          f"repos/{owner}/{name}/issues/{number}/assignees",
+                          "-f", f"assignees[]={login}"])
+        payload = json.loads(output)
+        return [node.get("login") for node in payload.get("assignees", [])]
 
     def project_config(self, owner, name):
         try:
             output = self.gh(["api", f"repos/{owner}/{name}/contents/.github/issue-status.json",
                               "--jq", ".content"])
-        except RuntimeError:
-            return {}
+        except RuntimeError as error:
+            message = str(error)
+            if "404" in message or "Not Found" in message:
+                return {}
+            raise Gap(f"could not read .github/issue-status.json: {message}")
         try:
             raw = base64.b64decode("".join(output.split())).decode("utf-8")
             config = json.loads(raw)
         except (ValueError, UnicodeDecodeError) as error:
             raise Gap(f"invalid .github/issue-status.json: {error}")
-        return config if isinstance(config, dict) else {}
+        if not isinstance(config, dict):
+            raise Gap(".github/issue-status.json must be a JSON object")
+        return config
 
     def operator(self):
         try:
@@ -323,11 +399,24 @@ class GitHub:
         return login
 
     def closing_issues(self, owner, name, number):
-        data = self.graphql(CLOSING_QUERY, owner=owner, name=name, number=number)
-        pull = data["repository"]["pullRequest"]
-        if pull is None:
-            raise Gap(f"PR #{number} not found")
-        return [node["number"] for node in pull["closingIssuesReferences"]["nodes"]]
+        rows, after = [], None
+        while True:
+            variables = {"owner": owner, "name": name, "number": number}
+            if after:
+                variables["after"] = after
+            data = self.graphql(CLOSING_QUERY, **variables)
+            repository = data.get("repository")
+            if repository is None:
+                raise Gap("repository not found or not readable")
+            pull = repository["pullRequest"]
+            if pull is None:
+                raise Gap(f"PR #{number} not found")
+            connection = pull["closingIssuesReferences"]
+            rows.extend((node["repository"]["nameWithOwner"], node["number"])
+                        for node in connection["nodes"])
+            if not connection["pageInfo"]["hasNextPage"]:
+                return rows
+            after = connection["pageInfo"]["endCursor"]
 
 
 def repository(value):
@@ -335,6 +424,40 @@ def repository(value):
     if not owner or not name or "/" in name:
         raise argparse.ArgumentTypeError("use OWNER/REPO")
     return owner, name
+
+
+def load_names(client, owner, name, config_path=None):
+    """Resolve logical status names from a local file or the repository config."""
+    config = (json.loads(Path(config_path).read_text(encoding="utf-8"))
+              if config_path else client.project_config(owner, name))
+    if not isinstance(config, dict):
+        raise ValueError("config must be a JSON object")
+    names, seen = {}, {}
+    for role, default in TRANSITIONS.items():
+        value = config.get(role, default)
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"{role} must be a nonempty status name")
+        key = value.strip().casefold()
+        if key in seen:
+            raise ValueError(f"{role} and {seen[key]} use the same status name {value!r}")
+        seen[key] = role
+        names[role] = value.strip()
+    project = config.get("project")
+    if project is not None and (isinstance(project, bool) or not isinstance(project, int)):
+        raise ValueError("project must be a number")
+    return names, project
+
+
+def report_config_gap(repo, args, error):
+    """Print one untracked line per affected issue without mutating anything."""
+    owner, name = repo
+    if args.pr is not None:
+        print(f"issue status: {owner}/{name} PR #{args.pr}: untracked "
+              f"(invalid issue-status config: {error})")
+        return
+    for number in args.issue:
+        print(f"issue status: {owner}/{name}#{number}: untracked "
+              f"(invalid issue-status config: {error})")
 
 
 def main(argv=None, client=None):
@@ -351,49 +474,57 @@ def main(argv=None, client=None):
     parser.add_argument("--config", help="local option-name mapping JSON")
     parser.add_argument("--dry-run", action="store_true", help="print without changing GitHub")
     args = parser.parse_args(argv)
+    if args.transition == "pr":
+        if args.pr is None:
+            parser.error("pr requires --pr; closing references determine the issues")
+        if args.issue:
+            parser.error("pr uses --pr, not --issue")
+    else:
+        if args.pr is not None:
+            parser.error("--pr applies only to the pr transition")
+        if not args.issue:
+            parser.error("give --issue (repeatable)")
     if args.transition == "done" and not (args.verified or "").strip():
         parser.error("done requires --verified with the deployment or release evidence")
-    if args.pr is not None and args.issue:
-        parser.error("use --pr or --issue, not both")
-    if args.pr is None and not args.issue:
-        parser.error("give --issue (repeatable) or --pr")
-    if args.pr is not None and args.transition != "pr":
-        parser.error("--pr applies only to the pr transition")
 
     client = client or GitHub()
     owner, name = args.repo
     try:
-        config = (json.loads(Path(args.config).read_text(encoding="utf-8"))
-                  if args.config else client.project_config(owner, name))
-        if not isinstance(config, dict):
-            raise ValueError("config must be a JSON object")
-        names = {}
-        for role, default in TRANSITIONS.items():
-            value = config.get(role, default)
-            if not isinstance(value, str) or not value.strip():
-                raise ValueError(f"{role} must be a nonempty status name")
-            names[role] = value.strip()
-        project_number = args.project if args.project is not None else config.get("project")
-        if project_number is not None and not isinstance(project_number, int):
-            raise ValueError("project must be a number")
+        names, config_project = load_names(client, owner, name, args.config)
     except Exception as error:  # Bookkeeping must never fail the main work.
-        print(f"issue status: {owner}/{name}: untracked (invalid issue-status config: {error})")
+        report_config_gap(args.repo, args, error)
         return 0
+    project_number = args.project if args.project is not None else config_project
+
     if args.pr is not None:
         try:
-            numbers = client.closing_issues(owner, name, args.pr)
+            references = client.closing_issues(owner, name, args.pr)
         except Exception as error:  # Bookkeeping must never fail the main work.
             print(f"issue status: {owner}/{name} PR #{args.pr}: untracked ({error})")
             return 0
+        target = f"{owner}/{name}".casefold()
+        numbers = [number for repo, number in references if repo.casefold() == target]
+        for repo, number in references:
+            if repo.casefold() != target:
+                print(f"issue status: {repo}#{number}: untracked "
+                      f"(external reference from {owner}/{name} PR #{args.pr})")
         if not numbers:
-            print(f"issue status: {owner}/{name} PR #{args.pr}: untracked (closes no issues)")
+            print(f"issue status: {owner}/{name} PR #{args.pr}: untracked "
+                  "(closes no issues in this repository)")
             return 0
     else:
         numbers = args.issue
+
     for number in numbers:
-        result = apply(client, args.repo, number, args.transition,
-                       operator=args.operator, verified=args.verified,
-                       project_number=project_number, dry_run=args.dry_run, names=names)
+        try:
+            result = apply(client, args.repo, number, args.transition,
+                           operator=args.operator, verified=args.verified,
+                           project_number=project_number, dry_run=args.dry_run,
+                           names=names)
+        except Exception as error:  # Bookkeeping must never fail the main work.
+            result = {"repo": f"{owner}/{name}", "issue": number, "tracked": False,
+                      "status": None, "assigned": None, "skipped": None,
+                      "notes": [str(error)], "dry_run": args.dry_run, "failed": True}
         print(format_result(result, args.transition, args.verified))
     return 0
 

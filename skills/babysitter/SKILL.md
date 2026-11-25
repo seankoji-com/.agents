@@ -29,7 +29,7 @@ Apply [review](../review/SKILL.md) to finding evidence, severity and deferred bu
 ## Own the next action
 
 One main-thread coordinator owns each PR through merge. Fix small issues directly.
-Use supported orchestration for scoped workers and reviewers. Children
+Use orchestration for scoped workers and reviewers. Children
 work directly, never delegate or watch, and return review or filing work to the
 coordinator. The coordinator assigns those tasks and retains ownership. A
 child's completion does not discharge its PR.
@@ -51,16 +51,18 @@ bots and lifecycle acceptance scenarios.
 
 1. **Refresh the PR and its gates.**
 
-   - Inventory every requested PR, including paginated batch or organisation
-     results, owners and dependencies. Use raise-pr's
+   - Inventory every requested PR, including batched or organisation results,
+     owners and dependencies. Use raise-pr's
      [preflight](../raise-pr/references/preflight.md) to confirm repository,
-     clean or preserved checkout, remote, head/base, rules and merge method.
+     checkout, remote, head/base, rules and merge method.
+   - Apply [issue status](../ship/references/issue-status.md) when adopting a
+     linked PR.
    - When starting, waking or resuming, refresh GitHub and reconcile the request,
      action holds and continuation owner under
      [authority reconciliation](references/continuation.md#reconcile-authority-and-ownership).
      Discard stale-head results.
    - Collect unresolved feedback, including outdated threads and review bodies,
-     plus all current-head checks and acceptance gates. Verify each action
+     plus current-head checks and acceptance gates. Verify each action
      before marking it complete. Give every unverified gate an actor and next action.
 
 2. **Fix actionable work now.**
@@ -151,12 +153,12 @@ bots and lifecycle acceptance scenarios.
      [reconcile watch state](references/continuation.md#keep-one-continuation-owner).
      After a push or resume, repeat the audit. A receipt proves observed
      registration, not continuous coverage.
-   - A watch is a notification source, not a repair worker. Keep approval and
-     access holds visible while progressing other PRs.
+   - A watch notifies; it does not repair. Keep approval and access holds
+     visible while progressing other PRs.
    - In T3, add no duplicate watcher, poller or second scheduler.
    - Discover new PRs only through a user-requested host-scheduled sweep or an
      active backlog-burn run's re-inventory of its scope.
-     Record a sweep's verified schedule ID, scope, cadence and stop condition,
+     Record a sweep's verified schedule ID, scope, cadence and stop,
      and have each run check stalled queued jobs. Otherwise report coverage as
      linked PRs only.
    - If native watching is unavailable, report continuation as unavailable.
