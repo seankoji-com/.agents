@@ -9,6 +9,21 @@ explicitly held or in flight elsewhere.
 Record one ledger row per PR with its head SHA, class, owner, evidence and next
 action. Re-check the class on every wake; ownership changes.
 
+Before calling a PR in flight elsewhere, verify the owner:
+
+1. `gh pr view N --json commits,comments,reviews,updatedAt,autoMergeRequest`.
+2. `t3_thread_search` with the PR number (for example `#4540`), then with its
+   head branch. Read each hit with `t3_thread_read`.
+3. The PR is in flight elsewhere when a T3 thread that is not archived or
+   settled has a pending watch on it, is running, or acted on its current head
+   in the last 24 hours, or when a person commented or reviewed on the current
+   head in the last 24 hours. Agents often post under the owner's account; text
+   marked as agent-written is not a person.
+4. An assignee, an old branch, a recent push, bot activity or enabled auto-merge
+   alone is not ownership.
+
+Then classify:
+
 1. **In flight elsewhere.** A live owner outside this run covers it: a T3 thread,
    ship or babysitter run, or a human, whose current activity on this PR you
    verified. Evidence is the owner's thread or task state, its watch or link,

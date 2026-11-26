@@ -65,14 +65,15 @@ one app. They use what T3 provides:
   the panel. Its code keeps the seat deadline, checks each ballot and each
   seat's recorded model, and tallies the 2/3 choice or the split. Without T3
   Workflows, `vote` reports what is missing and stops.
-- **Scored loops on T3 Workflows.** `review-loop` and `hillclimb` post their
-  scope, rubric and baseline to the `workflows/scored-loop.ts` T3 workflow. For
-  `review-loop` the workflow picks the reviewer by quota pace and lineage; for
-  `hillclimb` it takes the confirmed roster and adds the full panel when the
-  primary passes, or from the baseline when the operator confirms that. It
-  starts each judge in a fresh thread, asks the invoking thread for each repair,
-  and keeps the counters, the target gate, the two-round stop and the single
-  recovery in code, so a restart cannot dispatch a recovery twice.
+- **Scored loops in normal threads.** `review-loop` and `hillclimb` run their
+  rounds in T3: each evaluator is a separate thread, repairs stay in the parent,
+  and the skill keeps the counters, the target gate, the two-round stop and the
+  single recovery in its own run record. The score chart renders inline.
+- **Backlog burn on T3 Workflows.** `backlog-burn` posts a packet to the
+  `workflows/backlog-burn.ts` T3 workflow. Its code keeps the item ledger, the
+  20 delegate slots, the implement and review dispatch, the forge reads, the PR
+  waits and the owner asks. The main thread keeps triage, merge decisions and
+  the report. Without T3 Workflows it reports what is missing and stops.
 - **Separate workspaces.** `implement` runs coding in its own T3 worktree, so the
   main conversation stays free for decisions and reviews.
 - **Background tasks.** `raise-issue` files issues in a background T3 task while
@@ -95,8 +96,9 @@ one app. They use what T3 provides:
 Most skills still work in Claude Code, Codex or another host that supports
 skills, using what that host offers instead. Outside T3, `babysitter` waits with
 its bundled `scripts/pr-wait` helper, and `ship` posts status lists in the
-conversation. `implement` and asynchronous `raise-issue` need T3, and `vote`,
-`review-loop` and `hillclimb` need T3 with Workflows turned on. Cross-family code review needs a host that
+conversation. `implement` and asynchronous `raise-issue` need T3;
+`review-loop` and `hillclimb` need T3 threads; `vote` and `backlog-burn` need T3
+with Workflows turned on. Cross-family code review needs a host that
 can reach a second model family; without one, the agent reports the review as
 unavailable instead of reviewing its own work. `vote` never simulates a ballot:
 without its workflow it reports the gap and stops.
@@ -203,13 +205,13 @@ Build, check, and deliver changes with evidence of what works and what remains.
 - [plan-report](skills/plan-report/SKILL.md): Show proposed plans, progress and final calibration on a timeline from a private ledger.
 - [review](skills/review/SKILL.md): Evaluate a plan, change, or release against its requirements. Code reviewers differ in family from code authors. Return evidence-backed findings without edits.
 - [ocr](skills/ocr/SKILL.md): Run OpenCodeReview on a frozen diff. A public repository draws up to three free OpenCode reviewers and returns one grouped report. A private one runs the `ocr` CLI through one watcher.
-- [review-loop](skills/review-loop/SKILL.md): Hill-climb through repairs and review until the score target and required gates pass or two consecutive rounds fail to improve the best score. A failed run gets one reflect-fix-re-invoke before it reports. Its T3 workflow keeps the rounds, the stop rule and the recovery in code.
-- [hillclimb](skills/hillclimb/SKILL.md): Improve a workflow, artifact or product toward a fixed score target. Confirm the judging roster, follow the rounds in one report and use the real interface for UI judging. A failed run gets one reflect-fix-re-invoke before it reports. Runs on the scored-loop T3 workflow.
+- [review-loop](skills/review-loop/SKILL.md): Hill-climb through repairs and review until the score target and required gates pass or two consecutive rounds fail to improve the best score. A failed run gets one reflect-fix-re-invoke before it reports. The skill keeps the rounds, the stop rule and the recovery in its run record.
+- [hillclimb](skills/hillclimb/SKILL.md): Improve a workflow, artifact or product toward a fixed score target. Confirm the judging roster, follow the rounds in one report and use the real interface for UI judging. A failed run gets one reflect-fix-re-invoke before it reports.
 - [test-writer](skills/test-writer/SKILL.md): Choose tests that catch consequential failures, with attention to reliability, maintenance, and CI time.
 - [raise-pr](skills/raise-pr/SKILL.md): Prepare PR descriptions and evidence that meet the repository's requirements. Creating or updating the PR needs authority from your request.
 - [babysitter](skills/babysitter/SKILL.md): Repair an existing PR, handle checks and review gates, and verify its merge when permitted. Explicit limits such as no-merge still apply.
 - [raise-issue](skills/raise-issue/SKILL.md): Prepare and file a bug, feature, or task asynchronously, preserving the evidence and returning a verified issue URL. Requires T3 delegation.
-- [backlog-burn](skills/backlog-burn/SKILL.md): Drive a repository's open issues and PRs to zero. It closes obsolete issues and superseded PRs with evidence, babysits unowned PRs to merge, and fills available delegate capacity up to 20 for worthwhile work through ship. Naming an organisation launches one run per repository. Requires T3 delegation.
+- [backlog-burn](skills/backlog-burn/SKILL.md): Drive a repository's open issues and PRs to zero. Its T3 workflow keeps the ledger, the 20 delegate slots, implement and review dispatch, forge reads, PR waits and owner asks; the main thread keeps triage, merges and the report. Naming an organisation launches one run per repository. Requires T3 with Workflows.
 - [settle](skills/settle/SKILL.md): Close out a finished thread. Save durable decisions, remove only what the session created, raise optional follow-ups, release closed PRs, then settle the thread in T3.
 
 ### Writing and conversation
@@ -346,8 +348,7 @@ a job, especially one that can publish or merge changes.
 - **Evidence.** The agent reports checks against the revision it actually tested.
   Missing access, unavailable reviewers, and unverified behavior remain visible gaps.
 - **Stopped scoring loops.** A failed `review-loop` or `hillclimb` run gets one
-  automatic recovery, enforced by the scored-loop T3 workflow: the agent
-  records the attempt, diagnoses what stalled,
+  automatic recovery: the agent records the attempt, diagnoses what stalled,
   fixes the cause and re-invokes once from the latest candidate. A deadline or
   spending cap already reached stops the recovery. A repair-round cap already
   reached still allows a setup-only fix, and blocks one that changes the
@@ -468,32 +469,35 @@ operator credential. Antigravity voters need `auto-accept-edits` to submit a
 ballot, so from a stricter invoker the Neon seat falls back to the DeepSeek
 substitute. Without any of these, `vote` reports what is missing and stops.
 
-### Use the scored loop on T3 Workflows
+### Use backlog-burn on T3 Workflows
 
-`review-loop` and `hillclimb` run through the `workflows/scored-loop.ts` T3
-workflow. Each host where you run them needs:
+`backlog-burn` runs through the `workflows/backlog-burn.ts` T3 workflow. Each
+host where you run it needs:
 
 1. Workflows turned on in T3 Code.
-2. `workflows/scored-loop.ts` in `~/.t3/workflows`, put there by the owner's
+2. `workflows/backlog-burn.ts` in `~/.t3/workflows`, put there by the owner's
    [host delivery](#t3-workflow-delivery) or copied from a clone.
-3. The hook URL saved in `~/.config/t3-workflows/scored-loop.curl`. Host
+3. The hook URL saved in `~/.config/t3-workflows/backlog-burn.curl`. Host
    delivery and the `hooks` command in the vote section write it. From a clone
    without the installer, use the vote section's manual steps with the URL for
-   "scored-loop  start" and `scored-loop.curl` as the file name.
+   "backlog-burn  start" and `backlog-burn.curl` as the file name.
 
-Judges open fresh threads in the project the packet names. They read the
-committed candidate through `git show` and `git diff` in your checkout and run
-in your thread's runtime mode or not at all. Antigravity routes need
-`auto-accept-edits` or broader. The packet carries your thread's route report.
-The workflow asks your thread for every repair, with the recorded model of each
-judge thread that scored the work being repaired, and for the one recovery,
-then posts the result with the full score ledger. A continuation's ledger
-includes every earlier run. Scores round to the packet's `scale.decimals`
-places. A `hillclimb` packet also
-names the confirmed primary, the panel and when it joins; a judge sharing a
-model family with another judge or with an implementer needs the operator's
-recorded approval. Without the workflow, the file or the hook config, either
-skill reports what is missing and stops.
+The packet names the T3 project, repository, base, mode, authority, capacity,
+limits, the ordered implement and review routes, the confirmed available routes
+and your thread's runtime mode. The workflow lists open issues and pull requests
+through T3's forge, dispatches one implementer per ready issue into its own
+worktree and a read-only reviewer at the committed head, asks the owner's
+questions through `T3.ask`, and sends the merge turn back to your thread. It
+closes an item only after your triage classifies it `close` and the packet
+carries that authority, reads every closure back, and reports zero only with
+complete coverage. The forge listing caps at 200 issues and 500 pull requests
+and hides its continuation cursor, so a list at either cap reports
+`not-finished` rather than a false zero.
+
+`review-loop` and `hillclimb` need no workflow: they run their rounds in normal
+T3 threads, and their judges read the committed candidate through `git show`
+and `git diff`. Outside T3, each reports the missing host capability instead of
+running a weaker loop.
 
 Older releases through v0.13.2 contain archives from the previous package.
 Use the current `skills` tree for the library described here.
@@ -543,7 +547,12 @@ on the skills site shows the handoffs with diagrams: decisions, implementation
 in a separate worktree, review, delivery, deferred-bug filing and the T3
 permission workarounds. Each skill's own file holds the exact rules.
 
-`backlog-burn` assesses closure before dispatch. It strongly prefers closing ordinary
+`backlog-burn` runs as the `workflows/backlog-burn.ts` T3 workflow. Code owns
+the item ledger, the 20-slot pool, implement and review dispatch, forge reads
+and closures, PR waits, owner asks and the five end-of-pass checks. The main
+thread owns triage, protected-item decisions, merges and the report.
+
+It assesses closure before dispatch. It strongly prefers closing ordinary
 issues that are obsolete, already done or no longer worth pursuing, with a short
 evidence-based reason and no per-issue confirmation. It retires trivial leftovers
 without replacement issues. Material defects and necessary unmet outcomes remain
@@ -554,45 +563,35 @@ Inventory, triage-only and question-only requests propose actions without closur
 implementation or merge.
 
 Open PRs are part of the backlog, and issues and PRs always share one scope. The
-default is the current repository. The coordinator babysits every PR without a
-verified live owner through merge, including dependency bumps, and makes small
-repairs inside the PR. A bump that needs a real migration becomes an owner
-question. It closes superseded, duplicate or already-landed PRs with an evidence
-comment, and asks before closing drafts or PRs with unique changes. PRs that
-another live thread or person already owns are recorded with their owner and
-left alone. Each wake re-lists the scope, so PRs opened mid-run are adopted;
+default is the current repository. The coordinator handles every PR without a
+verified live owner through babysitter's merge gate, including dependency bumps,
+and makes small repairs inside the PR. A bump that needs a real migration becomes
+an owner question. It closes superseded, duplicate or already-landed PRs with an
+evidence comment, and asks before closing drafts or PRs with unique changes. PRs
+that another live thread or person already owns are recorded with their owner and
+left alone. A fresh run re-lists the scope, so PRs opened mid-run are adopted;
 nothing stays covered after handback without a scheduled sweep. Naming an
 organisation launches one independent repository run per repository with open
 work, skips repositories that already have one, and hands back.
 
-Each turn triages open items from their headers. It checks PR ownership and
-verifies ready issue fixes side by side, dispatching independent work while it
-checks unrelated PRs. It registers PR watches after completing the pass.
+The workflow triages every item with the main thread, then dispatches each
+worthwhile verified ready issue as an implementer in its own worktree and a
+read-only reviewer at the committed head. It uses up to 20 slots and refills them
+as work finishes. Owner questions are `T3.ask` choices and do not stop other
+ready work. The main thread handles the merge turn: it applies babysitter's
+gates, merges, or registers its watch for a pending review and ends. The workflow
+waits for `merged`, so a later approval resumes it. It finishes with one
+consolidated retrospective that saves durable decisions to project memory. Ready
+independent work starts before blocking questions. One unanswered question or
+open PR cannot stop independent work. Awaiting-owner requires every remaining
+issue and PR to be explicitly held, owned by a live owner elsewhere or awaiting
+an actual unanswered question. Success is a fresh zero for both issues and PRs.
+When only held items and work owned elsewhere remain, the run hands back
+"not zero" with each owner and next trigger.
 
-It dispatches each worthwhile verified ready issue before reading unrelated
-histories, while continuing discovery and owner questions where the host permits.
-It uses `ship` for delivery and isolated `implement` leads. Coding leads and
-workers default to the main thread's model and effort unless the owner selects another;
-reviewers use review's Sol/Opus defaults and cross-lineage eligibility. The main
-coordinator uses the maximum host-supported concurrency up to 20 across every
-delegate it starts, including nested work, investigations and issue filing, with
-child-slot budgets and review headroom.
-It records host limits and concrete reasons for unused slots, then refills
-available capacity on every completion, PR notification,
-answer or continuation wake. An empty ready queue resumes discovery. At full
-capacity, the coordinator continues classification and owner questions. It retains
-PR delivery and watches, records why capacity is unused, and finishes with one
-consolidated retrospective that saves durable decisions to project memory.
-Ready independent work starts before blocking questions.
-One unanswered question or watched PR cannot stop independent
-work. Awaiting-owner requires every remaining issue and PR to be explicitly held,
-owned by a live owner elsewhere or awaiting an actual unanswered question; a
-host-required yield preserves the queue. Success is a fresh zero for both issues
-and PRs. When only held items and work owned elsewhere remain, the run hands
-back "not zero" with each owner and next trigger.
-
-A strong model coordinates each workflow. Coding workers can use cheaper models;
-reviewers use the defaults above. They read a short role card instead of a whole skill:
+A strong model coordinates most workflows. `backlog-burn`'s workflow can drive a
+cheaper coordinator because code owns the ledger, slots and dispatch. Coding
+workers can use cheaper models; reviewers use the defaults above. They read a short role card instead of a whole skill:
 
 - [assigned-reviewer card](skills/review/references/assigned-reviewer.md) for a
   dispatched reviewer or judge.
@@ -724,7 +723,7 @@ installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: eeb2017d13df8a0133c62b563acda1304f439afb975bd2d133f5ce1dc614531c -->
+<!-- skills-review: c3f78b0c4e42942a0cbc6e5770f22e748b6320734ed84cb2dd2dafaf34bdc1e4 -->
 
 ### Owner maintenance
 

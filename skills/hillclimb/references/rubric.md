@@ -85,8 +85,8 @@ Explain intermediate scores with the nearest anchors. The coordinator calculates
 the weighted overall score out of 10, not a judge's separate overall impression.
 Default precision is one decimal place: sum each integer score times its integer
 percentage weight, divide by 100, and round half up to one decimal. Record another
-precision only at setup, as the packet's `scale.decimals` (decimal places, not a
-step: `1` keeps 7.8, 8.0 and 8.1 apart). Apply the same arithmetic to target comparisons and
+precision only at setup, as decimal places, not a step: `1` keeps 7.8, 8.0 and
+8.1 apart. Apply the same arithmetic to target comparisons and
 progress. For example, weighted sum 845 gives 8.5. Retain dimension scores and the
 unrounded sum to make the calculation auditable. A missing dimension means an
 incomplete evaluation, not zero or a reweighted average.

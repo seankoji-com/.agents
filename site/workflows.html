@@ -55,9 +55,9 @@
         </div>
         <div>
           <h3>Bring evidence to the review</h3>
-          <p><a href="https://github.com/seankoji-com/.agents/blob/main/skills/review-loop/SKILL.md">review-loop</a> repairs and re-reviews until the score target and required checks pass, or stops after two rounds that fail to beat the best score. A failed run gets one automatic reflect-fix-retry before it reports; a T3 workflow keeps the rounds, the stop rule and that single recovery in code, so a restart cannot run it twice. Each round renders an inline HTML score line graph showing reviewer trajectories, the dotted target, failure/recovery annotations and hover rationales with component dimensions. <a href="https://github.com/seankoji-com/.agents/blob/main/skills/review/SKILL.md">review</a> supplies the formal reviewer, the score-chart renderer and the evidence and severity rules.</p>
+          <p><a href="https://github.com/seankoji-com/.agents/blob/main/skills/review-loop/SKILL.md">review-loop</a> repairs and re-reviews until the score target and required checks pass, or stops after two rounds that fail to beat the best score. A failed run gets one automatic reflect-fix-retry before it reports; the skill keeps the rounds, the stop rule and that single recovery in its run record. Each round renders an inline HTML score line graph showing reviewer trajectories, the dotted target, failure/recovery annotations and hover rationales with component dimensions. <a href="https://github.com/seankoji-com/.agents/blob/main/skills/review/SKILL.md">review</a> supplies the formal reviewer, the score-chart renderer and the evidence and severity rules.</p>
           <p>If two code reviews in a row find different material bugs that come from the same design assumption, the coordinator considers a repair that removes that assumption.</p>
-          <p>Use <a href="https://github.com/seankoji-com/.agents/blob/main/skills/hillclimb/SKILL.md">hillclimb</a> to improve a workflow, artifact or product against a rubric. Confirm the judges, any lead-judge upgrade for the panel and any recovery alternates before work begins. When the full panel joins, the preapproved lead judge swaps in and they all score the same version. UI judges use the running interface. One report shows the evidence and scores. A T3 workflow keeps the rounds, the panel's lowest score, the stop rule and the single recovery in code.</p>
+          <p>Use <a href="https://github.com/seankoji-com/.agents/blob/main/skills/hillclimb/SKILL.md">hillclimb</a> to improve a workflow, artifact or product against a rubric. Confirm the judges, any lead-judge upgrade for the panel and any recovery alternates before work begins. When the full panel joins, the preapproved lead judge swaps in and they all score the same version. UI judges use the running interface. One report shows the evidence and scores. The skill keeps the rounds, the panel's lowest score, the stop rule and the single recovery in its run record.</p>
           <p>If either loop fails, the agent reflects, fixes the cause and runs it once more from the latest candidate. A deadline or spending cap already reached stops that retry. A round cap already reached still allows a setup-only fix, and blocks one that changes the candidate. A second failure comes back to you with both attempts and the best candidate. Revised criteria or judges are recorded and flagged against the original target.</p>
         </div>
         <div>
@@ -77,18 +77,18 @@
 
     <section id="backlog" aria-labelledby="backlog-title">
       <h2 id="backlog-title">Drive open issues and pull requests to zero</h2>
-      <p class="section-intro"><a href="https://github.com/seankoji-com/.agents/blob/main/skills/backlog-burn/SKILL.md">backlog-burn</a> handles open issues and pull requests together. It closes obsolete or completed work with evidence, sends worthwhile fixes through <code>ship</code>, and uses <code>babysitter</code> to repair and merge PRs without an active owner.</p>
+      <p class="section-intro"><a href="https://github.com/seankoji-com/.agents/blob/main/skills/backlog-burn/SKILL.md">backlog-burn</a> handles open issues and pull requests together through the <code>workflows/backlog-burn.ts</code> T3 workflow. Code keeps the item ledger, the 20 slots, the implement and review dispatch, the forge reads and the PR waits. Your thread triages, decides merges and writes the report.</p>
       <p>For an organisation, it starts one run per repository with open work, skips active runs and returns links to the threads.</p>
       <figure class="workflow-map">
         <figcaption>How a backlog run moves work</figcaption>
         <ol class="workflow-steps" role="list">
-          <li><strong>Sort open work</strong><p><a href="./#skill-backlog-burn">backlog-burn</a> checks ownership and looks for obsolete, completed or superseded items it can close with evidence.</p></li>
-          <li><strong>Run two work queues</strong><p>Send unowned PRs to <a href="./#skill-babysitter">babysitter</a> and worthwhile issue fixes to <a href="./#skill-ship">ship</a>. Keep work with a live owner on record.</p></li>
-          <li><strong>Keep ready work moving</strong><p>Send decisions to the owner and continue independent work. Refresh the issue and PR lists on each wake.</p></li>
-          <li><strong>Verify what remains</strong><p>Check for zero open issues and PRs. Record outstanding holds and live owners, then write one retrospective.</p></li>
+          <li><strong>List and triage</strong><p><a href="./#skill-backlog-burn">backlog-burn</a> lists open issues and PRs through T3's forge. The main thread classifies every item and records obsolete, completed or superseded work it can close with evidence.</p></li>
+          <li><strong>Dispatch ready work</strong><p>The workflow starts one implementer per ready issue in its own worktree and a read-only reviewer at the committed head. Unclaimed PRs stay with the main thread through <a href="./#skill-babysitter">babysitter</a>.</p></li>
+          <li><strong>Keep the slots full</strong><p>Up to 20 delegates refill as work finishes. Owner questions are fixed choices in the workflow; independent work continues.</p></li>
+          <li><strong>Merge and verify</strong><p>The main thread merges through babysitter's gates or watches a pending review. The workflow waits for the merge and checks for zero, holds or partial coverage.</p></li>
         </ol>
       </figure>
-      <p>The coordinator owns PR delivery and monitoring. It uses the available delegate slots for ready work, up to 20 across coding and review, and checks for newly opened PRs when it resumes. Dependency bumps get small in-PR repairs. A migration that changes scope goes back to the owner.</p>
+      <p>The workflow closes an item only after triage classifies it <code>close</code> and the packet carries that authority. It reads every closure back. A list at its 200-issue or 500-PR cap reports partial coverage instead of a false zero.</p>
       <p>A fresh inventory verifies zero open issues and PRs. The report records any items still held, awaiting a decision or actively owned elsewhere, and distinguishes delivered fixes from work closed with evidence.</p>
     </section>
 

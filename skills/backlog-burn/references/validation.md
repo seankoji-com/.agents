@@ -362,3 +362,32 @@ the PR pass and service actionable work before registering any watches.
 
 Mutation: dispatch requires a yield. Expected: save the pending PR checks as
 resume work, then return to them on wake.
+
+## Workflow cases
+
+These exercise `workflows/backlog-burn.ts` itself. Fake the forge and agent
+results; never call a live model or GitHub. Each case starts with a synthetic
+packet and reports the workflow result.
+
+1. **Zero.** Complete inventory, every item closed or merged with a verified
+   read-back, no pending item. Expected `zero`.
+2. **Not zero.** Complete inventory, one protected issue held by the owner and
+   one PR in flight elsewhere. Expected `not-zero`, with both named.
+3. **Issue cap.** The issue list returns exactly 200 entries. Expected
+   `not-finished` with `coverage: partial`, never `zero`.
+4. **Pull-request cap.** The pull-request list returns exactly 500 entries.
+   Expected `not-finished` with `coverage: partial`, never `zero`.
+5. **List failure.** One list call fails. Expected `not-finished` with
+   `coverage: partial` and the failure in the result.
+6. **Item read failure.** One dispatched issue cannot be read. Expected a
+   blocked ledger row, that item in `pending`, and no dispatch for it.
+7. **Slot exhaustion.** More ready issues than slots, with a synthetic
+   implementer that waits. Expected at most the packet's capacity running at
+   once, and every issue either dispatched or recorded ready-undispatched.
+8. **Lost receipt.** Kill the engine after an implementer starts, then resume.
+   Expected the same thread and turn to replay, no second thread for the issue.
+9. **Review-only PR.** Checks pass, the coordinator returns `pending-review`,
+   then a synthetic merge arrives. Expected the workflow to wait, resume on
+   `merged`, and report the PR merged once.
+10. **Untriaged item.** The triage omits one inventory item. Expected
+    `not-finished` and the item named in `untriaged`.

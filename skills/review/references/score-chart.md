@@ -40,8 +40,7 @@ See `skills/review/examples/score-ledger.json` for a complete synthetic example.
 
 - `version`: integer `1`.
 - `run`: `{ title, id, skill, status, scale: { min, max, precision } }`.
-  `precision` is decimal places (0 to 3), matching the scored-loop packet's
-  `scale.decimals`.
+  `precision` is decimal places (0 to 3), matching the run's decimal places.
   - `status`: `in-progress`, `passed`, `passed-revised`, `goal-not-met`,
     `stopped`, or `blocked`.
 - `reviewers`: nonempty list of `{ id, label, role? }`. Each reviewer gets a

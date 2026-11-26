@@ -259,7 +259,7 @@
               <p>Choose your agents when prompted.</p>
               <p>Try asking <q>Clear the backlog and the open PRs. Ask me what you need to unblock, then implement and merge the ready work.</q></p>
               <p class="helpers">Supporting skills include <a href="#skill-ship">ship</a>, <a href="#skill-plan-report">plan-report</a>, <a href="#skill-babysitter">babysitter</a>, and <a href="#skill-implement">implement</a>.</p>
-              <p class="t3-preflight">On T3 Code, also install <a href="#skill-agent-tuneup">agent-tuneup</a> for the T3 dispatch preflight.</p>
+              <p class="t3-preflight">Before the first run, turn on Workflows in T3, install <code>workflows/backlog-burn.ts</code> into <code>~/.t3/workflows</code>, and make sure <code>~/.config/t3-workflows/backlog-burn.curl</code> holds the hook URL. Host delivery writes that file; from a clone, the <a href="https://github.com/seankoji-com/.agents#use-backlog-burn-on-t3-workflows">README</a> has the steps. Without them, <code>backlog-burn</code> reports what is missing and stops.</p>
               <a href="#skill-backlog-burn">Close install instructions</a>
             </div>
           </li>
@@ -357,7 +357,6 @@
               <p>Choose your agents when prompted.</p>
               <p>Try asking <q>Use review-loop on the search fix until review scores it 9 or higher.</q></p>
               <p class="helpers">Supporting skills include <a href="#skill-review">review</a>, <a href="#skill-implement">implement</a>, and <a href="#skill-raise-pr">raise-pr</a>.</p>
-              <p class="t3-preflight">Before the first run, turn on Workflows in T3, install <code>workflows/scored-loop.ts</code> into <code>~/.t3/workflows</code>, and make sure <code>~/.config/t3-workflows/scored-loop.curl</code> holds the hook URL. Host delivery writes that file; from a clone, the <a href="https://github.com/seankoji-com/.agents#use-the-scored-loop-on-t3-workflows">README</a> has the steps. Without them, <code>review-loop</code> reports what is missing and stops.</p>
               <a href="#skill-review-loop">Close install instructions</a>
             </div>
           </li>
@@ -376,7 +375,7 @@
               <p>Choose your agents when prompted.</p>
               <p>Try asking <q>Run hillclimb on the onboarding flow until it scores 8 out of 10.</q></p>
               <p class="helpers">Supporting skills include <a href="#skill-review">review</a>, <a href="#skill-raise-pr">raise-pr</a>, and <a href="#skill-raise-issue">raise-issue</a>.</p>
-              <p class="t3-preflight">Before the first run, turn on Workflows in T3, install <code>workflows/scored-loop.ts</code> into <code>~/.t3/workflows</code>, and make sure <code>~/.config/t3-workflows/scored-loop.curl</code> holds the hook URL. Host delivery writes that file; from a clone, the <a href="https://github.com/seankoji-com/.agents#use-the-scored-loop-on-t3-workflows">README</a> has the steps. Without them, <code>hillclimb</code> reports what is missing and stops. Also install <a href="#skill-agent-tuneup">agent-tuneup</a> for the T3 dispatch preflight.</p>
+              <p class="t3-preflight">On T3 Code, install <a href="#skill-agent-tuneup">agent-tuneup</a> for the T3 dispatch preflight. Hillclimb needs no workflow.</p>
               <a href="#skill-hillclimb">Close install instructions</a>
             </div>
           </li>
@@ -540,7 +539,7 @@
         <div class="tier tier-needs">
           <p class="tier-label">Needs T3 Code</p>
           <p class="chips"><a href="#skill-implement">implement</a> <a href="#skill-backlog-burn">backlog-burn</a> <a href="#skill-raise-issue">raise-issue</a> <a href="#skill-ocr">ocr</a> <a href="#skill-vote">vote</a> <a href="#skill-review-loop">review-loop</a> <a href="#skill-hillclimb">hillclimb</a></p>
-          <p>These hand work to T3 delegates that run in their own threads or worktrees, so your conversation stays free. <code>raise-issue</code> can still file inline if you ask for that explicitly. <code>vote</code> runs as a T3 workflow: it starts one voter per model family, or counts the invoker's existing recommendation, checks each ballot and each voter's recorded model, and returns the 2/3 choice or the split. <code>review-loop</code> and <code>hillclimb</code> run their rounds through a T3 workflow too: the workflow starts each judge, asks your thread for each repair, and keeps the counters, the stop rule and the one recovery in code. For <code>hillclimb</code> it also brings in the full panel of judges you approved once the lead judge's score reaches the target. All three need Workflows turned on in T3.</p>
+          <p>These hand work to T3 delegates that run in their own threads or worktrees, so your conversation stays free. <code>raise-issue</code> can still file inline if you ask for that explicitly. <code>vote</code> runs as a T3 workflow: it starts one voter per model family, or counts the invoker's existing recommendation, checks each ballot and each voter's recorded model, and returns the 2/3 choice or the split. <code>backlog-burn</code> also runs as a T3 workflow: code keeps the item ledger, the 20 slots, implement and review dispatch, forge reads and PR waits, while your thread triages and merges. <code>review-loop</code> and <code>hillclimb</code> use normal T3 threads for their judges and render the score chart inline. <code>vote</code> and <code>backlog-burn</code> need Workflows turned on; the rest need T3 threads.</p>
         </div>
         <div class="tier tier-better">
           <p class="tier-label">Better in T3 Code</p>
@@ -795,12 +794,12 @@
     </header>
     <figure class="diagram" style="--n:4">
       <ol class="flow">
-        <li><strong>Sort open work</strong><p>Check owners. Close obsolete, completed or superseded items with evidence.</p></li>
-        <li><span class="who">babysitter · ship</span><strong>Run two queues</strong><p>Unowned PRs go to babysitter; worthwhile fixes go to ship.</p></li>
-        <li><strong>Keep ready work moving</strong><p>Up to 20 delegates. Decisions go to the owner while other work continues.</p></li>
-        <li><strong>Verify zero</strong><p>A fresh count, held items on record, one retrospective.</p></li>
+        <li><strong>List and triage</strong><p>Forge lists open work. Classify every item; close obsolete, completed or superseded items with evidence.</p></li>
+        <li><span class="who">workflow</span><strong>Dispatch ready work</strong><p>One implementer per issue in its own worktree, then a read-only reviewer at the committed head.</p></li>
+        <li><strong>Keep slots full</strong><p>Up to 20 delegates refill as work finishes. Fixed-choice questions go to the owner while other work continues.</p></li>
+        <li><strong>Merge and verify zero</strong><p>The thread merges through babysitter or watches a pending review; the workflow waits for merged, then checks zero.</p></li>
       </ol>
-      <div class="flow-loop" style="--from:2;--to:3"><span>Refresh the issue and PR lists on every wake</span></div>
+      <div class="flow-loop" style="--from:2;--to:3"><span>The workflow refills slots as each issue finishes</span></div>
       <p class="flow-band">Name an organisation and it starts one run per repository with open work.</p>
     </figure>
     <p class="lb-links"><a href="workflows.html#backlog">Read the full workflow</a> · <a href="https://github.com/seankoji-com/.agents/blob/main/skills/backlog-burn/SKILL.md">Read backlog-burn's SKILL.md</a></p>

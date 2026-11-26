@@ -1,5 +1,10 @@
 # Ledger
 
+The `workflows/backlog-burn.ts` workflow keeps this ledger and returns it in the
+run result. The tables below are the report contract: read the result, do not
+retype the workflow's rows. The coordinator still writes the final report from
+them.
+
 Keep one markdown ledger for the run. Prefer an ignored directory in the session
 worktree, for example `out/backlog-burn/ledger.md`; confirm it with
 `git check-ignore`. If the repository has no suitable ignored path, use a

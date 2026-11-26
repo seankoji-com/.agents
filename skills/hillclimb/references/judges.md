@@ -19,16 +19,13 @@
    share blind spots. Offer an eligible diverse lineup when available.
    Explicit approval of the disclosed overlap allows a shared lineage or
    model for scoring, with distinct read-only judge sessions. Record it.
-4. Present exact models, routes, effort, the panel trigger, any preapproved
-   panel-primary upgrade and any recovery alternates. On T3 Workflows the
-   operator preapproves any panel-primary upgrade, and any recovery alternates,
-   at roster confirmation; there is no prompt at panel entry. Get explicit
-   confirmation before scoring or implementation. Reconfirm material roster
-   changes, except a replacement made during the single automatic recovery from
-   an already authorised eligible model that needs no new lineage approval;
-   record and report that change. All confirmed panel seats join together when
-   the primary reaches target and required checks and coverage pass, unless the
-   operator confirms an earlier trigger.
+4. Present exact models, routes, effort, the panel trigger and any preapproved
+   primary upgrade. Get explicit confirmation before scoring or implementation.
+   Reconfirm material roster changes, except a replacement made during the
+   single automatic recovery from an already authorised eligible model that
+   needs no new lineage approval; record and report that change. All confirmed
+   panel seats join together when the primary reaches target and required checks
+   and coverage pass, unless the operator confirms an earlier trigger.
 
 ## Route scoring and delivery review
 
@@ -58,7 +55,7 @@ One score covers correctness, accessibility and design. Each judge first
 rechecks its findings on the previous candidate, marking each fixed or open
 with evidence, then lists up to 10 findings: the issues that most affected its
 score, most important first. It reports only real issues; fewer, or none, is
-valid. The workflow's judge brief carries these rules.
+valid.
 
 After roster confirmation, verify access to the candidate and evidence
 needed by the selected mode. In UI mode, start confirmed panel judges'
@@ -78,17 +75,16 @@ still needs direct interaction and fresh captures in the required states.
 
 ## Offer a primary upgrade at panel entry
 
-On T3 Workflows, the operator preapproves any panel-primary upgrade, and any
-recovery alternates, at roster confirmation; there is no prompt at panel entry.
-Keeping the confirmed primary is the default choice. An upgrade on T3 Workflows
-is a switch to another listed route at high effort (for example Opus high when
-Sol is the primary); an effort upgrade, a named reviewer or a model without a
-route is not available there, so keep the confirmed primary and explain the
-unavailable option. When offering an eligible upgrade at roster confirmation,
-show the actual model, route and effort, relevant headroom and any lineage
-overlap with the panel roster, using only host-verified settings at or below
-xhigh. Record the preapproved upgrade as `panel.panelPrimary` and any recovery
-alternates as `alternates` in the packet.
+Before any panel score, let the operator keep the current primary or approve
+an available model or effort upgrade, such as Opus xhigh or Fable high.
+Show the actual model, route and effort, relevant headroom and any lineage
+overlap with the revised roster. Offer only settings the host can verify,
+at or below xhigh. Keeping the primary is the default choice. The operator
+can preapprove an exact choice during initial roster confirmation. Use the
+preapproved choice while its route, effort and overlap disclosures still
+match. Otherwise present the choice and record the decision at panel entry.
+When no upgrade route is eligible, keep the confirmed primary and explain the
+unavailable option.
 
 Use a fresh task for the approved panel primary. All panel judges score the
 same frozen candidate together before the next edit. Keep the chosen primary
