@@ -270,7 +270,7 @@ function ledgerLine(row, action, state, next) {
 
 export default T3.workflow(
   "backlog-burn",
-  { version: 1, payload: T3.WebhookRequest, triggers: [T3.webhook("start")] },
+  { version: 2, payload: T3.WebhookRequest, triggers: [T3.webhook("start")] },
   (input, { id }) =>
     Effect.gen(function* () {
       const parsed = yield* T3.step.try("packet", { returns: Packet }, Effect.try(() => decodePacket(JSON.parse(input.body))));
@@ -483,7 +483,7 @@ export default T3.workflow(
       const ready = triage.items.filter((x) => x.action === "dispatch");
 
       const runItem = (item) =>
-        T3.within("delegates", { limit: capacity }, () => Effect.gen(function* () {
+        T3.within("delegates", { limit: capacity }, Effect.gen(function* () {
           const row = rowOf(item, inventory);
           if (row === null) {
             pending.push({ kind: item.kind, ref: item.ref, reason: "not found in the inventory", next: "re-inventory" });
