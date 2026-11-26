@@ -63,7 +63,7 @@ visualisation or child thread). Include:
 - Scope, revision, checks run, omitted checks with reasons, flows reviewed and
   coverage gaps, even with no bugs.
 - Your model identity, effort and lineage, expected settings, and verification gaps.
-- With a rubric: score, 3–5 bullet rationale, and component dimension scores
+- With a rubric: score, 3–5 bullet rationale, and any component dimension scores
   and weights.
 - Per finding: stable ID, SEV and rationale, location, expected vs observed
   behaviour, user impact, reproduction or evidence, and parent-accessible
