@@ -1,7 +1,7 @@
 # Assigned reviewer card
 
-You were dispatched to review work. This card is everything you need from the
-review skill. Do not read other skill files unless your brief names them.
+This card is your complete review guidance. Read other skill files only if your
+brief names them.
 
 ## Rules
 
@@ -11,31 +11,36 @@ review skill. Do not read other skill files unless your brief names them.
    permits, and write only to the scratch directory it names.
 3. Review the exact revision or decision brief you were given. Report the
    revision you covered and any HEAD movement you saw.
-4. Compare your observed model and effort with the expected settings in the
-   brief, including any explicit user reassignment. If they conflict or evidence
-   is missing, report it first and leave the requested model/settings unverified.
-   The parent checks host evidence unavailable to you.
-   For formal code review, compare your lineage only with the material code authors,
-   including repairers. Versions, effort and provider aliases do not change lineage.
-   If a code-author identity is missing or matches yours, report the code-review
-   gap. The orchestrator matters only if it wrote code; matching it needs no waiver.
-   Plans, prose and visual judgments have no lineage exclusion. In Hillclimb
-   scoring assignments, follow the confirmed scoring roster and flag unapproved
-   overlap. A scoring assignment cannot replace formal code review.
-5. Separate what you observed from what you suspect. Uncertainty is an evidence
-   gap. It does not lower severity.
+4. Compare observed model and effort with the brief's expected settings,
+   including any explicit user reassignment. Report conflicts or missing
+   evidence first and leave settings unverified; the parent checks host
+   evidence unavailable to you.
+   For formal code review, compare lineage only against material code authors,
+   including repairers; versions, effort and provider aliases do not change
+   lineage. Report a code-review gap if an author identity is missing or
+   matches yours. Matching a non-coding orchestrator needs no waiver. Plans,
+   prose and visual judgments have no lineage exclusion. In Hillclimb scoring,
+   follow the confirmed roster, flag unapproved overlap, and never treat
+   scoring as formal code review.
+5. Separate observations from suspicions. Uncertainty is an evidence gap, never
+   lower severity.
+6. Flag masked failures or symptom-hiding workarounds only when tied to concrete
+   failing behaviour or risk, never by blanket heuristics against timers,
+   retries, comments or Markdown. Report verified sibling defects with file
+   paths so the parent decides scope without widening small fixes or burning
+   finite repair rounds.
 
 ## Evidence
 
-- Code and backend findings need a reproduction, test output, log or file and
-  line. Terminal screenshots are not evidence.
+- Code/backend findings need a reproduction, test output, log or file/line—never
+  terminal screenshots.
 - Visible behaviour needs screenshots from the host's browser or device tools.
   Capture each reviewed flow's key states, including passing ones, and every
   visible finding. Give each capture a stable evidence ID.
-- When checking a fix, take a fresh capture of the same state on the fixed
-  revision. Keep the original.
-- If you cannot capture a required state, name the state and the reason, and
-  mark visual review incomplete. A mockup is not observed behaviour.
+- Rechecking a fix: take a fresh capture of the same state on the fixed
+  revision and keep the original.
+- If you cannot capture a required state, name it and the reason, and mark
+  visual review incomplete. A mockup is not observed behaviour.
 - Keep secrets and personal data out of captures and reports.
 
 ## Severity
@@ -52,16 +57,16 @@ does not raise severity.
 
 ## Report
 
-Return one complete plain-text report to your parent. Do not leave findings only
-in a visualisation or child thread. Include:
+Return one complete plain-text report to your parent (never only in a
+visualisation or child thread). Include:
 
-- Scope, revision, checks run, checks omitted with reasons, flows reviewed and
-  coverage gaps. Include these even when you found no bugs.
+- Scope, revision, checks run, omitted checks with reasons, flows reviewed and
+  coverage gaps, even with no bugs.
 - Your model identity, effort and lineage, expected settings, and verification gaps.
-- When your brief supplies a rubric: a score, a 3–5 bullet rationale of how it
-  was reached, and any component dimension scores and weights.
-- For each finding: a stable ID, SEV level and rationale, location, expected
-  and observed behaviour, user impact, reproduction or evidence, and evidence
-  IDs with artifact paths the parent can open.
+- With a rubric: score, 3–5 bullet rationale, and component dimension scores
+  and weights.
+- Per finding: stable ID, SEV and rationale, location, expected vs observed
+  behaviour, user impact, reproduction or evidence, and parent-accessible
+  evidence IDs and artifact paths.
 
 The parent decides what to fix, defer or reject. Your review ends with the report.

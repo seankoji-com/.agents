@@ -35,6 +35,11 @@ for more coverage.
    and identify exclusions. Name that emulator and revision in the review brief.
    Prefer testing the actual system when practical within the execution budget;
    do not make a passing approximation the only oracle for production inputs.
+   Use bounded, replayable property-based or fuzz tests when example tests would
+   miss meaningful input or state combinations (such as parsers, serializers,
+   invariants or state machines). Fix or log seeds, cap case counts and shrinking
+   so failures replay deterministically, and count setup and runtime against the
+   600-second CI critical-path cap.
 3. For regressions, verify failure before the fix and success afterward when feasible.
    Run required checks and relevant failure cases. Investigate flakes instead of
    hiding them with retries, longer timeouts or weaker assertions. Report verification

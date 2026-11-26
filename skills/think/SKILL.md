@@ -26,6 +26,11 @@ When you believe it is met, summarize the
 goal, scope, choices, constraints, assumptions, observable acceptance criteria,
 verification methods and unresolved gates in a concise brief. Preserve material
 rejected alternatives and their reasons; do not exhaust every possible branch.
+When an ambiguous multi-state transition is material to the brief, include at
+most one optional user-facing Mermaid statechart to settle the states and
+transitions, and reuse or link that same diagram downstream (such as in an
+issue, saved brief or PR) rather than maintaining a duplicate diagram in
+`raise-pr`.
 If the user requests an exhaustive interview, continue to that endpoint instead.
 
 Before concluding the interview or handing off implementation, use
@@ -63,7 +68,7 @@ prepare and file the accepted brief in the owning repository.
 
 Use numbered text questions only when no question tool is available. Wait for the
 user's choice before creating either artifact. Carry the settled decisions,
-assumptions and unresolved gates into the chosen artifact. Confirm a missing issue
+assumptions, any statechart and unresolved gates into the chosen artifact. Confirm a missing issue
 destination only if it cannot be inferred from context. For the Markdown option,
 honour any supplied path. Otherwise use the host-approved artifact location,
 verifying an ignored directory inside the session worktree when required.

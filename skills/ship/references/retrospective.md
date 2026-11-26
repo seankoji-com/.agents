@@ -13,8 +13,9 @@ For backlog-burn, an awaiting-owner pause leaves this stage pending. If filings
 add issues to its target backlog, it resumes delivery and extends the same
 retrospective's cutoff, manifest and coverage within the remaining inspection
 budget. Include new delivery activity, without retrospecting the proposal filing
-itself or resetting budgets. Missing authority to file warranted proposals leaves
-drafts and an incomplete stage with an owner question, not completed tracking.
+itself or resetting budgets. Missing authority to file warranted skill-amendment
+proposals leaves drafts and an incomplete stage with an owner question, not
+completed tracking.
 
 ## Establish coverage
 
@@ -64,11 +65,24 @@ workflow defect from a repository-specific bug, a transient provider outage or
 an unsupported hypothesis. A proposal needs an observed execution example and
 a reason the change would help other tasks or repositories.
 
+For a repeated, evidenced defect or friction, check preventive layers from the
+target repository up before adding skill prose:
+
+- Ask first whether a target-repo API or boundary, test or existing lint rule
+  can prevent repeats. Keep target-repo guardrail suggestions optional and
+  non-blocking in the handoff under existing posting authority: do not file
+  target-repo guardrail issues unasked, reopen a finished `backlog-burn` run,
+  or leave a `ship` handback or retrospective incomplete waiting on posting
+  approval.
+- When proposing a `.agents` skill amendment, check whether existing prose can
+  be tightened or retired instead of layering on another rule.
+
 For each supported proposal, prepare:
 
 - The affected skill and source revision, current rule and observed problem.
 - Minimal redacted evidence with stable run/item or evidence references.
-- A broadly applicable rule amendment, its scope and exceptions.
+- A broadly applicable rule amendment (noting any prose it tightens or retires),
+  its scope and exceptions.
 - Expected benefit, tradeoffs and a discriminating validation case.
 
 Preserve cross-lineage review, permissions, budgets, human approvals and evidence
@@ -105,7 +119,7 @@ it does not hold an otherwise-ready merge.
 ## File and close the run
 
 Use [raise-issue](../../raise-issue/SKILL.md) to check for existing reports and
-file or update proposals in the operator's configured skill repository, rather
+file or update skill-amendment proposals in the operator's configured skill repository, rather
 than assuming the delivered product's repository. For this owner that is
 `seankoji-com/.agents`. The destination must already be named or configured in
 the operator's instructions. Account/repository evidence can verify ownership

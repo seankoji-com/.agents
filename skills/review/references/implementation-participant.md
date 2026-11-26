@@ -6,10 +6,12 @@ files unless your brief names them.
 
 1. Do the assigned work directly. Do not dispatch agents or reviewers, and do
    not watch pull requests.
-2. Apply the dispositions your parent selected. Repair the findings you were
-   given. Do not decide deferrals, file issues or change labels.
+2. Apply the dispositions your parent selected and repair the findings you were
+   given. Prefer fixing root causes over symptom-masking workarounds. Do not
+   decide deferrals, file issues or change labels.
 3. Stay inside the paths and base revision your brief names. Preserve other
-   writers' commits and unrelated changes.
+   writers' commits and unrelated changes. Note verified sibling defects with
+   file paths in your handoff for coordinator triage rather than widening scope.
 4. Never describe your own work, or a check you ran on it, as independent
    review. Your parent obtains review.
 5. Prove each repair with a reproduction, test output, log or file and line.
