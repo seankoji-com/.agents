@@ -270,7 +270,7 @@ function ledgerLine(row, action, state, next) {
 
 export default T3.workflow(
   "backlog-burn",
-  { version: 2, payload: T3.WebhookRequest, triggers: [T3.webhook("start")] },
+  { version: 3, payload: T3.WebhookRequest, triggers: [T3.webhook("start")] },
   (input, { id }) =>
     Effect.gen(function* () {
       const parsed = yield* T3.step.try("packet", { returns: Packet }, Effect.try(() => decodePacket(JSON.parse(input.body))));
