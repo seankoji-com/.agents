@@ -1,4 +1,4 @@
-// @tested-t3 0.1.12-nightly.20261123.5124
+// @tested-t3 0.1.13-nightly.20261125.5258
 // @start manual
 //
 // Durable bookkeeping for skills/vote/SKILL.md: seat routes, the shared seat
@@ -444,7 +444,7 @@ function resultText(p, r) {
 
 export default T3.workflow(
   "vote",
-  { version: 9, payload: T3.WebhookRequest, triggers: [T3.webhook("ballot")] },
+  { version: 10, payload: T3.WebhookRequest, triggers: [T3.webhook("ballot")] },
   (input, { id }) =>
     Effect.gen(function* () {
       const parsed = yield* T3.step.try("packet", { returns: Packet }, Effect.try(() => decodePacket(JSON.parse(input.body))));
