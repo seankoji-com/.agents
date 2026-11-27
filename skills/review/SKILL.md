@@ -9,9 +9,9 @@ Check the requested work against its requirements. Return findings with evidence
 and severity. Read [project settings](../ship/references/project-settings.md)
 before choosing reviewers.
 
-Code reviewers must come from a different model family than each material
-code author. Count the orchestrator only if it wrote code. Reviewers of plans,
-prose and visual behaviour have no family restriction. The caller owns repairs,
+Code and readiness reviewers must differ in model family from each material
+author of the code or brief. Other plan, prose and visual reviews follow the
+caller's eligibility rules. The caller owns repairs,
 filing and release authority.
 
 ## Obtain an independent review
@@ -20,26 +20,25 @@ The coordinator obtains review; assigned reviewers never delegate.
 Apply [T3 dispatch preflight](../agent-tuneup/references/t3-dispatch.md) before T3 dispatch.
 
 1. **Set the review scope.** Record the exact revision or decision brief,
-   acceptance criteria and every model that materially wrote the code or repairs.
+   acceptance criteria and material authors, including repairers.
    Distinguish human authors from unknown model identities.
 2. **Choose the reviewers.**
 
-   - Identify available host tasks and exact models. Record the lineage of each
-     code reviewer, including OCR backends. Lineage means model family. Model
-     versions, effort and provider aliases do not change it.
+   - Identify available host tasks and exact models. Record each code and
+     readiness reviewer's lineage. Lineage follows model family across
+     versions, effort settings and provider aliases.
    - Apply [model selection](references/model-selection.md) to each review,
      recheck and additional opinion, including inside implement. Honour named
      choices and the applicable credit, lineage and permission rules.
    - The primary covers the whole change, including visuals. Before starting a
      review or recheck, read the [companion rules](references/parallel-review.md)
      and run the companions they require on the same frozen revision.
-     Run OCR only where the repository has no PR path or the user asks for it.
      Other judges may share a lineage and cannot replace the primary.
-3. **Reuse or dispatch.** Reuse completed reviews only if they cover the current
-   head or brief and qualify against every current code author, including
-   repairers. If the primary qualifies, obtain any missing companion reports
-   before relying on it. If no primary qualifies, dispatch a fresh read-only
-   review within the caller's limits.
+3. **Reuse or dispatch.** Reuse completed reviews from assigned direct
+   reviewers when they cover the current head or brief and satisfy its
+   eligibility rules. If the primary qualifies, obtain any missing companion
+   reports before relying on it. If no primary qualifies, dispatch a fresh
+   read-only review within the caller's limits.
 
    - Supply the request, scope, revision, evidence, criteria and model
      identities. Follow the [reviewer brief](references/reviewer-brief.md) for
@@ -47,8 +46,7 @@ Apply [T3 dispatch preflight](../agent-tuneup/references/t3-dispatch.md) before 
      reading the [assigned-reviewer card](references/assigned-reviewer.md) at its absolute path before the review starts.
    - In T3 Code, discover models with `orchestrator_capabilities` and use a new
      `delegate_task` for each review or recheck you dispatch. Record its
-     `taskId` and follow `next`. Use native orchestration elsewhere. When this
-     review requires OCR, apply the [OCR skill](../ocr/SKILL.md).
+     `taskId` and follow `next`. Use native orchestration elsewhere.
    - Apply these identity, scope and reporting rules to external reviews.
      Report any qualifying evidence still missing.
 4. **Stop when review is complete or the caller's limit is reached.**
@@ -56,9 +54,8 @@ Apply [T3 dispatch preflight](../agent-tuneup/references/t3-dispatch.md) before 
    - Read the [single-round procedure](references/single-round.md) before
      repairing under an adopted `review_rounds: 1`. Otherwise follow the caller's
      stop rule. Standalone review allows three rounds, including failures.
-     `review-loop` and `hillclimb` use score targets and stop after two rounds
-     without improvement. Hillclimb's own skill governs its scoring roster.
-     A failed `review-loop` or `hillclimb` run applies the shared recovery.
+     `review-loop` owns iteration, attempt limits and scored-run recovery.
+     Hillclimb supplies its scoring roster.
    - Recheck material changes or unresolved findings. Use the
      [budget diagnosis](references/budget-exhaustion.md) when review stalls or
      runs out of attempts. Preserve budgets across reviewers. Do not seek unanimity.

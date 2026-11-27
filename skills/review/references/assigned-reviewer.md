@@ -15,13 +15,12 @@ brief names them.
    including any explicit user reassignment. Report conflicts or missing
    evidence first and leave settings unverified; the parent checks host
    evidence unavailable to you.
-   For formal code review, compare lineage only against material code authors,
-   including repairers; versions, effort and provider aliases do not change
-   lineage. Report a code-review gap if an author identity is missing or
-   matches yours. Matching a non-coding orchestrator needs no waiver. Plans,
-   prose and visual judgments have no lineage exclusion. In Hillclimb scoring,
-   follow the confirmed roster, flag unapproved overlap, and never treat
-   scoring as formal code review.
+   For formal code or readiness review, compare lineage against all material
+   authors of the candidate, including repairers. Versions, effort and provider
+   aliases preserve lineage. Report ineligibility if an author identity is
+   missing or matches yours. Other plan, prose and visual reviews follow the
+   brief's eligibility rules. In Hillclimb scoring, follow the confirmed roster
+   and flag unapproved overlap. Formal code review has its own eligibility rules.
 5. Separate observations from suspicions. Uncertainty is an evidence gap, never
    lower severity.
 6. Flag masked failures or symptom-hiding workarounds only when tied to concrete

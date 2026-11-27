@@ -100,7 +100,7 @@ workers. Every reviewer, recheck and additional opinion uses
    selection context in every review brief. Reviewers work read-only against the
    lead's frozen current state; they do not need a separate coding worktree.
    Include all integrated changes and acceptance criteria. Preserve findings,
-   dispositions, scores, best candidate and stagnation counter across repairs and resumes.
+   dispositions, scores, best candidate and review counts across repairs and resumes.
 
 ## Pause and resume
 
@@ -152,7 +152,7 @@ Return a compact plain-text handoff containing:
 - Repository, worktree, branch, exact base and reviewed HEAD, and commit IDs.
 - Implemented scope, checks and evidence, findings and dispositions, remaining
   limitations and the next integration action.
-- Models/lineages, selection reasons, upgrade use, scores, stagnation counter,
+- Models/lineages, selection reasons, upgrade use, scores, review counts,
   score-ledger path (for main-thread chart rendering), explicit limits and
   exposed usage/cost.
 - Code-author eligibility and scope for reuse, and any integration/base changes

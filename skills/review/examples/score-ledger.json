@@ -113,7 +113,7 @@
       "phase": "primary",
       "expected_reviewers": ["opus"],
       "status": "unscored",
-      "failure_note": "Candidate c2 failed to build after one in-round repair (CSS token syntax error). No score assigned; stagnation counter incremented to 1.",
+      "failure_note": "Candidate c2 could not be scored because of a CSS token syntax error. The below-high count stayed unchanged.",
       "scores": []
     },
     {

@@ -55,8 +55,8 @@ which runs agents from several providers, such as Codex, Claude and OpenCode, in
 one app. They use what T3 provides:
 
 - **Separate reviewers.** `review`, `think`, `challenge`, `review-loop` and
-  `hillclimb` use separate reviewers or judges. Written-code reviewers differ in family
-  from the code authors. A model checking its own code tends to share the blind spots that produced it
+  `hillclimb` use separate reviewers or judges. Code and readiness reviewers
+  differ in family from the authors. A model checking its own code tends to share the blind spots that produced it
   ([research](#why-a-different-model-family-reviews-the-work)). T3 can start that
   reviewer on another provider from inside the same conversation.
 - **Three-model votes on T3 Workflows.** `vote` posts a packet to the
@@ -65,10 +65,11 @@ one app. They use what T3 provides:
   the panel. Its code keeps the seat deadline, checks each ballot and each
   seat's recorded model, and tallies the 2/3 choice or the split. Without T3
   Workflows, `vote` reports what is missing and stops.
-- **Scored loops in normal threads.** `review-loop` and `hillclimb` run their
-  rounds in T3: each evaluator is a separate thread, repairs stay in the parent,
-  and the skill keeps the counters, the target gate, the two-round stop and the
-  single recovery in its own run record. The score chart renders inline.
+- **Scored loops in normal threads.** `review-loop` runs the rounds for
+  implementation and Hillclimb. Evaluators use separate threads and repairs
+  stay in the parent. Standard review gets two rounds by default. Hillclimb
+  continues until it passes or scores below its high twice in a row.
+  Both save a cumulative JSON ledger and an HTML score graph.
 - **Backlog burn on T3 Workflows.** `backlog-burn` posts a packet to the
   `workflows/backlog-burn.ts` T3 workflow. Its code keeps the item ledger, the
   20 delegate slots, the implement and review dispatch, the forge reads, the PR
@@ -88,7 +89,7 @@ one app. They use what T3 provides:
 - **Progress and previews you can see.** `ship`, `implement` and `review-loop` show
   their phases in T3's Tasks row when the host exposes a todo tool; the list is
   best-effort and can vanish when the turn settles. `plan-report` shows estimates
-  and progress on a timeline, `review-loop` and `hillclimb` render an inline HTML
+  and progress on a timeline. Scored `review-loop` runs render an inline HTML
   score line graph of reviewer scores, targets, failure/recovery annotations and
   3–5 bullet + dimension rationales on hover, and `choose-design` shows mockups
   side by side in T3's preview frames.
@@ -134,35 +135,22 @@ The [review](skills/review/SKILL.md) skill applies this in a few rules:
 
 - Reviewers come from the provider with the best quota pace score once lineage is
   satisfied, then use the model that matches the review's difficulty at high
-  effort. Sol, Opus, Sonnet via AGY, Grok 4.7, Neon and Hydrogen are all ordinary
-  candidates, so a score alone can make any of them primary and review may land on
-  a weaker family than a fixed chain would pick. With no score available the order
-  is Sol, Opus, Sonnet via AGY, Grok 4.7, Neon, Hydrogen, all at high effort.
-  Formal review keeps DeepSeek Flash V4.1 out of direct reviewer dispatch. OCR
-  follows the [OCR skill](skills/ocr/SKILL.md): a public repository draws free
-  OpenCode reviewers, and the paid CLI uses DeepSeek Flash V4.1 unless DeepSeek
-  wrote the code, in which case it uses Qwen 3.8 Flash and the control that
-  sends high reasoning effort. `--effort high` is OCR review depth and is
-  recorded separately. `vote` is separate: its ballot seats follow the fixed
-  roster in `workflows/vote.ts`, and one unavailable seat may be filled by
-  DeepSeek Flash. A vote is not formal review. Other models require
-  your explicit selection. The [selection rules](skills/review/references/model-selection.md)
-  apply inside `implement` too. If no eligible authorised route remains, review
-  stays pending.
-- Cross-lineage restrictions apply only to written code, measured against models
-  that materially wrote that code. The orchestrator is irrelevant unless it also
-  wrote code. Sol can review Opus/Fable-authored code while Sol orchestrates,
-  without a waiver. Plans, prose and visual judgments have no lineage exclusion.
+  effort. With no score available, the order is Sol, Opus, Sonnet via AGY,
+  Grok 4.7, Neon, Hydrogen and DeepSeek Flash V4.1, all at high effort.
+  DeepSeek Flash V4.1 is eligible for direct review through the host. Other
+  models require your explicit selection. The
+  [selection rules](skills/review/references/model-selection.md) also apply
+  inside `implement`. If no eligible authorised route remains, review stays
+  pending. The `vote` workflow uses its own fixed roster and can fill one
+  unavailable seat with DeepSeek Flash.
+- Code and readiness reviewers must differ from the models that materially
+  wrote the code or brief. Sol can review Opus/Fable-authored code while Sol
+  orchestrates. Other plans, prose and visual judgments follow the caller's
+  eligibility rules.
   Versions, effort settings and provider aliases do not change a model's lineage.
-- Run the primary and required companions in parallel. The primary reviews the
-  whole scope, UI/visual behavior included. `opencodereview`, invoking the OCR
-  library, is the non-UI/visual companion only where the repository has no PR
-  path: its delivery policy requires direct publication, or the host reports
-  pull requests unavailable. A repository that accepts PRs uses the primary alone,
-  and OCR runs only when you ask for it. Hydrogen high adds a second visual review
-  for UI/visual changes; mixed scope uses Hydrogen, plus OCR in a PR-less
-  repository. The [parallel-review guide](skills/review/references/parallel-review.md)
-  defines invocation, coverage and reporting. Companions do not replace the primary.
+- The primary reviews the whole scope. For UI changes, including mixed
+  changes, Hydrogen high runs a [second visual review](skills/review/references/parallel-review.md)
+  in parallel. OpenCodeReview is a separate report you can request explicitly.
 - Findings need evidence, such as a reproduction, test output, screenshot or
   file and line. A verdict without supporting reasoning does not count. Kim et al.
   also found that strong models from different providers still share many errors,
@@ -172,7 +160,7 @@ The [review](skills/review/SKILL.md) skill applies this in a few rules:
   distinct material findings, `review-loop` reconsiders it before the next repair.
 - Extra plan and visual judges may share a lineage without an effort exception.
   Their judgments do not replace independent review of authored code.
-- If no eligible second family is reachable for code review, the agent reports it as unavailable.
+- If no eligible second family is reachable for code or readiness review, the agent reports it as unavailable.
   It does not review its own work and call that independent.
 
 These studies measure LLM judges and reasoning benchmarks, not code review with
@@ -190,7 +178,7 @@ agent will follow.
 
 Settle what to build and how people will use it before implementation.
 
-- [think](skills/think/SKILL.md): Turn an idea into a buildable brief through focused questions and a check for unresolved decisions.
+- [think](skills/think/SKILL.md): Turn an idea into a buildable brief through focused questions, then use review-loop to check readiness.
 - [vote](skills/vote/SKILL.md): Settle a framed binary, multi-option or open decision with three voters from different model families. A 2/3 majority decides; a split comes back to you. A panel model's existing recommendation can fill its seat.
 - [challenge](skills/challenge/SKILL.md): Get an independent critique of a proposal, a simpler alternative, and evidence that would help you choose. No implementation.
 - [choose-design](skills/choose-design/SKILL.md): Compare visual options for a new interface or a material interaction change, then choose before building.
@@ -205,8 +193,8 @@ Build, check, and deliver changes with evidence of what works and what remains.
 - [plan-report](skills/plan-report/SKILL.md): Show proposed plans, progress and final calibration on a timeline from a private ledger.
 - [review](skills/review/SKILL.md): Evaluate a plan, change, or release against its requirements. Code reviewers differ in family from code authors. Return evidence-backed findings without edits.
 - [ocr](skills/ocr/SKILL.md): Run OpenCodeReview on a frozen diff. A public repository draws up to three free OpenCode reviewers and returns one grouped report. A private one runs the `ocr` CLI through one watcher.
-- [review-loop](skills/review-loop/SKILL.md): Hill-climb through repairs and review until the score target and required gates pass or two consecutive rounds fail to improve the best score. A failed run gets one reflect-fix-re-invoke before it reports. The skill keeps the rounds, the stop rule and the recovery in its run record.
-- [hillclimb](skills/hillclimb/SKILL.md): Improve a workflow, artifact or product toward a fixed score target. Confirm the judging roster, follow the rounds in one report and use the real interface for UI judging. A failed run gets one reflect-fix-re-invoke before it reports.
+- [review-loop](skills/review-loop/SKILL.md): Run up to two scored reviews by default, keeping an HTML score graph. On failure, the caller diagnoses the cause, adjusts and invokes up to two more rounds. A second failure goes to the operator for a decision.
+- [hillclimb](skills/hillclimb/SKILL.md): Run review-loop without a default round cap. When the primary scores at least 90% of target, the second reviewer joins on the same candidate. Two consecutive scores below the phase high trigger recovery.
 - [test-writer](skills/test-writer/SKILL.md): Choose tests that catch consequential failures, with attention to reliability, maintenance, and CI time.
 - [raise-pr](skills/raise-pr/SKILL.md): Prepare PR descriptions and evidence that meet the repository's requirements. Creating or updating the PR needs authority from your request.
 - [babysitter](skills/babysitter/SKILL.md): Repair an existing PR, handle checks and review gates, and verify its merge when permitted. Explicit limits such as no-merge still apply.
@@ -264,9 +252,7 @@ The project's [Delegation settings](skills/ship/references/project-settings.md)
 can name routes, capacity ceilings, cadence and screenshot commit permission.
 Ready independent work refills available capacity within authority. Routing
 changes preserve checkpoints and checkout ownership; they add a new model segment.
-Formal review keeps DeepSeek out of direct reviewer dispatch. OCR follows the
-[OCR skill](skills/ocr/SKILL.md). Opting into
-`review_rounds: 1` keeps primary and companion coverage and permits coordinator
+Opting into `review_rounds: 1` keeps primary and companion coverage and permits coordinator
 verification of that round's repairs, disclosed as not independently re-reviewed.
 The original score stays reported; coordinator verification replaces that score
 gate for eligible repairs.
@@ -332,29 +318,23 @@ a job, especially one that can publish or merge changes.
   shared only with you; it does not permit public access or another destination.
   These sends are subject to your sharing limits. Redact secrets and unrelated
   private data; broader raw-file sharing needs separate authority.
-  Where OCR's lane applies, it sends the selected
-  diff and context to its configured provider; use existing authority for that scope
-  and exclude secrets and unrelated files. Covered authorization needs no repeated question.
-- **Review.** Written-code review uses a different model family from the code
-  authors. The orchestrator's family is irrelevant unless it wrote code.
-  Plans, prose and visual judgments have no lineage exclusion. The primary reviews
-  the whole scope, UI included; OCR in a PR-less repository, or Hydrogen high,
-  runs alongside it according to the scope.
+- **Review.** Code and readiness reviewers use a different model family from
+  the code or brief authors. The primary reviews the whole scope. Hydrogen
+  high adds a visual review when the change affects the UI.
 - **Hillclimb scoring.** Confirm the models, effort and any shared lineage before
-  a run. Choose whether to upgrade the primary before the full panel scores its
-  first candidate. Direct DeepSeek Flash high is available for Hillclimb scoring
-  and the `choose-design` scoring fallback when the route and settings can be
-  verified.
+  a run. The panel scores the same frozen candidate once the primary reaches
+  90% of target. Every confirmed judge must meet the full target, and the
+  required checks and coverage must pass.
 - **Evidence.** The agent reports checks against the revision it actually tested.
   Missing access, unavailable reviewers, and unverified behavior remain visible gaps.
-- **Stopped scoring loops.** A failed `review-loop` or `hillclimb` run gets one
-  automatic recovery: the agent records the attempt, diagnoses what stalled,
-  fixes the cause and re-invokes once from the latest candidate. A deadline or
+- **Stopped scoring loops.** The caller diagnoses a scored failure, adjusts
+  the approach and re-invokes once from the latest candidate. A deadline or
   spending cap already reached stops the recovery. A repair-round cap already
   reached still allows a setup-only fix, and blocks one that changes the
   candidate. A revised rubric, target or roster
   is recorded and flagged against the original target. If the retry also fails,
-  the agent reports both attempts and the best candidate rather than continuing.
+  the caller reports both attempts and the best candidate, then asks the operator
+  what to do.
 - **Follow-through.** Confirmed bugs deliberately left unfixed need tracking.
   The workflow records what remains rather than treating a passing check as the end.
 
@@ -635,13 +615,13 @@ for a human introduction, or open a skill here to read its exact instructions.
 | [hillclimb](skills/hillclimb/SKILL.md) | Improve a workflow, artifact or product toward an agreed score over several judged rounds. Use when asked to hillclimb or to keep improving something until it reaches a target score. |
 | [implement](skills/implement/SKILL.md) | Implement through T3 delegation when the user requests it or invokes implement. Return reviewed commits to the main thread for integration and delivery. |
 | [new-skill](skills/new-skill/SKILL.md) | Add a skill to this library with a description agents can match, steps a small model can follow, trigger evals and full registration. |
-| [ocr](skills/ocr/SKILL.md) | Run OpenCodeReview on a frozen diff and return one grouped report. Use when asked for OCR or OpenCodeReview, or when review calls for it on a repository without a PR path. |
+| [ocr](skills/ocr/SKILL.md) | Run OpenCodeReview on a frozen diff and return one grouped report. Use when the user asks for OCR or OpenCodeReview. |
 | [plan-report](skills/plan-report/SKILL.md) | Show a plan, progress or final calibration on an HTML timeline from a private ledger. Use for coordinated work, timeline requests or reporting in ship, backlog-burn and implement. |
 | [raise-issue](skills/raise-issue/SKILL.md) | Investigate, draft, file or follow up on a bug, feature or task issue when the user or an authorised workflow asks. Use an asynchronous T3 delegate. |
 | [raise-pr](skills/raise-pr/SKILL.md) | Prepare, create or update a pull request with the repository's required evidence and checks. Use when preparing, opening or updating a PR during implementation, review-loop, ship or PR maintenance. |
 | [reremember](skills/reremember/SKILL.md) | Use when a remembered claim is contradicted by the code, when asked to correct or consolidate what the project remembers, or when a session settles a decision later work depends on. |
 | [review](skills/review/SKILL.md) | Review plans, code, UI, backend or releases independently. Use when asked for a review, or for review-loop rounds and think's readiness check. Pressure-testing an idea belongs to challenge. |
-| [review-loop](skills/review-loop/SKILL.md) | Implement, review and repair in rounds when asked to iterate with independent review or when the user invokes review-loop. Work toward the agreed score and acceptance criteria. |
+| [review-loop](skills/review-loop/SKILL.md) | Run independent review and repair rounds. Use when asked to iterate on an implementation, or when think or hillclimb needs review rounds. |
 | [settle](skills/settle/SKILL.md) | Close out a finished top-level thread and settle it in T3. Use at a completed handback or for /settle. |
 | [ship](skills/ship/SKILL.md) | Deliver and verify a change when the user explicitly asks to ship or backlog-burn calls for delivery. Show progress and finish with a retrospective. |
 | [test-writer](skills/test-writer/SKILL.md) | Write or review tests, choose regression coverage, or assess test value, reliability and CI runtime. Use when adding tests or judging a suite. |
@@ -723,7 +703,7 @@ installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 3cd93b039da2db62f2e5627cbe25dc5286be73b5ffde6852c81f8253041618db -->
+<!-- skills-review: ef0f00081f0513395ae7b2faeaecb4af8bb34202564b8d8a9bcabf3545a2c55d -->
 
 ### Owner maintenance
 

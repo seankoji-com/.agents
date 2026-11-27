@@ -68,7 +68,7 @@ merely as checklist items.
 | --- | --- |
 | `ship` | Initialise before implementation when the host exposes a tool; its phase set stays in the skill. |
 | `implement` | The main thread tracks the dispatched lead and its phases. The lead's own list stays separate. |
-| `review-loop` | Items for the baseline, each review round, repair and final verification. Scores and stagnation counters stay in the recorded state. |
+| `review-loop` | Items for the baseline, each review round, repair and final verification. Scores and round counts stay in the run record. |
 
 The other multi-step skills do not point here:
 

@@ -6,7 +6,7 @@
    implementers as well. Default the primary judge to Sol, or Opus if the
    current thread is Sol. Propose a secondary from Sol, Opus or DeepSeek Flash.
    Prefer models unused by implementers or other judges. Include additional
-   scoring seats or a primary-only run when the operator chooses them.
+   scoring seats when the operator chooses them.
 2. Use high effort for each role at setup. Discover exact routes and validate
    effort settings through the host. If the current thread cannot implement at
    verified high effort, propose an eligible implementer.
@@ -19,26 +19,22 @@
    share blind spots. Offer an eligible diverse lineup when available.
    Explicit approval of the disclosed overlap allows a shared lineage or
    model for scoring, with distinct read-only judge sessions. Record it.
-4. Present exact models, routes, effort, the panel trigger and any preapproved
-   primary upgrade. Get explicit confirmation before scoring or implementation.
+4. Present exact models, routes, effort and any proposed primary upgrade.
+   Get explicit confirmation before scoring or implementation.
    Reconfirm material roster changes, except a replacement made during the
    single automatic recovery from an already authorised eligible model that
-   needs no new lineage approval; record and report that change. All confirmed
-   panel seats join together when the primary reaches target and required checks
-   and coverage pass, unless the operator confirms an earlier trigger.
+   needs no new lineage approval. Record and report that change. When the
+   primary first scores at least 90% of target, start every confirmed panel
+   seat on that candidate. Use the [phase rules](rounds.md#state-transitions)
+   when starting the panel and applying the acceptance gate.
 
 ## Route scoring and delivery review
 
-Direct DeepSeek Flash at verified high effort is allowed for
-`hillclimb` scoring and the `choose-design` scoring fallback under their
-confirmed rosters. Verify the host's exact
-model and high-effort option before dispatch and the execution metadata
-before accepting its score. Apply the same identity and settings checks to
-all judges. For a T3 OpenCode route, apply T3 preflight's permission rule.
-If a route cannot establish the required setting or access, report the
-blocker. Outside this scoring role, apply the existing
-[reviewer selection](../../review/references/model-selection.md) and
-[formal review companions](../../review/references/parallel-review.md).
+Use the [reviewer selection rules](../../review/references/model-selection.md)
+to verify every direct judge's route and effort, including DeepSeek Flash.
+Check execution metadata before accepting each score. Report a route blocker
+when the required setting or access cannot be verified. For delivery, apply
+the [formal review companion rules](../../review/references/parallel-review.md).
 Hydrogen high is used only if required by separate formal delivery review.
 Formal code review retains its code-author lineage constraints when the
 operator approves an overlap for scoring.
@@ -73,18 +69,14 @@ reuse successful pilots that still cover the same judge and conditions.
 Run only a missing or invalidated capability probe. Each scored UI candidate
 still needs direct interaction and fresh captures in the required states.
 
-## Offer a primary upgrade at panel entry
+## Confirm any primary upgrade before scoring
 
-Before any panel score, let the operator keep the current primary or approve
-an available model or effort upgrade, such as Opus xhigh or Fable high.
-Show the actual model, route and effort, relevant headroom and any lineage
-overlap with the revised roster. Offer only settings the host can verify,
-at or below xhigh. Keeping the primary is the default choice. The operator
-can preapprove an exact choice during initial roster confirmation. Use the
-preapproved choice while its route, effort and overlap disclosures still
-match. Otherwise present the choice and record the decision at panel entry.
-When no upgrade route is eligible, keep the confirmed primary and explain the
-unavailable option.
+At roster confirmation, offer an eligible model or effort upgrade for panel
+entry when useful, such as Opus xhigh or Fable high. Show the exact model,
+route, effort, headroom and any lineage overlap. Offer settings the host can
+verify, at or below xhigh. Use an approved upgrade when its route, effort and
+lineage conditions still match. Otherwise start the panel with the existing
+confirmed primary and record why.
 
 Use a fresh task for the approved panel primary. All panel judges score the
 same frozen candidate together before the next edit. Keep the chosen primary

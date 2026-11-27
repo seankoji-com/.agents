@@ -18,7 +18,7 @@ upgrade or returning moved-base conflicts to the owning lead.
 3. Verify exact outgoing model/effort and the preserved state before resuming.
    Record a new model/effort segment in plan-report. Owner-directed reassignment
    does not consume the one automatic upgrade and resets no review budget,
-   score, finding or stagnation counter. Re-evaluate code-review lineage against
+   score, finding or review count. Re-evaluate code-review lineage against
    every actual author, including repairs.
 
 ## One automatic upgrade

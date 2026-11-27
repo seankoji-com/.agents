@@ -1,14 +1,13 @@
 ---
 name: ocr
-description: "Run OpenCodeReview on a frozen diff and return one grouped report. Use when asked for OCR or OpenCodeReview, or when review calls for it on a repository without a PR path."
+description: "Run OpenCodeReview on a frozen diff and return one grouped report. Use when the user asks for OCR or OpenCodeReview."
 ---
 
 # Run OpenCodeReview
 
-Use this when the user, or another skill, asks to run OpenCodeReview (OCR) on
-a diff. Review calls this skill when its companion lane applies, and anyone
-may invoke it directly. This skill does not decide that a review must include
-OCR. It chooses the backend, runs the review, and returns the findings.
+Run OpenCodeReview (OCR) on a frozen diff when the user requests it. Choose the
+backend and return grouped findings separately from formal reviewer coverage.
+For routing and failure examples, read [standalone OCR walkthroughs](references/validation-scenarios.md).
 
 The caller supplies the repository, the frozen revision, the code-author
 lineage of every model that materially wrote the scope, and whether the

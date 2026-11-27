@@ -19,37 +19,38 @@ repair rule below when the repair base needs to retain required fixes.
 
 ## State transitions
 
-The confirmed primary scores alone until the panel trigger. At that trigger
-freeze the candidate, settle the panel primary, and have all confirmed scorers
-evaluate that candidate. Include the primary in every panel evaluation. An
-earlier confirmed trigger can start the panel on the original baseline.
+The confirmed primary scores alone until its first valid complete score reaches
+90% of the target. Compare `score × 10 >= target × 9` using the reported score
+at the rubric's precision. Keep the threshold exact. At the trigger, freeze
+that candidate and have the confirmed primary and secondary score it together,
+along with any additional confirmed panel judges. Start the panel before
+editing again, including when the initial baseline qualifies.
 
 | Event | Metric and state change |
 | --- | --- |
 | Baseline primary evaluation completes | Seed primary best from primary score; counter = 0 |
 | Primary repair round completes | Compare primary score with primary best |
-| Primary target, checks and coverage pass, or earlier confirmed panel trigger fires | Enter panel when confirmed. Accept a primary-only run once its score, checks and coverage pass |
+| A complete primary score reaches 90% of target | Start the confirmed panel on this candidate |
 | First complete panel evaluation | Seed panel best from minimum of all judge scores; counter = 0 |
 | Panel repair round completes | Compare minimum of all current judge scores with panel best |
 | Current phase metric strictly exceeds best | Replace best candidate and score; counter = 0 |
-| Current phase metric equals or falls below best | Retain best; increment counter |
-| Counter reaches 2 | Stop GOAL NOT MET |
+| Current phase metric equals best | Keep the earlier best candidate and clear the below-high count |
+| Current phase metric falls strictly below best | Keep the earlier best candidate and increment the below-high count |
+| Below-high count reaches 2 | Return a scored failure for the caller's one recovery |
 | Every confirmed panel judge passes on this candidate, required checks pass and coverage is complete | Accept this candidate and stop successfully |
 
 Validate the evaluation's identity and completeness. Record a phase seed when
 applicable. Test final acceptance or panel entry before comparing progress and
-testing stagnation. A gate-passing candidate advances even if its score ties
+testing the below-high count. A gate-passing candidate advances even if its score ties
 or falls below the historical best. On advancement or acceptance, leave the old counter unchanged
 and record the qualifying candidate separately from the historical best. A new
 panel seed sets its own counter to zero as above. If no stage gate passes, use the
 normal progress/counter rules, including rounds that fix checks without raising scores.
 
-Baseline and initial panel evaluation seed the phase without consuming a repair round.
-If the baseline already meets the primary gate, enter panel without needless edits.
-Check and coverage failures block the default trigger and final success even
-when scores reach target. An earlier confirmed trigger can start judging before
-the checks pass. Save the exact panel-entry candidate for fallback, since it
-can differ from the primary phase's historical best.
+Baseline and initial panel evaluation seed the phase without consuming a
+repair round. Required checks and coverage still gate final acceptance.
+A valid primary score can trigger panel entry while those gates are open.
+Save the exact panel-entry candidate for fallback.
 
 Every panel repair round needs fresh scores from the full confirmed panel. Use
 the rubric's fixed precision for all comparisons. Preserve explicit user
@@ -77,35 +78,31 @@ on completion, tell the operator the deadline and how to resume if it passes.
 On a continuation at or after the deadline, cancel any outstanding attempt
 through the host and handle it as a timeout.
 
-If the candidate cannot build or run, allow one in-round repair attempt, then
-count the round as non-improving if evaluation remains blocked by that candidate.
-Record its score as unavailable and the failure as the reason for incrementing;
-do not assign a fictional zero. A required-check failure on an otherwise viewable
+If the candidate cannot build or run, allow one in-round repair attempt.
+If evaluation remains blocked, record the unavailable score and report the
+blocker. Leave the below-high count unchanged. A required-check failure on an otherwise viewable
 candidate retains its observed scores, but prevents acceptance.
 
 A judge timeout, missing score, infrastructure outage or changed build makes the
 evaluation incomplete. It does not advance the score counter. Allow at most one
 retry of the failed operation after diagnosing the cause, within explicit user limits.
-If it is still blocked, the invocation has failed; apply the single
-[recovery procedure](../../review/references/budget-exhaustion.md#continue-a-stopped-scoring-loop).
-Do not rerun a valid low score to shop for
-a higher one. Bound setup/access pilots by the same retry rule. Record failed
+If it is still blocked, report the incomplete run and its blocker. The single
+scored recovery is reserved for two consecutive below-high scores.
+Keep every valid score. Bound setup/access pilots by the same retry rule. Record failed
 attempts and consumption of explicit limits even when no score exists.
 
-No fixed round ceiling or endpoint allowance is required. Continue until the target
-and required gates pass or two consecutive rounds fail to improve the best score.
+No fixed round ceiling or endpoint allowance is required. Continue until the
+target and gates pass or two consecutive rounds score strictly below the phase high.
 Honour any operator-set round, deadline or observable spend limit across both
 phases without resetting it. An absolute deadline/spend limit also covers endpoint
 work. Formal delivery review keeps its normal budget and release gates.
 If an explicit limit prevents a required step, stop incomplete and report the
 blocked endpoint with preserved evidence. Limits bound existing authority.
 
-At stagnation, a failed evaluation or an explicit limit, apply review's
-[budget diagnosis](../../review/references/budget-exhaustion.md). The failed
-invocation gets the single automatic recovery described there. Once that
-recovery is spent, keep the stopped run's result. Only an
-operator-approved continuation with a changed approach can seed another new
-baseline. Keep all prior counters, results and limits in the record.
+For a scored failure, use the [scored recovery](../../review/references/budget-exhaustion.md#continue-a-stopped-scoring-loop).
+For a blocker or explicit limit, use [budget diagnosis](../../review/references/budget-exhaustion.md)
+to report what would let the run continue. Keep prior counters, results and
+limits in the record.
 
 ## Final candidate and PR
 
@@ -144,9 +141,9 @@ incomplete stop, select that eligible best as final head; if none is fully score
 use the repaired candidate with its missing scores explicit. A new required fix
 invalidates candidates lacking it, but never resets progress counters or the
 historical comparison score. These rules override repair/final-head selection
-from the historical best, without changing the score-based stagnation rule.
+from the historical best and preserve the below-high count.
 
-If the repair changes the candidate and scoring has not stopped for stagnation,
+If the repair changes the candidate and scoring has not stopped after a scored failure,
 cancellation or an unresolved blocker, evaluate it as a panel repair round when
 the run has entered panel, otherwise as a primary repair round. It counts against the
 explicit user limits; apply the same stage gates, metric and counter rules.
@@ -161,28 +158,29 @@ Use these synthetic cases to check the instructions without live models:
 
 | Inputs | Expected outcome |
 | --- | --- |
-| Primary baseline 7.0; rounds 7.5, 7.5, 7.4; target 9 | Best 7.5; counters 0, 1, 2; after the single recovery is spent, stop and use the 7.5 candidate |
-| Primary best 8; rounds 7.5, 8 | Counters 1, 2; recovery is not improvement |
-| Primary best 8; rounds 8, 8.1 | Counters 1, 0; strict increase resets |
-| Target 9; primary 9; required task fails | Stay primary; no acceptance or panel transition |
-| Approved early trigger fires with a required check failing | Begin panel evaluation if scoring can proceed; the failing check still blocks success |
+| Primary baseline 7.0; rounds 7.5, 7.5, 7.4; target 9 | Best 7.5; below-high counts 0, 0, 1. Continue. |
+| Primary best 8; rounds 7.5, 8, 7.6 | Counts 1, 0, 1. Continue. |
+| Primary best 8; rounds 7.5, 7.6 | Counts 1, 2. Return a scored failure even though 7.6 rose from 7.5. |
+| Target 9.0; primary scores 8.0, then 8.1 | Stay primary at 8.0. At 8.1, add the second reviewer on that frozen candidate. |
+| Target 9.0; primary baseline 8.1 and a required check fails | Start the panel on the baseline. The failed check still blocks acceptance. |
+| Target 9.5 at one decimal place; primary scores 8.5, then 8.6 | The exact threshold is 8.55. Stay primary at 8.5 and enter panel at 8.6. |
+| Primary attempts to score but returns an incomplete report | Preserve the attempt. Evaluate the threshold only once a complete valid score arrives. |
 | Target 9; initial panel scores 9.2, 8.5, 9.0 | Seed panel best 8.5, counter 0; all subsequent changes need whole panel |
-| Earlier trigger approved for the initial baseline | Whole panel scores that baseline; skip primary-only scoring and start with counter 0 |
-| Opus high passes in primary phase; operator approves Fable high for the panel | Fresh Fable task scores the same frozen candidate with every other confirmed judge; seed using the panel minimum, retain earlier Opus scores and all consumed limits |
+| Opus high reaches the trigger and Fable high was preapproved for the panel | Fresh Fable task scores the same frozen candidate with every other confirmed judge. Seed using the panel minimum and retain earlier scores and consumed limits. |
 | Primary and one additional judge pass; a second confirmed additional judge has yet to return | Panel incomplete, no acceptance and no progress comparison |
-| Panel best 8.5; minima 8.4, 8.5 | Counters 1, 2; after the single recovery is spent, stop despite recovered average or individual passes |
+| Panel best 8.5; minima 8.4, 8.5 | Counts 1, 0. The tie clears the streak. |
 | Panel best 9; checks fail; next candidate ties 9 with all gates passing | Accept current candidate; do not revert to failing earlier best |
-| Primary best X=9.4 with failed checks; Y=9.2 fails, then Z=9.3 passes all gates; target 9 | Enter panel with Z before a stagnation stop; retain Z if panel seeding fails |
+| Target 9.0; primary 9.4 and panel minimum 8.6 on the same candidate | Retain the primary history and seed the panel high at 8.6 with count zero. The target remains 9.0. |
 | One panel result missing after retry | When the recovery is unavailable, no minimum, no fabricated approval; stop incomplete without increment |
 | A judge is still pending at the attempt deadline | Cancel the timed-out attempt, record the missing result, and use the bounded incomplete-evaluation rule |
-| Candidate fails to build after one repair | Unavailable score, one non-improvement increment, report failure |
+| Candidate fails to build after one repair | Blocked evaluation, unavailable score and unchanged count |
 | Judge captures a different build | Invalidate that evaluation; bounded recovery, never transfer approval |
 | Code-review repair S-prime after the scoring limit is reached; endpoint work permitted | Code-review repaired head S-prime; draft GOAL NOT MET, old score evidence stale |
 | Code-review repair cannot fit absolute deadline or spend cap | Stop with endpoint blocked; no overrun or inferred PR review waiver |
-| Historical panel best 9.4 lacks required fixes; repaired minima 8.8 then 9.0; target 9.2 | Counter advances twice against 9.4; draft head is fix-retaining 9.0 candidate |
+| Historical panel best 9.4 lacks required fixes; repaired minima 8.8 then 9.0; target 9.2 | Count advances twice against 9.4. On final stop, the fix-retaining 9.0 candidate is the draft head. |
 | Formal review changes a workflow, document or UI candidate | Renew scoring and covering checks if allowed; record changed-candidate approval as unavailable otherwise |
 | Formal review permits coordinator verification under `review_rounds: 1`, but the repaired head has no Hillclimb score | The formal recheck can pass. Hillclimb remains incomplete until its own score and checks pass |
-| Evaluation stays blocked after its one operation retry | The invocation has failed; recover once with a fresh counter, then stop and report if the retry also fails |
+| Evaluation stays blocked after its one operation retry | Report the blocker without spending the scored recovery. |
 | Retry changes the rubric or roster and passes | Deliver with the original and revised targets flagged; older scores are historical |
 | Retry starts in an existing panel phase and panel scoring never completes | Hand back the retry's frozen repaired baseline as the panel entry and state that it has no complete panel result |
 | Retry starts in primary, later enters panel, and panel scoring never completes | Hand back the candidate that entered panel and state that it has no complete panel result |

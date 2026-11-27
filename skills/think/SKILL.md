@@ -33,27 +33,15 @@ issue, saved brief or PR) rather than maintaining a duplicate diagram in
 `raise-pr`.
 If the user requests an exhaustive interview, continue to that endpoint instead.
 
-Before concluding the interview or handing off implementation, use
-[review](../review/SKILL.md) to obtain a separate second opinion on that
-stop condition. Supply the original request, current brief, settled decisions,
-assumptions, relevant facts and intended next implementation step. Ask the
-reviewer to state whether the condition is met and identify any remaining
-uncertainty whose resolution could materially change that step, with its impact
-and the question or investigation needed. This is a readiness review, not a
-requirement to implement the feature or invent extra questions.
+Before concluding the interview or handing off implementation, call
+[review-loop](../review-loop/SKILL.md) in readiness mode with the brief, original
+request, settled decisions, evidence and intended next implementation step.
+Use the same loop record when a material gap sends a question back to the
+user. Resume it after the answer.
 
-Verify material gaps, investigate available facts and ask only the affected
-questions that need the user. Revise the brief and obtain a fresh readiness
-review when material gaps change it. Allow at most three readiness reviews,
-including failed attempts, across the interview and its resumes. If the budget
-is exhausted or reviews stall, apply review's
-[budget diagnosis](../review/references/budget-exhaustion.md) within this
-three-review limit. If readiness remains unverified or required review is
-unavailable, report readiness as
-incomplete and hold implementation. Still provide the brief in the requested
-format, or offer the artifact choices below, marked not ready with the review
-gate and next action. A reviewer verdict without supporting reasoning does not
-establish readiness.
+If the loop returns incomplete, hold implementation. Still provide the brief
+in the requested format, or offer the non-implementation artifact choices
+below. Mark the brief incomplete and include the review gate and next action.
 
 After readiness is established, honour an already-requested artifact or
 implementation endpoint. Otherwise use the host's ask-user-question tool to ask

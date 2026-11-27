@@ -26,11 +26,9 @@ setting grants neither delegation nor publication authority.
 
 1. Treat owner-adopted routing rows as explicit named choices, including effort.
    Preserve narrower limits and verify outgoing settings through the host.
-2. Apply review's code-author lineage and model-selection rules, subscription
-   headroom, the host's effort ceiling and permission/provider restrictions.
-   For review, DeepSeek remains out of direct reviewer dispatch. OCR follows
-   the [OCR skill](../../ocr/SKILL.md). A routing row cannot extend
-   [Hillclimb's scoring exception](../../hillclimb/references/judges.md).
+2. Apply the [model-selection rules](../../review/references/model-selection.md)
+   for reviewers, alongside subscription headroom and host effort, permission
+   and provider limits.
    Gate reviewers supplement required primary/companion coverage unless the
    owner explicitly changes an overridable requirement.
 3. On a conflict, name the setting, constraint, affected task and eligible

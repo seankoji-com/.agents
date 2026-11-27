@@ -1,24 +1,27 @@
 # Score line graph for iterative reviews
 
-Render a self-contained inline HTML score line graph for every score-based
-iterative review (`review-loop` and `hillclimb`) using the bundled Python 3.10+
-stdlib renderer `skills/review/scripts/render_score_chart.py`.
+For scored `review-loop` runs, including Hillclimb, save a self-contained HTML
+score line graph using the bundled Python 3.10+ stdlib renderer
+`skills/review/scripts/render_score_chart.py`. Use one cumulative JSON ledger
+and one stable HTML output path throughout the run.
 
 ## Cadence and ownership
 
-- **Main-thread runs** (`review-loop`, `hillclimb`, or `implement` fallback when
-  nested dispatch is unavailable): update the JSON score ledger and render via
-  `html_preview` then `html_render` after **every completed scoring round,
-  recovery, and final handback**.
+- **Main-thread runs**: update the ledger and regenerate the HTML after every
+  completed evaluation, including the baseline and panel entry, after recovery
+  and at handback. Append incomplete evaluations with their known scores and
+  failure reason. In T3, preview the written file with `html_preview`, then show
+  it with `html_render`. Preserve accessible links to the ledger and HTML at
+  handback.
 - **Isolated `implement` lead delegates**: delegates cannot call `html_render`
   and T3 wakes the parent on pause or completion. The lead maintains the JSON
   score ledger in its verified ignored worktree directory and returns its
   absolute path and structured score history in every pause and handoff report.
   The main thread renders the chart at every lead pause, recovery handback, and
   final handback.
-- **Outside T3 or without inline HTML**: keep the rendered HTML file at a
-  verified ignored or host-approved path and provide an accessible file link
-  plus a concise text summary of round scores, target, and failures.
+- **Without inline HTML**: use the accessible file links and give a concise
+  text summary of round scores, target and failures. If rendering fails, keep
+  the ledger and report the chart error separately from the evaluation result.
 
 ## CLI usage
 

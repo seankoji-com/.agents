@@ -15,7 +15,7 @@ run record, original evidence and earlier results in authorised storage.
   Preserve stable finding IDs and original observations. Append new evidence and
   record fixes, rejections with reasons, deferrals and unverified outcomes.
 - Record dimension scores, weighted totals, the current phase metric, historical
-  best, repair base, non-improvement count and limit consumption. Use
+  best, repair base, below-high count and limit consumption. Use
   `not evaluated` for missing results and explain the gap.
 - Report required check methods, thresholds and results separately from judge
   scores. Link reproducible evidence, such as logs, measurements or artifact
@@ -43,16 +43,11 @@ Inspect the updated sections, images, links and callouts. Use portable HTML
 with inline CSS and embedded or portable local images. Escape product text and
 exclude secrets, personal data and product scripts.
 
-The coordinator presents the initial report and gives a short update after each
-round with the score, changes, outstanding checks, a link to its section and
-the updated inline [score line graph](../../review/references/score-chart.md)
-rendered via `skills/review/scripts/render_score_chart.py` (showing reviewer
-lines, gating minimum, dotted target, failure/recovery annotations and 3–5
-bullet rationales with component dimensions).
-In T3 use `html_preview` then `html_render` to present the chart and rolling report.
-Provide an accessible HTML link if native presentation is unavailable. Delegates
-return findings and evidence paths to the coordinator. Keep the combined report
-out of judge briefs so prior judgments remain independent.
+The coordinator gives the score, changes, outstanding checks and a link to the
+new report section after each round. Link the [score graph](../../review/references/score-chart.md)
+produced by `review-loop`. In T3 use `html_preview` then `html_render` for the
+rolling report. Provide an accessible HTML link if inline display is unavailable.
+Keep the combined report out of judge briefs so prior judgments stay independent.
 
 Before PR creation or cleanup, preserve evidence needed for the handoff in a
 destination authorised for its intended readers. Follow `raise-pr` for

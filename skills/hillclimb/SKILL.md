@@ -5,9 +5,9 @@ description: "Improve a workflow, artifact or product toward an agreed score ove
 
 # Improve a candidate through scored rounds
 
-Improve a workflow, artifact or product over scored rounds. Freeze the rubric
-and confirm who will judge the work before starting. Use `review-loop` for an
-implementation and repair loop, and `choose-design` to pick mockups before building.
+Run [review-loop](../review-loop/SKILL.md) in Hillclimb mode to improve a workflow,
+artifact or product to an agreed score. Freeze the rubric and confirm the judges
+before work starts. Use `choose-design` to pick mockups before building.
 
 ## Establish the run
 
@@ -21,20 +21,23 @@ implementation and repair loop, and `choose-design` to pick mockups before build
    conditions. In UI mode, capture the real interface and research comparable
    products when external examples materially help define quality.
 3. Read [judge selection](references/judges.md) to propose and confirm the
-   roster, panel trigger and any preapproved primary upgrade. Get explicit
-   confirmation before implementation or judging. Before confirmation,
-   continue independent, read-only setup.
-4. Read [round accounting](references/rounds.md) before scoring and on resume.
+   primary, secondary and any additional judges. Confirm any primary upgrade
+   for the panel at the same time. Get explicit confirmation before
+   implementation or judging. Continue independent, read-only setup while
+   waiting.
+4. Read [phase rules](references/rounds.md) before scoring and on resume.
    Keep the run record and original evidence in host-approved storage. Verify
    that repository-local storage is ignored. Track candidate/build identities,
    parents, models and options, task handles, scores, findings, checks, limits
    and next action. Reconcile the existing record on resume.
 
-## Evaluate and improve
+## Run the scored loop
 
-Use [review](../review/SKILL.md) for finding severity, evidence and dispositions.
-Apply this skill's roster, score, companion and stopping rules to scoring tasks.
-Apply ordinary formal review selection and required companions at delivery.
+To score and repair the candidate, call [review-loop](../review-loop/SKILL.md)
+in the current thread. Supply the baseline, frozen rubric, confirmed roster,
+required checks, evidence and explicit limits. The loop owns dispatch, repairs,
+rechecks, score history and the HTML graph. Keep the
+[rolling report](references/reports.md) for Hillclimb evidence and changes.
 
 Give judges the same frozen candidate, scope, rubric, checks and evidence
 requirements. Judges work read-only in separate sessions. Require independent
@@ -45,56 +48,21 @@ judge uses the actual interface, exercises the required states and takes fresh
 captures. Before judging, prepare access as described in
 [judge selection](references/judges.md).
 
-Run judges for the same evaluation concurrently with isolated sessions and data
-where supported. Serialize only operations that cannot safely share resources.
-Keep source, build, runtime and data stable during judging. Use the time to
-organize evidence, prepare the report and investigate independent failures.
-Judges may see their own prior findings and a factual change summary. Keep
-other judges' scores and verdicts out of their briefs. Collect complete
-reports before settling the next repair.
+Run independent judges concurrently with isolated sessions and data. Give
+each judge its own prior findings and a factual change summary. Keep other
+judges' scores and verdicts out of its brief. Collect complete reports before
+settling the next repair.
 
-1. Score the baseline with the primary, or with the full panel if it starts at
-   baseline. Seed the phase's best from that evaluation.
-2. Make scoped repairs from the phase's best eligible candidate and run covering
-   checks. Save each owned revision when authorised, or preserve an exact patch
-   or snapshot. Obtain fresh evaluation.
-3. After each round, append results, findings and evidence to the
-   [rolling report](references/reports.md), update the JSON score ledger and
-   render the [score line graph](../review/references/score-chart.md) inline
-   (after every completed scoring round, recovery and final handback) with a
-   short update. Include failed and incomplete rounds.
-4. When the primary reaches target and required checks and coverage pass, or
-   when an earlier confirmed trigger fires, confirm any pending primary upgrade
-   choice. Run the full confirmed panel on that frozen candidate. The lowest
-   judge score seeds the panel baseline. Evaluate every later panel candidate
-   with the full panel. Primary-only scoring is final only when the operator
-   confirmed a run without a panel.
-5. Test transition and success gates before stagnation. The metric is the
-   primary score during primary-only rounds and the lowest score during panel
-   rounds. Only a strict increase over the phase's best resets stagnation.
-   Two consecutive non-improving rounds stop the run. Apply the round reference
-   for failures, explicit limits and changes to the delivery candidate.
+Use the [phase rules](references/rounds.md) for panel entry, candidate selection
+and limits. Accept when all required scorers reach target on the same candidate
+and checks and coverage pass. Keep measured results separate from judge scores.
+Only two consecutive scores below the phase high trigger recovery. Explicit
+limits, cancellation and blockers can interrupt the run without a scored failure.
 
-   A failed run gets one automatic recovery before any operator question.
-   Record the attempt before the fix, diagnose from the retained evidence, fix
-   the cause and re-invoke once from the latest candidate under the original
-   run ID and spent slot, with a fresh counter. A fix that fails or is blocked
-   before dispatch is recorded as spent.
-   Retain the phase and roster; record any criteria or roster change and flag a
-   pass under either with the original target. A second failure stops the
-   run and reports. Apply the shared [recovery procedure](../review/references/budget-exhaustion.md#continue-a-stopped-scoring-loop)
-   for accounting and handback.
-
-Accept only when all confirmed scorers reach target on the same candidate and
-all required checks and coverage pass. Keep measured results separate from
-judge scores. Follow the run's explicit limits. Stop incomplete on an unresolved
-blocker, a limit that prevents completion or stagnation, after the single
-recovery.
-
-After the automatic recovery, if the run still stops incomplete, collect the
-implementer's retrospective and offer the operator [a changed approach from the
-latest candidate](../review/references/budget-exhaustion.md#continue-a-stopped-scoring-loop).
-Add the notes, choice and any approved continuation to the rolling report.
+If the loop returns a scored failure, as its caller follow the shared
+[recovery procedure](../review/references/budget-exhaustion.md#continue-a-stopped-scoring-loop)
+through `review-loop`. Record the implementer's retrospective and any
+operator-approved continuation in the rolling report.
 
 ## Deliver the result
 

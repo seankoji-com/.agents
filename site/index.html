@@ -328,7 +328,7 @@
             <div class="skill-heading" id="install-ocr" tabindex="-1">
               <h3>ocr</h3>
             </div>
-            <p class="skill-description">Run OpenCodeReview on a frozen diff. A public repository draws up to three free OpenCode reviewers and returns one grouped report. A private one runs the ocr CLI through one watcher.</p>
+            <p class="skill-description">Request a standalone OpenCodeReview report on a frozen diff.</p>
             <div class="skill-actions">
               <a class="install-action" href="#install-ocr" aria-label="Install instructions for ocr">Install</a>
               <a href="https://github.com/seankoji-com/.agents/blob/main/skills/ocr/SKILL.md" aria-label="Source for ocr on GitHub (SKILL.md)">Source</a>
@@ -346,7 +346,7 @@
             <div class="skill-heading" id="install-review-loop" tabindex="-1">
               <h3>review-loop</h3>
             </div>
-            <p class="skill-description">Build or fix a change in rounds. Independent reviews guide repairs until the score and checks pass or the work stops improving.</p>
+            <p class="skill-description">Build or fix a change with independent review. See the scores and HTML graph. The default is two reviews, plus one retry if needed.</p>
             <div class="skill-actions">
               <a class="install-action" href="#install-review-loop" aria-label="Install instructions for review-loop">Install</a>
               <a class="demo-action" data-kind="flow" href="workflows.html#outcome" data-lightbox="lb-review-loop" aria-label="Workflow diagram for review-loop" aria-haspopup="dialog">Diagram</a>
@@ -364,7 +364,7 @@
             <div class="skill-heading" id="install-hillclimb" tabindex="-1">
               <h3>hillclimb</h3>
             </div>
-            <p class="skill-description">Improve a product, workflow or draft using scored feedback from judges you approve. See each round’s evidence. UI judges use the running interface.</p>
+            <p class="skill-description">Run review-loop with judges you approve and no default round cap. UI judges use the running interface.</p>
             <div class="skill-actions">
               <a class="install-action" href="#install-hillclimb" aria-label="Install instructions for hillclimb">Install</a>
               <a class="demo-action" data-kind="flow" href="workflows.html#outcome" data-lightbox="lb-hillclimb" aria-label="Workflow diagram for hillclimb" aria-haspopup="dialog">Diagram</a>
@@ -374,8 +374,8 @@
               <div class="term"><pre class="cmd" id="cmd-hillclimb">npx skills add <span class="cmd-repo">seankoji-com/.agents</span> <span class="skill-flag">--skill</span> <span class="skill-arg">hillclimb</span></pre></div>
               <p>Choose your agents when prompted.</p>
               <p>Try asking <q>Run hillclimb on the onboarding flow until it scores 8 out of 10.</q></p>
-              <p class="helpers">Supporting skills include <a href="#skill-review">review</a>, <a href="#skill-raise-pr">raise-pr</a>, and <a href="#skill-raise-issue">raise-issue</a>.</p>
-              <p class="t3-preflight">On T3 Code, install <a href="#skill-agent-tuneup">agent-tuneup</a> for the T3 dispatch preflight. Hillclimb needs no workflow.</p>
+              <p class="helpers">Hillclimb uses <a href="#skill-review-loop">review-loop</a>. Delivery uses <a href="#skill-raise-pr">raise-pr</a> and <a href="#skill-raise-issue">raise-issue</a>.</p>
+              <p class="t3-preflight">On T3 Code, install <a href="#skill-agent-tuneup">agent-tuneup</a> for the T3 dispatch preflight.</p>
               <a href="#skill-hillclimb">Close install instructions</a>
             </div>
           </li>
@@ -696,9 +696,9 @@
         <li><strong>Review a frozen candidate</strong><p>Reviewers score the same revision, read-only.</p></li>
         <li><strong>Verify and repair</strong><p>Fix supported findings within scope.</p></li>
         <li><strong>Recheck changes</strong><p>Material repairs get a fresh review.</p></li>
-        <li><strong>Accept or explain</strong><p>Report the evidence, or recover from a failed run and then explain the stop.</p></li>
+        <li><strong>Accept or ask</strong><p>On a second failure, explain both attempts and ask what to do.</p></li>
       </ol>
-      <div class="flow-loop" style="--from:3;--to:5"><span>Repeat until the score and checks pass, or two rounds fail to beat the best. A failed run gets one recovery retry, then it reports</span></div>
+      <div class="flow-loop" style="--from:3;--to:5"><span>Two scored reviews by default. If the target or checks still fail, diagnose and adjust before up to two more reviews.</span></div>
     </figure>
     <p class="lb-links"><a href="workflows.html#outcome">Read the full workflow</a> · <a href="https://github.com/seankoji-com/.agents/blob/main/skills/review-loop/SKILL.md">Read review-loop's SKILL.md</a></p>
   </div>
@@ -716,10 +716,10 @@
         <li><strong>Score the baseline</strong><p>The primary judge sets the starting best.</p></li>
         <li><strong>Repair the best candidate</strong><p>Scoped changes, with covering checks.</p></li>
         <li><strong>Score again</strong><p>Judges work read-only. UI judges use the running interface.</p></li>
-        <li><strong>Full panel confirms</strong><p>Every judge must reach the target on the same version.</p></li>
+        <li><strong>Add the second reviewer</strong><p>At 90% of target, the panel scores the same version. Every judge must reach the full target.</p></li>
         <li><strong>Deliver</strong><p>raise-pr takes the final candidate to review and a PR.</p></li>
       </ol>
-      <div class="flow-loop" style="--from:3;--to:4"><span>Each round lands in one rolling report. Two rounds without a gain stop the run; a failed run gets one recovery retry, then it reports</span></div>
+      <div class="flow-loop" style="--from:3;--to:4"><span>Two consecutive scores below the phase high trigger one recovery. A tie clears the streak.</span></div>
     </figure>
     <p class="lb-links"><a href="workflows.html#outcome">Read the full workflow</a> · <a href="https://github.com/seankoji-com/.agents/blob/main/skills/hillclimb/SKILL.md">Read hillclimb's SKILL.md</a></p>
   </div>
@@ -736,7 +736,7 @@
         <li><strong>Find the decisions that matter</strong><p>Ones whose answers change the goal, design, risk or next step.</p></li>
         <li><strong>Ask together</strong><p>One decision per question, with a recommendation first. Facts get looked up, not asked.</p></li>
         <li><strong>Write the brief</strong><p>Goal, scope, choices, acceptance criteria and open gates.</p></li>
-        <li><strong>Readiness review</strong><p>A separate reviewer checks that nothing material is still open.</p></li>
+        <li><strong>Readiness review</strong><p>Review-loop checks the brief with a reviewer from a different model family.</p></li>
         <li><strong>Choose the output</strong><p>An issue, a brief file, or build it now.</p></li>
       </ol>
       <div class="flow-loop" style="--from:2;--to:4"><span>A gap sends back only the affected questions, with up to three readiness reviews</span></div>

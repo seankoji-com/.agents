@@ -17,7 +17,7 @@ one now proposed. Carry this history through resumes and parent handoffs.
 Reconcile cumulative authorised allowance, attempts used including failures,
 and remaining allowance before proposing an addition. Show the proposed amount
 and resulting total separately from existing authority. For uncapped workflows,
-state the actual scoring and stagnation rules and any explicit limits instead of
+state the actual scoring and stopping rules and any explicit limits instead of
 inventing a round cap. Keep separate budgets distinct. Record automatic
 extensions even when they needed no user question.
 
@@ -33,7 +33,7 @@ the stable finding IDs, severity, evidence, disposition, repair made and result
 of the covering check. Count failed attempts. Identify which findings are new,
 fixed, reopened or unchanged. Preserve the ledger across resumes and reviewers.
 Include each attempt's material result and, for scored loops, the target, best
-and current scores and stagnation counter under the caller's accounting rules.
+and current scores and relevant counters under the caller's accounting rules.
 
 Classify the remaining obstacle using the evidence:
 
@@ -139,17 +139,20 @@ delegated authority claims or mark them unknown rather than dropping the history
 
 ## Continue a stopped scoring loop
 
-Use this for an incomplete `review-loop` or `hillclimb` run. Preserve its
-outcome and complete the diagnosis above.
+Use this when scored `review-loop` returns a failed invocation. Preserve the
+outcome and complete the diagnosis above. Readiness has its own attempt budget.
 
 ### One automatic recovery
 
-A failed invocation gets one recovery before any operator question. A failure
-is a stop-incomplete run or an evaluation operation that still fails after its
-one retry; formal delivery review keeps its own rules. The loop skill's
-standing rule supplies the authority for this one retry. The recovery may
-change the repair strategy, implementation, setup, loop rubric, target,
-loop-required checks and a roster seat, but not scope or a hard gate.
+The caller owns one recovery. In standard review-loop, the default allowance
+is two scored reviews, including the first evaluation. Missing the target or
+required gates at the end of that allowance, or a review blocked after its
+operation retry, returns a failed invocation. The caller diagnoses and adjusts
+the approach before re-invoking with at most two more scored reviews.
+In Hillclimb, only two consecutive completed scores strictly below the phase
+high trigger this recovery. An unavailable score, explicit limit or
+cancellation can interrupt Hillclimb separately. Formal delivery review
+keeps its own rules.
 
 1. Record before acting, against the original run ID: `committed` with the
    trigger and diagnosis before the fix; `fix-failed` when that fix fails or
@@ -173,9 +176,11 @@ loop-required checks and a roster seat, but not scope or a hard gate.
    A new provider or model, user constraint, repository gate, permission,
    publication authority, formal delivery review or scope change blocks the
    recovery. Record `fix-failed`, report and stop.
-4. Fit the remaining allowance before the fix. An explicit repair-round cap
-   counts a candidate-changing fix, including a pre-baseline fix.
-   Re-baselining consumes no repair round. An exhausted deadline or spend cap
+4. Fit the remaining allowance before the fix. An explicit overall repair-round
+   cap counts a candidate-changing fix, including a pre-baseline fix.
+   Standard mode's default cap counts scored review rounds, including the first
+   review of the recovered candidate. A Hillclimb phase seed consumes no repair
+   round. An exhausted deadline or spend cap
    blocks every recovery action, including setup. A spent repair-round
    allowance still permits a setup-only recovery and blocks a
    candidate-changing fix. Record either blocked case as `fix-failed`: the
@@ -185,8 +190,11 @@ loop-required checks and a roster seat, but not scope or a hard gate.
    confirmed scorer. Reuse a score only when the candidate and evaluation
    contract both match. A roster or criteria change seeds a new baseline under
    the frozen revised contract.
-6. Start a fresh non-improvement counter. Preserve prior scores, findings,
-   candidates and consumed limits as history, and append a new era to the score
+6. Reset the invocation's round count or Hillclimb's below-high count. For
+   Hillclimb under the same contract, keep the comparable phase high. A reused
+   score only seeds evidence. Compare fresh scores against that high. If the
+   metric changes, seed a new high. Preserve prior scores, findings, candidates
+   and consumed limits, and append a new era to the score
    ledger for the [score line graph](score-chart.md) with `comparable_to_prev: false`
    whenever criteria or roster changed. A pass under a revised
    evaluation contract, whether criteria or roster, delivers normally, with the
@@ -197,7 +205,8 @@ loop-required checks and a roster seat, but not scope or a hard gate.
    the original coordinator. A failure inside the retry ends the recovery; it
    never opens a new slot. If the retry also fails, stop and report both
    triggers, diagnoses, fixes, attempts, scores, limits and unresolved gates.
-   Start no second recovery and no continuation delegate.
+   Explain what went wrong and why, give the best and latest candidates, and ask
+   the operator what to do. Start a continuation only with their approval.
 
 Handback after a second failure: under an unchanged contract, use the best
 eligible candidate across both invocations that retains required fixes, even
@@ -233,14 +242,14 @@ and any changes to scope, rubric, roster, checks or limits before proceeding.
 For an approved continuation:
 
 1. Preserve the old run's best and latest candidates, scores, findings,
-   non-improvement counter, attempts, consumed limits and the spent recovery
+   round or below-high count, attempts, consumed limits and the spent recovery
    slot. Record the approved changes in the same ledger or report. Carry
    forward remaining authority, required repairs and delivery gates.
 2. Freeze the latest candidate as the new baseline. Retain any required fixes
    and record a new revision if they need to be reapplied. Reuse valid scores
    and check evidence for that exact candidate and evaluation contract.
    Obtain missing or invalidated evidence before seeding the new score and
-   setting the new non-improvement counter to zero. Keep results under old
+   starting its new count at zero. Keep results under old
    scoring criteria labelled as historical.
 3. Carry forward successful judge capability and access checks when they cover
    the same judge, route, permissions, environment and required actions.
@@ -261,10 +270,13 @@ Use these synthetic cases to check the instruction contract without live models:
 | Caller allowed one automatic addition of 2 after its original 3; all 5 used | Show the automatic addition and its caller-rule authority separately from user approvals. Any later request reports 5 used, not just the original 3. |
 | A finding survives successive repairs and the next proposal repeats the same repair without new evidence | Diagnose stalled or cycling using the attempts. Hold review, omit an extension request, and give a reproduction, different repair or concrete blocker while independent work continues. |
 | Old approval says only "continue" and the amount cannot be recovered | Mark the amount and cumulative authority unknown; show known consumption. Hold dependent review if remaining authority cannot be established and request the precise missing confirmation. |
-| Uncapped scored loop stops after two non-improving rounds | Show target, best/current scores, counter and actual attempts; state no numeric cap. Diagnose stagnation, apply the single automatic recovery, then propose a changed approach; extra rounds alone do not override the stopping rule. |
-| After two non-improving rounds, best is 8.8 and latest is 8.4. The automatic recovery is spent and the operator approves a different repair strategy. The latest candidate's evidence, rubric, check context and judges still apply | Seed the new phase at 8.4 with counter zero. Retain the 8.8 result, stopped phase and consumed limits. Reuse the existing capability pilots. |
+| Standard target 9.0; scores 7.0 then 8.0 | The first invocation fails at two reviews despite improvement. Diagnose and adjust before one retry of at most two reviews. |
+| Standard retry scores 8.2 then 8.7 against target 9.0 | Report why both invocations fell short and ask the operator what to do. Four reviews are recorded across the two invocations. |
+| Hillclimb high 8.8; scores 8.4 then 8.6 | Both scores are below 8.8. Diagnose and adjust once. The retry carries forward 8.8 if the contract still matches, with a fresh below-high count. |
+| Hillclimb high 8.8; scores 8.4 then 8.8 | The tie clears the below-high count. Continue the original invocation. |
+| Recovery spent; the operator approves a different strategy starting from the latest candidate, scored 8.4 under the same contract | Seed the approved continuation at 8.4. Retain prior evidence, the earlier 8.8 and consumed limits. Reuse the existing capability pilots. |
 | Latest candidate has a missing score, or the operator changes the rubric or a judge's required test modality | Keep the candidate as baseline, obtain the missing or invalidated evidence, and probe only capability or access the earlier checks did not prove. Seed the new score when the required evaluation is complete. |
-| A technical failure remains after its one operation retry | Record the recovery, diagnose, fix, and re-invoke once from the latest candidate with a fresh counter. |
+| A technical failure remains after its one operation retry | Standard review-loop returns a failed invocation. Hillclimb reports the blocker without triggering scored recovery. |
 | The recovery retry also fails | Stop the loop and report both attempts; no second recovery and no continuation delegate. |
 | An explicit repair-round cap is spent | Permit a setup-only fix; block a candidate-changing fix, report it and stop. |
 | A deadline or spend cap is already exhausted | Record `fix-failed`, dispatch nothing and report. The slot is spent because the limit blocked recovery. |
