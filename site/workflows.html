@@ -83,12 +83,12 @@
         <figcaption>How a backlog run moves work</figcaption>
         <ol class="workflow-steps" role="list">
           <li><strong>List and triage</strong><p><a href="./#skill-backlog-burn">backlog-burn</a> lists open issues and PRs through T3's forge. The main thread classifies every item and records obsolete, completed or superseded work it can close with evidence.</p></li>
-          <li><strong>Dispatch ready work</strong><p>The workflow starts one implementer per ready issue in its own worktree and a read-only reviewer at the committed head. Unclaimed PRs stay with the main thread through <a href="./#skill-babysitter">babysitter</a>.</p></li>
-          <li><strong>Keep the slots full</strong><p>Up to 20 delegates refill as work finishes. Owner questions are fixed choices in the workflow; independent work continues.</p></li>
+          <li><strong>Dispatch ready work</strong><p>The workflow starts one implementer per ready issue in its own worktree and a read-only reviewer at the committed head. Unclaimed PRs are adopted by the workflow for checks, repair and independent review before merge through <a href="./#skill-babysitter">babysitter</a>.</p></li>
+          <li><strong>Keep the slots full</strong><p>Up to 20 delegates refill as work finishes. Independent work continues during owner questions. The workflow defers new PR waits while initial implementers or owner answers are pending.</p></li>
           <li><strong>Merge and verify</strong><p>The main thread merges through babysitter's gates or watches a pending review. The workflow waits for the merge and checks for zero, holds or partial coverage.</p></li>
         </ol>
       </figure>
-      <p>The workflow closes an item only after triage classifies it <code>close</code> and the packet carries that authority. It reads every closure back. A list at its 200-issue or 500-PR cap reports partial coverage instead of a false zero.</p>
+      <p>The workflow closes an item only after triage classifies it <code>close</code> and the packet carries that authority. It reads every closure back, repairs failing CI or conflicts on dispatched and adopted PRs, and keeps running passes as items clear. A list at T3's 100-issue or 100-PR cap reports partial coverage instead of a false zero.</p>
       <p>A fresh inventory verifies zero open issues and PRs. The report records any items still held, awaiting a decision or actively owned elsewhere, and distinguishes delivered fixes from work closed with evidence.</p>
     </section>
 

@@ -31,10 +31,14 @@ Then classify:
    branch is not ownership. Record the owner link and next trigger. Add no watch,
    push, review request or merge. When that owner ends without a merge or
    closure, reclassify.
-2. **Adopt.** No verified live owner. The main coordinator runs babysitter on it
-   as sole owner with one native watch, under burn-down authority. Repair and
-   review tasks count against the run's delegate cap. A pre-existing draft
-   follows babysitter's draft rule before conversion.
+2. **Adopt.** No verified live owner. Classify the PR `adopt` so the workflow
+   owns its check waits, CI/conflict/bot-review repairs and current-head
+   independent review without creating a second writer, then sends the merge
+   turn to the main coordinator under babysitter's gates. A pre-existing draft
+   follows babysitter's draft rule before conversion. Do not add a duplicate
+   coordinator watch while the workflow owns the wait. If this run created the
+   PR for an issue, resume delivery under that issue while it is open. Adopt
+   the PR separately after verifying its owning issue is closed.
 3. **Retire.** Current evidence shows the PR no longer earns a merge: a newer PR
    or bump supersedes it, it duplicates another open PR, its change already
    landed on the base, or it is abandoned and its remaining value is gone.
@@ -63,11 +67,12 @@ Then classify:
 
 ## Close a PR unmerged
 
-1. Post a short evidence comment under github-writing: the superseding PR or
+1. Verify the open PR belongs to the packet's project and repository.
+2. Post a short evidence comment under github-writing: the superseding PR or
    commit, the landed change, or why the remaining value is gone.
-2. Close the PR and read back its state.
-3. Reclassify any linked issues. A closed PR never closes or satisfies them.
-4. Record the evidence and reason in the ledger.
+3. Close the PR and read back its state.
+4. Reclassify any linked issues. A closed PR never closes or satisfies them.
+5. Record the evidence and reason in the ledger.
 
 ## Schedule and discover
 
@@ -76,10 +81,11 @@ reduces both counts and later conflicts. Fill the remaining capacity with issue
 dispatch. A PR waiting on checks holds no delegate slot.
 
 A burn-down request is the owner's explicit request for coverage of its scope.
-On every wake and at the final audit, re-list open PRs and issues, then classify
-and adopt new ones. This re-inventory belongs to the active run. It is not a
-poller or scheduled sweep, and nothing stays covered after handback unless the
-owner requests a scheduled sweep.
+At the start of each pass, after the previous pass's work returns, and at the
+final audit, re-list open PRs and issues, then classify and adopt new ones.
+This re-inventory belongs to the active run. It is not a poller or scheduled
+sweep, and nothing stays covered after handback unless the owner requests a
+scheduled sweep.
 
 ## PR endpoint
 

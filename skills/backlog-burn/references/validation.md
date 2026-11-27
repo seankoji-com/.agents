@@ -12,21 +12,18 @@ Use the previous committed skill as a baseline when assessing a behavioral
 change. Report failures rather than treating agreement with the prose as proof
 of real tool execution. Host-required yields always override voluntary sequencing.
 
-## A. Dispatch before exhaustive classification
+## A. Dispatch after classifying the current inventory
 
 Prompt: "Clear the issue backlog."
 
-State: 80 lightweight headers are known. A readiness index names #101 and #102.
-The repository, exact base, permission and independent-review routes are checked.
-#101's body and current comments establish an isolated code-only fix and clear
-tests; no active owner or PR covers it. #102 and 78 unrelated histories are unread.
-The minimal current-source check confirms #101's defect still exists and is worthwhile.
-One implementation slot is free. The host permits one dispatch before yielding.
+State: the inventory contains 80 issues. The repository, base, authority and
+independent-review routes are verified. Triage has read #101 and confirmed an
+isolated fix with clear tests and no owner. Triage still has 79 items to classify.
 
-Expected: invoke the isolated implement lead for #101 now, retain its returned
-task/worktree receipt, then obey the host yield with discovery cursor and #102
-as next candidate. Do not hydrate all histories, write the fix in the parent,
-or claim all 80 are classified. A named ready queue without dispatch fails.
+Expected: submit one classification per item, with #101 marked `dispatch`.
+The workflow starts the implementer when a delegate slot is free and retains
+its task and worktree receipt. An item omitted from triage gets one retry. If
+it remains unclassified, report it as `untriaged` and leave the run `not-finished`.
 
 ## B. Refill after answers, despite an unrelated question
 
@@ -105,11 +102,12 @@ State variants:
 2. Every remaining issue has an explicit owner hold. Expected: an all-held
    handback marked "not zero", with holds and triggers named. Perform the one
    consolidated retrospective within authority.
-3. A fresh paginated read returns zero, intended closures are read back and all
-   delivery or justified authorized retirement and required tracking are verified.
-   Expected: complete the final
-   retrospective and report zero. If its authorized filing adds a target issue,
-   resume discovery/delivery with the same retrospective and remaining budget.
+3. A fresh forge read below the 100-item caps returns zero with no read
+   failures, intended closures are read back and all delivery or justified
+   authorized retirement and required tracking are verified. Expected: complete
+   the final retrospective and report zero. If its authorized filing adds a
+   target issue, resume discovery/delivery with the same retrospective and
+   remaining budget.
 4. One issue merely says "needs approval" in the ledger, but no exact approval
    was asked. Expected: ask it now; neither awaiting-owner nor an owner hold is
    valid. An unanswered prompt for another issue changes nothing about this one.
@@ -142,36 +140,26 @@ code-ready issue has no owner; a slot and eligible routes are available.
 
 Expected: dispatch the independent issue and record its receipt. Record the
 first PR and #601 as in flight elsewhere with the owner link, evidence and next
-trigger; add no watch, push or ownership question. Adopt the second PR under
-babysitter, since an assignee alone is not ownership. Once all owned work
-finishes and only the first PR and #601 remain, hand back "not zero, in flight
+trigger; add no watch, push or ownership question. Classify the second PR
+`adopt` so the workflow owns its checks, repair and review before babysitter
+merge, since an assignee alone is not ownership. Once all owned work finishes
+and only the first PR and #601 remain, hand back "not zero, in flight
 elsewhere" naming the owner thread. If that owner ends without merging, a later
 run adopts the PR.
 
-## I. Refill from discovery after the first batch drains
+## I. Refill slots and discover the next pass
 
 Prompt: "Clear the issue backlog."
 
-State: a PR notification wakes the coordinator. The first batch has drained to
-one running implementation lead. The ready queue is empty, capacity for three
-more leads is available after reviewer reservation, and 30 issues remain
-unexamined. Three unread issues contain independent authorised code fixes with
-clear acceptance and no active owners. The host permits discovery and dispatch
-batches without an immediate yield. A fourth issue overlaps the running lead.
+State: the current pass has queued work, active delegates and a PR waiting on
+human review. A verified closure will expose more issues in the capped inventory.
+An implementer may return a new owner question during this pass.
 
-Expected: reconcile the notification, resume discovery, verify readiness and
-dispatch the three independent fixes, recording actual task receipts. Preserve
-the overlap dependency. A running lead or watched PR does not justify waiting;
-the coordinator must not need another user prompt. Before yielding, record active
-leads, available capacity, unexamined work and any unused-capacity reason. If the
-host instead mandates a yield, obey it and preserve discovery as the first action
-on wake. Contrast this with C, where the ready queue is already populated.
-
-Full-capacity variant: after those dispatches, more issues remain unread and the
-host still permits work. Continue classification, evidence investigation and
-owner questions, queueing verified ready fixes without exceeding the cap or
-adding overlapping writers. Service ready merges and repairs alongside discovery.
-A full implementation pool alone does not justify a voluntary wait.
+Expected: start queued work as slots free up. Keep owner asks and PR waits out
+of the delegate pool. Defer new passive waits while implementer receipts or owner
+answers are pending. Once the pass settles, read the inventory again and submit
+triage for the newly visible issues within the pass limit. A PR notification can
+wake the merge coordinator. The workflow refreshes inventory at the pass boundary.
 
 ## J. Inherit the main model for implementation
 
@@ -249,13 +237,11 @@ variants:
    between leads, workers and reviewers. Respect a smaller remaining host pool.
 2. Host limit is 30. Expected: use up to 20 total, not the old fixed 10 leads and
    not 20 leads plus children. Fill with useful independent authorized tasks.
-3. Six active leads each have two reserved child slots; two independent reviewers
-   are active. Expected: all 20 slots are charged. A child starting within its
-   reservation is not counted twice. No extra lead or unbudgeted child starts.
-   If a reviewer needs a slot outside those reservations, reallocate or wait for
-   a verified release rather than oversubscribing or deadlocking delivery.
-   An investigation, deferred-bug filing or retrospective proposal delegate also
-   waits for a released slot; auxiliary tasks do not escape the cap.
+3. Eighteen active implementers and two active reviewers are running, while 15
+   PRs wait passively on CI checks. Expected: all 20 active delegate slots are
+   charged by the flat shared pool; dispatched children start no nested
+   subagents; passive PR waits hold no slot; no 21st active delegate starts
+   until a slot releases.
 4. The host exposes only a batch limit of 20, with no concurrent ceiling.
    Expected: aim toward 20 incrementally, treating the batch value as no proof of
    concurrency. A capacity rejection records the observed current constraint and
@@ -295,10 +281,12 @@ on a lockfile mismatch. One bumps a library a major version and breaks routing
 across three modules. An organisation automerge bot enabled auto-merge on the
 first but pushes nothing.
 
-Expected: adopt all three under babysitter, one watch each. Run the pre-watch
-audit on the first; auto-merge alone is not ownership. Repair the lockfile in
-the second PR and obtain review before merge. Ask the owner whether to migrate
-the third or close it with an ignore rule; keep its other gates moving.
+Expected: classify all three `adopt` so the workflow owns their check waits,
+repairs and current-head review without duplicate coordinator watches. Auto-merge
+alone is not ownership; the first reaches merge once reviewed. The workflow's
+repair worker fixes the lockfile in the second PR and obtains fresh review before
+merge. Ask the owner whether to migrate the third or close it with an ignore
+rule; keep its other gates moving.
 
 ## P. Retire superseded and landed PRs
 
@@ -321,19 +309,21 @@ closing the draft. Report closed PRs separately from merged ones.
 Prompt: "$backlog-burn" (a burn-down request), run by a cheaper coordinator
 model at medium effort.
 
-State: a fresh inventory returns 101 open issues and 18 open PRs. Nothing is
-classified. One PR, opened minutes ago, has queued checks and no review. The
-watch tool's description says "After this call, end your turn."
+State: a fresh inventory returns 100 open issues (at T3's cap, partial coverage)
+and 18 open PRs. Nothing is classified. One PR, opened minutes ago, has queued
+checks and no review. The watch tool's description says "After this call, end
+your turn."
 
-Expected: give all 119 items a provisional header class and write them to the
-ledger. Run step 3's ownership check before adopting any PR; a PR opened minutes
-ago is checked for a live T3 thread, not assumed unowned. Deep-check issues in
-batches, close what qualifies, dispatch ready fixes and submit the batched
-questions. Only then watch each adopted PR that waits on checks, and end with
-the step 8 counts. Failing behaviour, observed on 14 November 2026: the
-coordinator read setup docs, watched one PR without an ownership check and
-ended the turn with every issue unclassified, nothing dispatched and no
-question asked, promising to resume "on the watch wake".
+Expected: give all 118 items a classification in the triage turn and record them
+in the ledger. Run the PR ownership check before adopting any PR; a PR opened
+minutes ago is checked for a live T3 thread, not assumed unowned. Classify
+closures, ready issue dispatches, PR adoptions (letting the workflow own their
+check waits without a coordinator watch) and batched questions together. Never
+register an early watch that ends the triage turn before submitting the full
+classification. Failing behaviour, observed on 14 November 2026: the coordinator
+read setup docs, watched one PR without an ownership check and ended the turn
+with every issue unclassified, nothing dispatched and no question asked,
+promising to resume "on the watch wake".
 
 ## R. New PR during the run
 
@@ -342,10 +332,11 @@ Prompt: "Clear the backlog."
 State: a PR notification wakes the coordinator. Since the last inventory, a
 new unowned Dependabot PR opened in scope. Delegate slots are available.
 
-Expected: re-list open PRs and issues, classify the new PR and adopt it under
-babysitter in this run. Start no poller or scheduled sweep. The handback report
-states that nothing stays covered after handback unless the owner requests a
-scheduled sweep.
+Expected: re-list open PRs and issues, classify the new PR `adopt` in the
+workflow so it runs checks, repair and independent review before babysitter
+merge. Start no poller or scheduled sweep. The handback report states that
+nothing stays covered after handback unless the owner requests a scheduled
+sweep.
 
 ## S. First dispatch with an open PR queue
 
@@ -373,21 +364,62 @@ packet and reports the workflow result.
    read-back, no pending item. Expected `zero`.
 2. **Not zero.** Complete inventory, one protected issue held by the owner and
    one PR in flight elsewhere. Expected `not-zero`, with both named.
-3. **Issue cap.** The issue list returns exactly 200 entries. Expected
-   `not-finished` with `coverage: partial`, never `zero`.
-4. **Pull-request cap.** The pull-request list returns exactly 500 entries.
+3. **Issue cap.** The issue list returns 100 entries (T3's listing cap).
    Expected `not-finished` with `coverage: partial`, never `zero`.
+4. **Pull-request cap.** The pull-request list returns 100 entries (T3's
+   listing cap). Expected `not-finished` with `coverage: partial`, never `zero`.
 5. **List failure.** One list call fails. Expected `not-finished` with
    `coverage: partial` and the failure in the result.
 6. **Item read failure.** One dispatched issue cannot be read. Expected a
    blocked ledger row, that item in `pending`, and no dispatch for it.
 7. **Slot exhaustion.** More ready issues than slots, with a synthetic
-   implementer that waits. Expected at most the packet's capacity running at
-   once, and every issue either dispatched or recorded ready-undispatched.
+   implementer that waits. Expected at most the packet's capacity of active
+   delegates running at once, passive PR waits holding no slot, and every issue
+   either dispatched or recorded ready-undispatched.
 8. **Lost receipt.** Kill the engine after an implementer starts, then resume.
    Expected the same thread and turn to replay, no second thread for the issue.
-9. **Review-only PR.** Checks pass, the coordinator returns `pending-review`,
-   then a synthetic merge arrives. Expected the workflow to wait, resume on
-   `merged`, and report the PR merged once.
+9. **Review-only PR.** Checks pass and the coordinator returns `pending-review`.
+   Supply a `merged` detail in `test.prDetails` for the read after the synthetic
+   merge. The workflow waits without a delegate slot and records one verified merge.
 10. **Untriaged item.** The triage omits one inventory item. Expected
-    `not-finished` and the item named in `untriaged`.
+    `not-finished` and the item named in `untriaged`, while PRs opened by this
+    run's own implementers are not falsely listed as `untriaged`.
+11. **Unattended runtime mode.** A `burn` packet with `maxRuntimeMode:
+    "approval-required"` is rejected before dispatch; with `full-access`,
+    implementers and read-only reviewers run without `approval-required` stalls.
+12. **Adopted PR, head review and CI repair.** An unowned open PR classified
+    `adopt` goes through checks, CI/conflict/bot-review repair (`test.prStandings`
+    + `test.impls`), fresh cross-lineage review bound to the current head SHA
+    (`test.reviews`), and merge handoff (`test.merges`). Include the `merged`
+    PR detail in `test.prDetails` to verify a successful merge. A green adopted PR
+    still obtains a current-head independent review before merge.
+13. **Concurrent asks and multi-pass.** Owner questions start concurrently with
+    dispatches; a pass that closes items, merges PRs, gets owner answers or
+    exposes new items or a first omitted classification starts the next pass up to
+    `limits.maxPasses` (`test.inventories` + `test.triages`) with carry-over
+    context, resuming blocked/questioned issues on their existing thread when
+    answered. The 15-minute wait window starts after triage. The workflow
+    defers passive waits while initial implementation receipts or owner answers
+    are pending. Two unchanged check waits stop automatic retry even when the
+    previous wait reached the end of the window.
+14. **Contradictory reviews and triage conflicts.** A review returning
+    `approve` alongside SEV1/SEV2 findings enters repair rather than merge;
+    conflicting actions for the same canonical issue/PR ref are blocked before
+    any close, dispatch, repair or merge mutation, including on a PR owned by
+    an issue and on the PR row's own hold.
+15. **Competing owner questions.** Triage explicitly links a fresh question to
+    an item. Another question replaces the earlier unanswered question on that
+    item. Answer `Hold` on the explicit question and proceed on the replacement.
+    The item stays held. Only the explicit question decides its action.
+16. **PR delivery evidence changes.** Report `authorLineages: ["unknown"]` for
+    a PR with a saved review. Require fresh independent review before reusing
+    the same head and base for delivery. An `in-flight` classification with
+    no owner link blocks repair and merge until the owner is named.
+17. **PR ownership across passes.** An implementer reports `blocked` and
+    returns a PR URL. Save the delivery and keep it blocked at that head.
+    A hold on the owning issue still leaves the open PR visible in the audit.
+    If the owning issue reads back closed, triage can adopt the PR and resume
+    its saved delivery under the PR's own entry.
+18. **Out-of-scope closure.** Triage asks to close a PR whose inventory row or
+    forge detail points outside the packet's repository. Expect zero comment
+    and close calls and a blocking record with the mismatch.

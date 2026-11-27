@@ -52,8 +52,10 @@ Keep open PRs in a second table:
 
 PR classes follow [the PR rules](pull-requests.md): `in-flight-elsewhere`,
 `adopted`, `retire`, `ask`. For in-flight-elsewhere rows record the owner link,
-the evidence it is live and the next trigger. For adopted rows record the watch
-receipt. For closed rows record the evidence comment and read-back state.
+the evidence it is live and the next trigger. For adopted rows record the
+workflow's current-head review receipt (and coordinator watch receipt only when
+a merge turn hands off `pending-review`). For closed rows record the evidence
+comment and read-back state.
 
 For dispatched work record the task/thread handle, bound worktree, base/head,
 model/effort and scoped owner. For a question record the actual submitted prompt
@@ -68,37 +70,25 @@ not-planned retirement; an unfixed retired defect stays described as unfixed.
 
 ## Delegate capacity
 
-1. Target the maximum host-supported concurrency up to 20 delegates across the
-   entire run. Verify the host's concurrent limit, its scope and existing occupied
-   slots. A batch-creation limit does not establish concurrent capacity. Honor
-   any smaller host ceiling, including limits shared with other sessions.
+1. Target the maximum host-supported concurrency up to 20 active delegates
+   across the entire run. Verify the host's concurrent limit and honor any
+   smaller ceiling, including limits shared with other sessions.
 2. When no ceiling is disclosed, work toward 20 incrementally. On a capacity
    rejection, record the observed current limit and queue the rejected task for
    retry when capacity becomes available. Do not repeat identical rejected calls
    or bypass the host. Capacity loss is not a code failure.
-3. Count every delegate the run starts against its cap and any host pool it shares,
-   including nested leads, workers, reviewers, investigations, issue-filing and
-   retrospective tasks. Allocate each
-   lead an explicit maximum number of child slots in its brief; a lead cannot
-   exceed that allocation. Charge reserved child slots before dispatch, not only
-   after a child appears. Require descendant task receipts and slot releases.
-   Allocate an eligible-reviewer slot per lead, or specify that a lead with no
-   child slots returns to the coordinator for review.
-4. Allocate slots between implementation, investigation and eligible review so
-   reviews can run. Reconcile active tasks and reclaim unused child reservations
-   only after the lead finishes or confirms it will start no further children.
-   Keep allocated plus
-   unallocated active slots within the effective cap; avoid counting a running
-   child twice inside its reservation.
-5. Refill on completion, answer and wake. If the ready queue empties, discover
-   more work. Use maximum capacity when useful independent authorized work is
-   available, without inventing work to fill slots. Reduce actual use only for
-   host limits, required review headroom, overlapping ownership/shared writers,
-   concrete resource contention or insufficient independent work.
-6. Before yielding, record active and reserved slots, unused-capacity reasons,
-   pending retries, discovery cursor and next action. Full capacity still permits
-   coordinator classification, investigation and owner questions. Follow mandatory
-   host yields and retain the same continuation and manifest.
+3. The workflow runs a flat shared delegate pool (`T3.within("delegates", { limit: capacity })`):
+   every active implementer, repair worker and reviewer draws one slot from the
+   same pool, and dispatched children start no nested subagents.
+4. Passive PR check/merge waits and owner asks hold no delegate slot. Reserve
+   active slots across implementation, repair and independent review so reviews
+   are never starved behind waits.
+5. Refill as active delegates finish. Because T3's forge listing caps at 100
+   issues and 100 PRs with no continuation cursor, multi-pass continuation
+   re-lists after closures, merges or owner answers to uncover newly visible
+   work without inventing tasks to fill slots.
+6. Before yielding, record active slots, unused-capacity reasons, pending
+   retries, coverage (`complete` vs `partial`) and next action.
 
 ## Round log
 
@@ -121,13 +111,16 @@ After each question round, record the decisions and their consequences:
    counts; mark stale rows. Classify new PRs and recheck in-flight-elsewhere
    owners under the PR rules.
 3. Re-check every owned PR's current head and base; discard stale-head results.
-4. Confirm one watch per owned PR; release watches for merged or closed PRs.
-   Hold no watch on in-flight-elsewhere PRs.
-5. On every completion, PR notification, answer or continuation wake, reconcile
-   active and reserved slots and refill capacity. Apply settled answers and dispatch ready
-   work before submitting blocking questions. If the ready queue is empty,
-   resume discovery from the cursor. At full delegate capacity, continue classification,
-   investigation and owner questions, queueing ready fixes. Record receipts,
+4. Keep workflow-owned PR waits inside the workflow without adding a duplicate
+   coordinator watch; confirm one coordinator watch only on PRs whose merge
+   turn handed off `pending-review`, and release watches for merged or closed
+   PRs. Hold no watch on in-flight-elsewhere PRs.
+5. At the start of each pass, after the previous pass's work returns, and in
+   the coordinator's handoff, reconcile active and reserved slots and refill
+   capacity. Apply settled answers and dispatch ready work before submitting
+   blocking questions. If the ready queue is empty, resume discovery from the
+   cursor. At full delegate capacity, continue classification, investigation
+   and owner questions, queueing ready fixes. Record receipts,
    unused-capacity reasons and questions unsent because dispatch required a yield.
    Keep the same issue owner and preserve the implementation model policy.
 6. Report any ledger row that has no owner and no next action.
@@ -142,20 +135,21 @@ After each question round, record the decisions and their consequences:
 Record the reason for each yield: host-required continuation, actual unanswered
 owner questions, or a terminal blocker. Registering a PR watch is not a
 host-required yield by itself: the watch call comes last, after the pass. Preserve cursor, queued issue IDs, active
-receipts and the first action on wake. Voluntary awaiting-owner requires no
-unexamined, ready, approved-but-undispatched, investigable, unasked or actionable
-owned work. An owned PR waiting only on a submitted question keeps its watch and
-ownership through the pause. Work with a verified live owner elsewhere needs its owner link, evidence
-and next trigger, not an assumed watch or hold.
+receipts and the first action on wake. Voluntary awaiting-owner requires no unexamined, ready, approved-but-undispatched,
+investigable, unasked or actionable owned work. An owned PR waiting only on a
+submitted question keeps its ownership (and any active `pending-review` watch)
+through the pause. Work with a verified live owner elsewhere needs its owner
+link, evidence and next trigger, not an assumed watch or hold.
 Every residual item must instead have an explicit hold, a verified live owner
 elsewhere or an actual unanswered question; silence and a status recommendation
 do not qualify.
 
-Zero requires fresh paginated issue and PR lists and verified delivery or
-justified, authorized retirement for every closure. A handback where every
-remaining item is held or in flight elsewhere stays "not zero". An owned PR,
-an acceptance-pending issue or an unavailable continuation remains unfinished
-and retains its owner and next trigger.
+Zero requires fresh issue and PR lists below T3's 100-item caps (complete
+coverage, zero item-read failures) and verified delivery or justified,
+authorized retirement for every closure. A handback where every remaining item
+is held, in flight elsewhere or awaiting a submitted question stays "not zero".
+An owned PR, an unsubmitted question, an acceptance-pending issue or partial
+coverage remains `not-finished` and retains its owner and next trigger.
 
 ## Handoff
 

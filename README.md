@@ -466,13 +466,16 @@ The packet names the T3 project, repository, base, mode, authority, capacity,
 limits, the ordered implement and review routes, the confirmed available routes
 and your thread's runtime mode. The workflow lists open issues and pull requests
 through T3's forge, dispatches one implementer per ready issue into its own
-worktree and a read-only reviewer at the committed head, asks the owner's
-questions through `T3.ask`, and sends the merge turn back to your thread. It
-closes an item only after your triage classifies it `close` and the packet
-carries that authority, reads every closure back, and reports zero only with
-complete coverage. The forge listing caps at 200 issues and 500 pull requests
-and hides its continuation cursor, so a list at either cap reports
-`not-finished` rather than a false zero.
+worktree and a read-only reviewer at the committed head, adopts unowned open
+PRs, runs automated CI and conflict repairs with fresh re-review, asks the
+owner's questions concurrently through `T3.ask`, and sends merge turns back to
+your thread. Active delegates share the 20-slot pool while passive PR waits hold
+no slot. It closes an item only after your triage classifies it `close` and the
+packet carries that authority, reads every closure back, continues across passes
+whenever closures, merges or answers uncover more work, and reports zero only
+with complete coverage. T3's forge listing caps at 100 issues and 100 pull
+requests per call and hides its continuation cursor, so a list at either cap
+reports `not-finished` rather than a false zero.
 
 `review-loop` and `hillclimb` need no workflow: they run their rounds in normal
 T3 threads, and their judges read the committed candidate through `git show`
@@ -529,8 +532,11 @@ permission workarounds. Each skill's own file holds the exact rules.
 
 `backlog-burn` runs as the `workflows/backlog-burn.ts` T3 workflow. Code owns
 the item ledger, the 20-slot pool, implement and review dispatch, forge reads
-and closures, PR waits, owner asks and the five end-of-pass checks. The main
-thread owns triage, protected-item decisions, merges and the report.
+and closures, PR waits, owner asks and the five end-of-pass checks. From the
+end of triage, all CI and merge waits in one pass share a 15-minute window.
+New waits defer while initial implementer receipts or owner answers are pending.
+Unsettled PRs can resume on the next pass. The main thread owns triage,
+protected-item decisions, merges and the report.
 
 It assesses closure before dispatch. It strongly prefers closing ordinary
 issues that are obsolete, already done or no longer worth pursuing, with a short
@@ -543,16 +549,18 @@ Inventory, triage-only and question-only requests propose actions without closur
 implementation or merge.
 
 Open PRs are part of the backlog, and issues and PRs always share one scope. The
-default is the current repository. The coordinator handles every PR without a
-verified live owner through babysitter's merge gate, including dependency bumps,
-and makes small repairs inside the PR. A bump that needs a real migration becomes
-an owner question. It closes superseded, duplicate or already-landed PRs with an
-evidence comment, and asks before closing drafts or PRs with unique changes. PRs
-that another live thread or person already owns are recorded with their owner and
-left alone. A fresh run re-lists the scope, so PRs opened mid-run are adopted;
-nothing stays covered after handback without a scheduled sweep. Naming an
-organisation launches one independent repository run per repository with open
-work, skips repositories that already have one, and hands back.
+default is the current repository. Unowned open PRs — including dependency bumps
+— are classified `adopt`: the workflow owns their check waits, repairs and
+current-head independent review without adding a second writer, then hands them
+to the coordinator for babysitter's merge gate. A bump that needs a real
+migration becomes an owner question. It closes superseded, duplicate or
+already-landed PRs with an evidence comment, and asks before closing drafts or
+PRs with unique changes. PRs that another live thread or person already owns are
+recorded with their owner and left alone. A fresh run re-lists the scope, so PRs
+opened mid-run are adopted; nothing stays covered after handback without a
+scheduled sweep. Naming an organisation launches one independent repository run
+per repository with open work, skips repositories that already have one, and
+hands back.
 
 The workflow triages every item with the main thread, then dispatches each
 worthwhile verified ready issue as an implementer in its own worktree and a
@@ -703,7 +711,7 @@ installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: ef0f00081f0513395ae7b2faeaecb4af8bb34202564b8d8a9bcabf3545a2c55d -->
+<!-- skills-review: 12c3fadba83197a3e90706e5bb30a0103c25927971eab17e00a8d9f2f33ef945 -->
 
 ### Owner maintenance
 
