@@ -7,42 +7,49 @@ Either way, give each new delegate a self-contained brief.
 
 ## Choose the provider by score, then the model by role
 
-1. Call LiteLLM's read-only `limits-limits_snapshot` MCP tool with
-   `detail: "brief"` before selecting a T3 delegate route. Use its exposed schema
-   and host-managed connection and authentication. Connection settings belong to
-   dotfiles; keep credentials and personal endpoints out of briefs and library
-   source.
+1. Before launching a T3 thread or delegate, look for the read-only
+   `limits_snapshot` MCP tool, which the gateway may prefix as
+   `limits-limits_snapshot`. Call it with `detail: "brief"` through the host's
+   configured connection. Record a missing tool, rejected snapshot credential
+   or failed observation as a distinct reason for unknown capacity. Connection
+   settings belong to the host owner. Keep credentials and personal endpoints
+   out of briefs and library source.
 2. Apply the hard gates first: lineage independence from every material author,
    explicit model choices, permission and runtime mode, tool support, and the
    models the provider actually offers. Lineage follows the model family, not the
    provider alias: Opus and Sonnet stay Anthropic when routed through AGY.
-3. Among the routes that survive, take the provider with the highest
-   `providers[].paceScore`. Higher means spend that subscription sooner:
-   −100 exhausted, 0 even pace, +100 unused quota about to expire. `null` is
-   unknown and is not a score, so an unscored provider cannot win. When no
-   candidate has a score, keep the caller's static order and record capacity as
-   unknown.
-4. Then match the model to the role's difficulty, never the reverse. Bounded
+3. Exclude routes with a confirmed spend cap, rejected upstream credential or
+   exhausted quota. Scope the refusal to the affected route or pool. Reopen it
+   only when a fresh observation confirms capacity or access. For a pinned
+   route, preserve the checkpoint and report the blocker and next check time
+   if known.
+4. Rank the remaining routes by `providers[].paceScore`. Higher means spend
+   that subscription sooner: −100 exhausted, 0 even pace, +100 unused quota
+   about to expire. A score of −100 covers only the scored accounts. The snapshot
+   leaves model-to-pool eligibility unknown. Rank only scored providers when
+   any have scores. Use the caller's static order when every remaining score
+   is `null`, and record capacity as unknown.
+5. Then match the model to the role's difficulty, never the reverse. Bounded
    mechanical work with deterministic checks takes the provider's smaller model.
    Ambiguous behaviour, shared interfaces, security and state/concurrency work
    take the stronger one. Never choose a model the provider does not offer.
-5. Use high effort. Set it through the host's effort or thought-level control
+6. Use high effort. Set it through the host's effort or thought-level control
    wherever one exists. Where a route exposes none, as Gemini can, select the
    model variant whose name carries the high reasoning setting. With neither
    control nor variant, keep the provider default and record effort as not
    applicable. A smaller model never means lower effort. High stays the
    default: go to xhigh only on the operator's explicit approval, as in
    Hillclimb's panel-entry upgrade, and never to max.
-6. Read `paceBasis` with the number. `upper-bound` comes from a stale reading or a
+7. Read `paceBasis` with the number. `upper-bound` comes from a stale reading or a
    missing shorter window, so the true score can only be lower. `headroomNow` is
    the best usable account's smallest remaining fraction and answers whether a
    long task fits now, which the score does not. `availableAt` gives an exhausted
    provider's return, and a predicted reset alone does not establish capacity.
-7. Quota evidence never authorises paid overage, a mid-task provider switch, a
+8. Quota evidence never authorises paid overage, a mid-task provider switch, a
    model outside the provider's catalogue, or a threshold you invented. Unknown,
    stale, unsupported and source-failure states all mean unknown capacity; none
    proves exhaustion or healthy headroom.
-8. Reuse one snapshot for a dispatch batch, and refresh before later batches,
+9. Reuse one snapshot for a dispatch batch, and refresh before later batches,
    retries or replacements. Account for running children; a snapshot is not a
    reservation. Record the observation time, the chosen provider's score and
    basis, and the reason, not the raw account inventory.

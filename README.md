@@ -79,11 +79,11 @@ one app. They use what T3 provides:
   main conversation stays free for decisions and reviews.
 - **Background tasks.** `raise-issue` files issues in a background T3 task while
   delivery carries on.
-- **Subscription checks.** Before routing delegates, the shared
-  [dispatch preflight](skills/agent-tuneup/references/t3-dispatch.md) consults
-  LiteLLM's limits snapshot when available. It ranks eligible providers by quota
-  pace score (`paceScore`), checks current headroom (`headroomNow`) for long
-  tasks, and records unknown capacity instead of inventing thresholds.
+- **Subscription checks.** Before starting T3 threads or delegates, the
+  coordinator follows the [dispatch preflight](skills/agent-tuneup/references/t3-dispatch.md).
+  It checks LiteLLM's snapshot when available, excludes routes with confirmed
+  refusals, ranks eligible providers by quota pace score (`paceScore`) and
+  checks current headroom (`headroomNow`) for long tasks.
 - **PR watching without polling.** `babysitter` uses T3's pull request watch, which
   wakes the agent when checks or reviews change.
 - **Progress and previews you can see.** `ship`, `implement` and `review-loop` show
@@ -711,7 +711,7 @@ installed skill discovery and deployment success each need their own evidence.
 
 People changing the library should also read [AGENTS.md](AGENTS.md).
 
-<!-- skills-review: 12c3fadba83197a3e90706e5bb30a0103c25927971eab17e00a8d9f2f33ef945 -->
+<!-- skills-review: 3af410d7e94104c9cafc339c7bb4f7967111eb2407925fbb69d28cc890c0611b -->
 
 ### Owner maintenance
 
